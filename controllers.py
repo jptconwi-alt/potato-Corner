@@ -1,0 +1,302 @@
+import random
+import string
+from datetime import datetime
+from models import db, User, Product, Order, OrderItem, CartItem
+from flask_login import login_user, logout_user, current_user
+
+class AuthController:
+    """Handles authentication operations"""
+    
+    @staticmethod
+    def register_user(username, email, password, full_name, phone='', address=''):
+        """Register a new user"""
+        # Check if user exists
+        if User.query.filter_by(username=username).first():
+            return False, 'Username already exists'
+        
+        if User.query.filter_by(email=email).first():
+            return False, 'Email already registered'
+        
+        # Create new user
+        user = User(
+            username=username,
+            email=email,
+            full_name=full_name,
+            phone=phone,
+            address=address,
+            profile_complete=True
+        )
+        user.set_password(password)
+        
+        # First user becomes admin (optional)
+        if User.query.count() == 0:
+            user.is_admin = True
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        return True, user
+    
+    @staticmethod
+    def login_user(username_or_email, password, remember=False):
+        """Login user"""
+        user = User.query.filter(
+            (User.username == username_or_email) | 
+            (User.email == username_or_email)
+        ).first()
+        
+        if user and user.check_password(password):
+            login_user(user, remember=remember)
+            return True, user
+        
+        return False, 'Invalid username/email or password'
+    
+    @staticmethod
+    def logout_user():
+        """Logout user"""
+        logout_user()
+    
+    @staticmethod
+    def get_user_profile(user_id):
+        """Get user profile with orders"""
+        user = User.query.get(user_id)
+        if user:
+            orders = Order.query.filter_by(user_id=user_id).order_by(Order.order_date.desc()).all()
+            return user, orders
+        return None, None
+    
+    @staticmethod
+    def update_profile(user_id, data):
+        """Update user profile"""
+        user = User.query.get(user_id)
+        if user:
+            user.full_name = data.get('full_name', user.full_name)
+            user.phone = data.get('phone', user.phone)
+            user.address = data.get('address', user.address)
+            
+            if 'email' in data and data['email'] != user.email:
+                if User.query.filter_by(email=data['email']).first():
+                    return False, 'Email already in use'
+                user.email = data['email']
+            
+            db.session.commit()
+            return True, user
+        return False, 'User not found'
+    
+    @staticmethod
+    def change_password(user_id, old_password, new_password):
+        """Change user password"""
+        user = User.query.get(user_id)
+        if user and user.check_password(old_password):
+            user.set_password(new_password)
+            db.session.commit()
+            return True, 'Password changed successfully'
+        return False, 'Current password is incorrect'
+
+class ProductController:
+    """Handles product-related operations"""
+    
+    @staticmethod
+    def get_all_products():
+        """Get all available products"""
+        return Product.query.filter_by(is_available=True).all()
+    
+    @staticmethod
+    def get_product_by_id(product_id):
+        """Get single product by ID"""
+        return Product.query.get(product_id)
+    
+    @staticmethod
+    def get_products_by_flavor(flavor):
+        """Get products by flavor"""
+        return Product.query.filter_by(flavor=flavor, is_available=True).all()
+    
+    @staticmethod
+    def get_flavors():
+        """Get all unique flavors"""
+        flavors = db.session.query(Product.flavor).distinct().all()
+        return [flavor[0] for flavor in flavors]
+
+class CartController:
+    """Handles shopping cart operations"""
+    
+    @staticmethod
+    def get_cart_items(session_id, user_id=None):
+        """Get all items in cart"""
+        if user_id:
+            return CartItem.query.filter_by(user_id=user_id).all()
+        return CartItem.query.filter_by(session_id=session_id).all()
+    
+    @staticmethod
+    def add_to_cart(session_id, product_id, user_id=None, quantity=1):
+        """Add item to cart"""
+        # Check if item already in cart
+        query = CartItem.query.filter_by(product_id=product_id)
+        
+        if user_id:
+            cart_item = query.filter_by(user_id=user_id).first()
+        else:
+            cart_item = query.filter_by(session_id=session_id).first()
+        
+        if cart_item:
+            cart_item.quantity += quantity
+        else:
+            cart_item = CartItem(
+                session_id=session_id,
+                user_id=user_id,
+                product_id=product_id,
+                quantity=quantity
+            )
+            db.session.add(cart_item)
+        
+        db.session.commit()
+        return cart_item
+    
+    @staticmethod
+    def update_quantity(session_id, item_id, quantity, user_id=None):
+        """Update item quantity"""
+        query = CartItem.query.filter_by(id=item_id)
+        
+        if user_id:
+            cart_item = query.filter_by(user_id=user_id).first()
+        else:
+            cart_item = query.filter_by(session_id=session_id).first()
+        
+        if cart_item:
+            if quantity <= 0:
+                db.session.delete(cart_item)
+            else:
+                cart_item.quantity = quantity
+            db.session.commit()
+            return True
+        return False
+    
+    @staticmethod
+    def remove_from_cart(session_id, item_id, user_id=None):
+        """Remove item from cart"""
+        query = CartItem.query.filter_by(id=item_id)
+        
+        if user_id:
+            cart_item = query.filter_by(user_id=user_id).first()
+        else:
+            cart_item = query.filter_by(session_id=session_id).first()
+        
+        if cart_item:
+            db.session.delete(cart_item)
+            db.session.commit()
+            return True
+        return False
+    
+    @staticmethod
+    def clear_cart(session_id, user_id=None):
+        """Clear all items from cart"""
+        if user_id:
+            CartItem.query.filter_by(user_id=user_id).delete()
+        else:
+            CartItem.query.filter_by(session_id=session_id).delete()
+        db.session.commit()
+    
+    @staticmethod
+    def get_cart_total(session_id, user_id=None):
+        """Calculate cart total"""
+        cart_items = CartController.get_cart_items(session_id, user_id)
+        total = 0
+        for item in cart_items:
+            total += item.product.price * item.quantity
+        return total
+    
+    @staticmethod
+    def merge_carts(session_id, user_id):
+        """Merge session cart with user cart on login"""
+        session_items = CartItem.query.filter_by(session_id=session_id).all()
+        user_items = CartItem.query.filter_by(user_id=user_id).all()
+        
+        # Create dict of user items for quick lookup
+        user_items_dict = {item.product_id: item for item in user_items}
+        
+        for session_item in session_items:
+            if session_item.product_id in user_items_dict:
+                # Update quantity of existing user item
+                user_items_dict[session_item.product_id].quantity += session_item.quantity
+                db.session.delete(session_item)
+            else:
+                # Assign session item to user
+                session_item.user_id = user_id
+                session_item.session_id = None
+        
+        db.session.commit()
+
+class OrderController:
+    """Handles order operations"""
+    
+    @staticmethod
+    def generate_order_number():
+        """Generate unique order number"""
+        while True:
+            date_part = datetime.now().strftime('%Y%m%d')
+            random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+            order_number = f"PC-{date_part}-{random_part}"
+            
+            if not Order.query.filter_by(order_number=order_number).first():
+                return order_number
+    
+    @staticmethod
+    def create_order(session_id, customer_data, cart_items, user_id=None):
+        """Create new order from cart"""
+        order_number = OrderController.generate_order_number()
+        total = sum(item.product.price * item.quantity for item in cart_items)
+        
+        order = Order(
+            order_number=order_number,
+            user_id=user_id,
+            customer_name=customer_data['name'],
+            customer_email=customer_data['email'],
+            customer_phone=customer_data['phone'],
+            delivery_address=customer_data['address'],
+            total_amount=total,
+            payment_method=customer_data['payment_method'],
+            status='Pending',
+            payment_status='Unpaid'
+        )
+        
+        db.session.add(order)
+        db.session.flush()
+        
+        for cart_item in cart_items:
+            order_item = OrderItem(
+                order_id=order.id,
+                product_id=cart_item.product_id,
+                product_name=cart_item.product.name,
+                quantity=cart_item.quantity,
+                price=cart_item.product.price,
+                subtotal=cart_item.product.price * cart_item.quantity
+            )
+            db.session.add(order_item)
+        
+        db.session.commit()
+        return order
+    
+    @staticmethod
+    def get_order(order_number):
+        """Get order by order number"""
+        return Order.query.filter_by(order_number=order_number).first()
+    
+    @staticmethod
+    def get_user_orders(user_id):
+        """Get all orders for a user"""
+        return Order.query.filter_by(user_id=user_id).order_by(Order.order_date.desc()).all()
+    
+    @staticmethod
+    def get_all_orders():
+        """Get all orders (for admin)"""
+        return Order.query.order_by(Order.order_date.desc()).all()
+    
+    @staticmethod
+    def update_order_status(order_id, status):
+        """Update order status"""
+        order = Order.query.get(order_id)
+        if order:
+            order.status = status
+            db.session.commit()
+            return True
+        return False

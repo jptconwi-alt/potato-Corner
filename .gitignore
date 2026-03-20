@@ -1,0 +1,12 @@
+cd C:\Users\TOSHIBA\Downloads\potato-corner-final\pc3
+
+# Create .gitignore
+(
+echo instance/
+echo *.db
+echo .env
+echo __pycache__/
+echo *.pyc
+echo .venv/
+echo *.sqlite3
+) > .gitignore
