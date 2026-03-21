@@ -128,8 +128,10 @@ def create_app():
     return app
 
 
+# Create the global app instance for Gunicorn
+app = create_app()
+
 if __name__ == '__main__':
     print("🚀 Starting Potato Corner Ordering System...")
-    app = create_app()
     print("✨ App ready at http://127.0.0.1:5000")
     app.run(debug=True)
