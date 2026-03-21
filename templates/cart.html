@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Cart{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="section-title"><i class="fas fa-shopping-cart text-success"></i>Your Cart</div>
+
+  {% if cart_items %}
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body p-3 p-md-4">
+          {% for item in cart_items %}
+          <div class="cart-item-row" data-item-id="{{ item.id }}">
+            <img src="{{ FOOD_IMAGES.get(item.product.flavor, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=200&q=80') }}"
+                 class="cart-item-img" alt="{{ item.product.name }}">
+            <div class="flex-grow-1">
+              <div class="fw-700" style="font-weight:700">{{ item.product.name }}</div>
+              <div class="text-muted small">{{ item.product.flavor }} • {{ item.product.size }}</div>
+              <div class="fw-bold text-success mt-1">₱{{ "%.2f"|format(item.product.price) }} each</div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+              <div class="qty-control">
+                <button class="qty-btn qty-minus">−</button>
+                <input type="number" class="qty-input quantity-input" value="{{ item.quantity }}" min="1" max="20">
+                <button class="qty-btn qty-plus">+</button>
+              </div>
+              <div class="fw-bold text-success" style="min-width:72px;text-align:right">₱{{ "%.2f"|format(item.product.price * item.quantity) }}</div>
+              <button class="btn btn-outline-danger btn-sm remove-item" style="width:34px;height:34px;padding:0;flex-shrink:0">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="mt-3">
+        <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+          <i class="fas fa-arrow-left me-2"></i>Continue Shopping
+        </a>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card sticky-top" style="top:80px">
+        <div class="card-header"><h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Order Summary</h5></div>
+        <div class="card-body">
+          <div class="summary-box mb-3">
+            <div class="summary-row">
+              <span>Subtotal ({{ cart_items|length }} item{{ 's' if cart_items|length != 1 }}):</span>
+              <span>₱{{ "%.2f"|format(total) }}</span>
+            </div>
+            <div class="summary-row">
+              <span><i class="fas fa-motorcycle me-1 text-success"></i>Delivery Fee:</span>
+              <span>₱50.00</span>
+            </div>
+            <div class="summary-row total">
+              <span>Total:</span>
+              <span id="cart-total">₱{{ "%.2f"|format(total + 50) }}</span>
+            </div>
+          </div>
+          <a href="{{ url_for('checkout') }}" class="btn btn-primary w-100 py-2 mb-2">
+            <i class="fas fa-credit-card me-2"></i>Proceed to Checkout
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="text-center py-5">
+    <div style="font-size:5rem;margin-bottom:1rem">🍟</div>
+    <h4 class="fw-bold text-muted">Your cart is empty</h4>
+    <p class="text-muted">Looks like you haven't added any fries yet!</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary px-4 py-2">
+      <i class="fas fa-utensils me-2"></i>Browse Menu
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function(){
+  $('.qty-plus').click(function(){
+    const row = $(this).closest('.cart-item-row');
+    const inp = row.find('.quantity-input');
+    const v = parseInt(inp.val());
+    if (v < 20) updateQty(row, v+1);
+  });
+  $('.qty-minus').click(function(){
+    const row = $(this).closest('.cart-item-row');
+    const inp = row.find('.quantity-input');
+    const v = parseInt(inp.val());
+    if (v > 1) updateQty(row, v-1);
+  });
+  $('.quantity-input').on('change', function(){
+    const row = $(this).closest('.cart-item-row');
+    let v = parseInt($(this).val());
+    if (isNaN(v) || v < 1) v = 1;
+    if (v > 20) v = 20;
+    updateQty(row, v);
+  });
+
+  function updateQty(row, qty) {
+    const itemId = row.data('item-id');
+    row.find('.quantity-input').val(qty);
+    $.ajax({
+      url:'/update-cart', method:'POST', contentType:'application/json',
+      data: JSON.stringify({ item_id: itemId, quantity: qty }),
+      success: function(res){ if (res.success) location.reload(); }
+    });
+  }
+
+  $('.remove-item').click(function(){
+    const row = $(this).closest('.cart-item-row');
+    const itemId = row.data('item-id');
+    if (!confirm('Remove this item?')) return;
+    $.ajax({
+      url:`/remove-from-cart/${itemId}`, method:'DELETE',
+      success: function(res){ if (res.success) location.reload(); }
+    });
+  });
+});
+</script>
+{% endblock %}

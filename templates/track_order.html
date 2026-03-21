@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Track Order{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="section-title"><i class="fas fa-map-marker-alt text-success"></i>Track Your Order</div>
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+      <div class="card mb-4">
+        <div class="card-body p-4">
+          <form method="GET" action="{{ url_for('track_order') }}" class="d-flex gap-2">
+            <input type="text" class="form-control" name="order_number"
+                   value="{{ request.args.get('order_number', '') }}"
+                   placeholder="Enter order number e.g. PC-20231215-ABCDE" required>
+            <button type="submit" class="btn btn-primary px-4" style="white-space:nowrap">
+              <i class="fas fa-search me-2"></i>Track
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {% if order %}
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <h5 class="mb-0">Order #{{ order.order_number }}</h5>
+          <span class="status-badge status-{{ order.status.lower() }}">
+            <i class="fas fa-circle" style="font-size:.5rem"></i> {{ order.status }}
+          </span>
+        </div>
+        <div class="card-body p-4">
+          {% set steps = [('Pending','clock','Order Placed'),('Confirmed','check','Confirmed'),('Preparing','fire','Preparing'),('Ready','box','Ready'),('Delivered','truck','Delivered')] %}
+          {% set statuses = ['Pending','Confirmed','Preparing','Ready','Delivered'] %}
+          {% set cur = statuses.index(order.status) if order.status in statuses else 0 %}
+          <div class="tracker-wrap mb-4">
+            {% for s, icon, label in steps %}
+            {% set idx = loop.index0 %}
+            <div class="tracker-step {% if idx < cur %}done{% elif idx == cur %}active{% endif %}">
+              <div class="tracker-dot"><i class="fas fa-{{ icon }}"></i></div>
+              <div class="tracker-label">{{ label }}</div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="row g-3">
+            <div class="col-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Customer</div><div class="fw-bold">{{ order.customer_name }}</div></div></div>
+            <div class="col-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Order Date</div><div class="fw-bold small">{{ order.order_date.strftime('%b %d, %Y %I:%M %p') }}</div></div></div>
+            <div class="col-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Total Amount</div><div class="fw-bold text-success">₱{{ "%.2f"|format(order.total_amount) }}</div></div></div>
+            <div class="col-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Payment</div><div class="fw-bold">{{ order.payment_method }}</div></div></div>
+          </div>
+
+          <div class="mt-4 d-flex flex-wrap gap-2">
+            <a href="{{ url_for('order_confirmation', order_number=order.order_number) }}" class="btn btn-outline-primary">
+              <i class="fas fa-receipt me-2"></i>Full Details
+            </a>
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+              <i class="fas fa-utensils me-2"></i>Order Again
+            </a>
+          </div>
+        </div>
+      </div>
+      {% elif request.args.get('order_number') %}
+      <div class="card">
+        <div class="card-body text-center p-5">
+          <div style="font-size:3rem;margin-bottom:1rem">🔍</div>
+          <h5 class="fw-bold">Order Not Found</h5>
+          <p class="text-muted">We couldn't find order <strong>{{ request.args.get('order_number') }}</strong>. Please check the order number.</p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

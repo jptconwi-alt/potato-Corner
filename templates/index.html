@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Menu{% endblock %}
+
+{% block content %}
+<div class="container">
+
+  <!-- Profile incomplete banner -->
+  {% if needs_profile %}
+  <div class="profile-complete-banner">
+    <span class="icon">⚠️</span>
+    <div class="flex-grow-1">
+      <div class="fw-bold">Your delivery address is incomplete!</div>
+      <div class="small text-muted">Please complete your profile so we can deliver your fries to you.</div>
+    </div>
+    <a href="{{ url_for('complete_profile') }}" class="btn btn-warning btn-sm px-3 fw-bold flex-shrink-0">
+      Complete Now
+    </a>
+  </div>
+  {% endif %}
+
+  <!-- Hero -->
+  <div class="hero-section">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        <div class="hero-fries-emoji mb-2">🍟</div>
+        <h1>Welcome to Potato Corner!</h1>
+        <p>The flavor is the memory! Pick your favorite flavored fries.</p>
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <a href="{{ url_for('view_cart') }}" class="btn btn-outline-light px-4 py-2">
+          <i class="fas fa-shopping-cart me-2"></i>View Cart
+          <span class="badge ms-1" style="background:var(--gold);color:#333" id="hero-cart-count">0</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
+    <div class="section-title mb-0"><i class="fas fa-utensils text-success"></i> Our Menu</div>
+    <div class="text-muted small" id="product-count"></div>
+  </div>
+  <div class="filter-bar mb-4">
+    <button class="filter-btn active" data-flavor="all">🍟 All</button>
+    {% for flavor in flavors %}
+    <button class="filter-btn" data-flavor="{{ flavor }}">{{ flavor }}</button>
+    {% endfor %}
+  </div>
+
+  <!-- Product Grid -->
+  <div class="row g-3" id="products-container">
+    {% for product in products %}
+    <div class="col-6 col-md-4 col-lg-3 product-card-wrap" data-flavor="{{ product.flavor }}">
+      <div class="card h-100">
+        <div class="product-img-wrap">
+          <img src="{{ FOOD_IMAGES.get(product.flavor, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&q=80') }}"
+               alt="{{ product.name }}" loading="lazy">
+          <span class="flavor-badge">{{ product.flavor }}</span>
+          <span class="size-badge">{{ product.size }}</span>
+        </div>
+        <div class="card-body p-3 d-flex flex-column">
+          <h6 class="mb-1" style="font-weight:800;font-size:.9rem;line-height:1.3">{{ product.name }}</h6>
+          <p class="text-muted mb-2" style="font-size:.78rem;line-height:1.4">{{ product.description[:65] }}...</p>
+          <div class="mt-auto d-flex justify-content-between align-items-center">
+            <span class="price-tag">₱{{ "%.0f"|format(product.price) }}</span>
+            <button class="btn btn-primary btn-sm add-to-cart" data-product-id="{{ product.id }}"
+                    style="padding:7px 14px;font-size:.82rem;border-radius:8px">
+              <i class="fas fa-cart-plus"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="text-center py-5 d-none" id="no-results">
+    <div style="font-size:3.5rem">🔍</div>
+    <p class="text-muted mt-2">No products found for this flavor.</p>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
+  <div id="cartToast" class="toast align-items-center text-white bg-success border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body fw-bold"><i class="fas fa-check-circle me-2"></i><span id="toastMsg">Added to cart!</span></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function(){
+  // Update hero cart count
+  $.get('/api/cart-count', function(d){ $('#hero-cart-count').text(d.count||0); });
+
+  // Show product count
+  function updateCount(){
+    const n = $('.product-card-wrap:visible').length;
+    $('#product-count').text(n + ' item' + (n !== 1 ? 's' : '') + ' shown');
+    $('#no-results').toggleClass('d-none', n > 0);
+  }
+  updateCount();
+
+  // Flavor filter
+  $('.filter-btn').click(function(){
+    $('.filter-btn').removeClass('active');
+    $(this).addClass('active');
+    const f = $(this).data('flavor');
+    if (f === 'all') $('.product-card-wrap').show();
+    else { $('.product-card-wrap').hide(); $(`.product-card-wrap[data-flavor="${f}"]`).show(); }
+    updateCount();
+  });
+
+  // Add to cart
+  $(document).on('click','.add-to-cart', function(){
+    const btn = $(this);
+    const productId = btn.data('product-id');
+    btn.prop('disabled',true).html('<i class="fas fa-spinner fa-spin"></i>');
+    $.ajax({
+      url:'/add-to-cart', method:'POST', contentType:'application/json',
+      data: JSON.stringify({product_id: productId, quantity: 1}),
+      success: function(res){
+        if(res.success){
+          $('.cart-count').text(res.cart_count);
+          $('#hero-cart-count').text(res.cart_count);
+          $('#toastMsg').text(res.message || 'Added to cart!');
+          new bootstrap.Toast(document.getElementById('cartToast'),{delay:2200}).show();
+        }
+      },
+      complete: function(){ btn.prop('disabled',false).html('<i class="fas fa-cart-plus"></i>'); }
+    });
+  });
+});
+</script>
+{% endblock %}

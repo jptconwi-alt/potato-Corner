@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-4">
+  <div class="section-title"><i class="fas fa-cog text-success"></i>Admin Dashboard</div>
+
+  <!-- Stats row -->
+  <div class="row g-3 mb-4">
+    {% set pending = orders|selectattr('status','equalto','Pending')|list|length %}
+    {% set preparing = orders|selectattr('status','equalto','Preparing')|list|length %}
+    {% set delivered = orders|selectattr('status','equalto','Delivered')|list|length %}
+    {% set revenue = orders|sum(attribute='total_amount') %}
+    {% for label, value, icon, color in [
+      ('Total Orders', orders|length, 'receipt', '#2e7d32'),
+      ('Pending', pending, 'clock', '#e65100'),
+      ('Preparing', preparing, 'fire', '#1565c0'),
+      ('Revenue', '₱' ~ "%.0f"|format(revenue), 'peso-sign', '#6a1b9a')
+    ] %}
+    <div class="col-6 col-md-3">
+      <div class="card">
+        <div class="card-body p-3 d-flex align-items-center gap-3">
+          <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+               style="width:48px;height:48px;background:{{ color }}1a">
+            <i class="fas fa-{{ icon }}" style="color:{{ color }};font-size:1.2rem"></i>
+          </div>
+          <div>
+            <div class="fw-bold fs-5">{{ value }}</div>
+            <div class="small text-muted">{{ label }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Filters -->
+  <div class="card mb-3">
+    <div class="card-body py-2 px-3">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <span class="fw-bold small text-muted me-1">Filter:</span>
+        <button class="filter-btn active" data-filter="all">All</button>
+        {% for s in ['Pending','Confirmed','Preparing','Ready','Delivered','Cancelled'] %}
+        <button class="filter-btn" data-filter="{{ s }}">{{ s }}</button>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders table -->
+  <div class="card">
+    <div class="card-body p-0">
+      <!-- Mobile cards -->
+      <div class="d-md-none p-3">
+        {% for order in orders %}
+        <div class="card mb-3 order-row" data-status="{{ order.status }}">
+          <div class="card-body p-3">
+            <div class="d-flex justify-content-between mb-2">
+              <strong class="text-success">{{ order.order_number }}</strong>
+              <span class="status-badge status-{{ order.status.lower() }}">{{ order.status }}</span>
+            </div>
+            <div class="small text-muted mb-1">{{ order.customer_name }} • {{ order.order_date.strftime('%b %d %H:%M') }}</div>
+            <div class="fw-bold text-success mb-2">₱{{ "%.2f"|format(order.total_amount) }}</div>
+            <div class="d-flex gap-2">
+              <select class="form-select form-select-sm status-select flex-grow-1" data-order-id="{{ order.id }}">
+                {% for s in ['Pending','Confirmed','Preparing','Ready','Delivered','Cancelled'] %}
+                <option value="{{ s }}" {% if order.status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#om{{ order.id }}">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Desktop table -->
+      <div class="d-none d-md-block table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr><th>Order #</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Payment</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            {% for order in orders %}
+            <tr class="order-row" data-status="{{ order.status }}">
+              <td><strong class="text-success">{{ order.order_number }}</strong></td>
+              <td>
+                <div>{{ order.customer_name }}</div>
+                <div class="small text-muted">{{ order.customer_phone }}</div>
+              </td>
+              <td class="small">{{ order.order_date.strftime('%b %d, %Y %H:%M') }}</td>
+              <td class="small">
+                {% for item in order.items[:2] %}<div>{{ item.quantity }}x {{ item.product_name }}</div>{% endfor %}
+                {% if order.items|length > 2 %}<span class="text-muted">+{{ order.items|length - 2 }} more</span>{% endif %}
+              </td>
+              <td class="fw-bold text-success">₱{{ "%.2f"|format(order.total_amount) }}</td>
+              <td>
+                <span class="badge {% if order.payment_status == 'Paid' %}bg-success{% else %}bg-warning text-dark{% endif %}">{{ order.payment_status }}</span>
+                <div class="small text-muted">{{ order.payment_method }}</div>
+              </td>
+              <td>
+                <select class="form-select form-select-sm status-select" data-order-id="{{ order.id }}" style="min-width:120px">
+                  {% for s in ['Pending','Confirmed','Preparing','Ready','Delivered','Cancelled'] %}
+                  <option value="{{ s }}" {% if order.status == s %}selected{% endif %}>{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#om{{ order.id }}">
+                  <i class="fas fa-eye"></i>
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order detail modals -->
+{% for order in orders %}
+<div class="modal fade" id="om{{ order.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:linear-gradient(135deg,#2e7d32,#1a5c2e);color:#fff">
+        <h5 class="modal-title"><i class="fas fa-receipt me-2"></i>Order #{{ order.order_number }}</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Customer</div><div class="fw-bold">{{ order.customer_name }}</div></div></div>
+          <div class="col-sm-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Email</div><div class="fw-bold">{{ order.customer_email }}</div></div></div>
+          <div class="col-sm-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Phone</div><div class="fw-bold">{{ order.customer_phone }}</div></div></div>
+          <div class="col-sm-6"><div class="p-3 bg-light rounded"><div class="small text-muted">Order Date</div><div class="fw-bold small">{{ order.order_date.strftime('%b %d, %Y %I:%M %p') }}</div></div></div>
+          <div class="col-12"><div class="p-3 bg-light rounded"><div class="small text-muted">Delivery Address</div><div class="fw-bold">{{ order.delivery_address }}</div></div></div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead><tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Price</th><th class="text-end">Subtotal</th></tr></thead>
+            <tbody>
+              {% for item in order.items %}
+              <tr><td>{{ item.product_name }}</td><td class="text-center">{{ item.quantity }}</td>
+                  <td class="text-end">₱{{ "%.2f"|format(item.price) }}</td>
+                  <td class="text-end">₱{{ "%.2f"|format(item.subtotal) }}</td></tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr><td colspan="3" class="text-end fw-bold text-success">Total:</td>
+                  <td class="text-end fw-bold text-success">₱{{ "%.2f"|format(order.total_amount) }}</td></tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(function(){
+  // Status update
+  $('.status-select').change(function(){
+    const orderId = $(this).data('order-id');
+    const status = $(this).val();
+    const row = $(this).closest('.order-row');
+    $.ajax({
+      url: `/admin/update-order/${orderId}`, method: 'POST',
+      contentType: 'application/json',
+      data: JSON.stringify({ status: status }),
+      success: function(res){
+        if (res.success) {
+          row.attr('data-status', status);
+          // Update mobile status badge if present
+          row.find('.status-badge').attr('class', `status-badge status-${status.toLowerCase()}`).text(status);
+          // Flash visual feedback
+          row.css('background', '#e8f5e9');
+          setTimeout(() => row.css('background', ''), 1200);
+        }
+      }
+    });
+  });
+
+  // Filter
+  $('.filter-btn').click(function(){
+    $('.filter-btn').removeClass('active');
+    $(this).addClass('active');
+    const f = $(this).data('filter');
+    if (f === 'all') {
+      $('.order-row').show();
+    } else {
+      $('.order-row').hide();
+      $(`.order-row[data-status="${f}"]`).show();
+    }
+  });
+});
+</script>
+{% endblock %}
