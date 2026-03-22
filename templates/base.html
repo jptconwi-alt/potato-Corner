@@ -1,121 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Potato Corner PH — {% block title %}{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    {% block extra_head %}{% endblock %}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Potato Corner{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  {% block extra_css %}{% endblock %}
 </head>
 <body>
 
-{% if current_user.is_authenticated %}
+<!-- Animated background particles -->
+<div class="bg-particles" aria-hidden="true">
+  {% for i in range(12) %}
+  <div class="particle particle-{{ i % 4 }}"></div>
+  {% endfor %}
+</div>
+
+<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg">
   <div class="container">
     <a class="navbar-brand" href="{{ url_for('index') }}">
-      <img src="{{ url_for('static', filename='images/potato-corner.png') }}" alt="Logo" height="38">
-      <span class="brand-text">Potato Corner PH</span>
+      <div class="brand-icon">🍟</div>
+      <div class="brand-text">
+        <span class="brand-main">Potato</span>
+        <span class="brand-sub">Corner</span>
+      </div>
     </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
       <span class="navbar-toggler-icon"></span>
     </button>
-    <div class="collapse navbar-collapse" id="navMain">
+    <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}"><i class="fas fa-utensils me-1"></i>Menu</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('my_orders') }}"><i class="fas fa-receipt me-1"></i>My Orders</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('track_order') }}"><i class="fas fa-map-marker-alt me-1"></i>Track</a></li>
         <li class="nav-item">
-          <a class="nav-link position-relative" href="{{ url_for('view_cart') }}">
+          <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+            <i class="fas fa-home me-1"></i>Menu
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'cart' %}active{% endif %}" href="{{ url_for('cart') }}">
             <i class="fas fa-shopping-cart me-1"></i>Cart
-            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill cart-count">0</span>
+            <span class="cart-badge" id="cartCount">0</span>
           </a>
         </li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-            <i class="fas fa-user-circle me-1"></i>{{ current_user.full_name.split()[0] }}
-          </a>
-          <ul class="dropdown-menu dropdown-menu-end">
-            <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-id-card me-2 text-success"></i>Profile</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('my_orders') }}"><i class="fas fa-history me-2 text-success"></i>Order History</a></li>
-            {% if current_user.is_admin %}
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{{ url_for('admin_dashboard') }}"><i class="fas fa-cog me-2 text-warning"></i>Admin Panel</a></li>
-            {% endif %}
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
-          </ul>
-        </li>
+        {% if current_user.is_authenticated %}
+          {% if current_user.is_admin %}
+          <li class="nav-item">
+            <a class="nav-link admin-link {% if request.endpoint and 'admin' in request.endpoint %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">
+              <i class="fas fa-shield-alt me-1"></i>Admin
+            </a>
+          </li>
+          {% endif %}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle user-nav" href="#" data-bs-toggle="dropdown">
+              <div class="user-avatar">{{ current_user.full_name[0].upper() }}</div>
+              <span class="d-none d-lg-inline">{{ current_user.full_name.split()[0] }}</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user me-2"></i>My Profile</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('orders') }}"><i class="fas fa-box me-2"></i>My Orders</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+            </ul>
+          </li>
+        {% else %}
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt me-1"></i>Login</a>
+          </li>
+          <li class="nav-item">
+            <a class="btn btn-nav-cta" href="{{ url_for('register') }}">Get Started</a>
+          </li>
+        {% endif %}
       </ul>
     </div>
   </div>
 </nav>
-{% endif %}
 
-<main class="{% if current_user.is_authenticated %}py-4{% endif %}">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="container mt-2">
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-            {% if category == 'success' %}<i class="fas fa-check-circle me-2"></i>
-            {% elif category == 'danger' %}<i class="fas fa-exclamation-circle me-2"></i>
-            {% elif category == 'warning' %}<i class="fas fa-exclamation-triangle me-2"></i>
-            {% else %}<i class="fas fa-info-circle me-2"></i>{% endif %}
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-container">
+    <div class="container">
+      {% for category, message in messages %}
+      <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show flash-alert" role="alert">
+        <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'danger' else 'exclamation-triangle' if category == 'warning' else 'info-circle' }} me-2"></i>
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       </div>
-    {% endif %}
-  {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Main Content -->
+<main>
   {% block content %}{% endblock %}
 </main>
 
-{% if current_user.is_authenticated %}
-<footer class="py-5 mt-5">
+<!-- Footer -->
+<footer class="site-footer">
   <div class="container">
-    <div class="row g-4">
-      <div class="col-md-4">
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <img src="{{ url_for('static', filename='images/potato-corner.png') }}" height="36" style="border-radius:8px;background:rgba(255,255,255,.15);padding:2px">
-          <span class="fw-bold fs-5 text-white">Potato Corner PH</span>
-        </div>
-        <p class="small" style="opacity:.75">The flavor is the memory! Serving the best flavored fries across the Philippines.</p>
+    <div class="footer-content">
+      <div class="footer-brand">
+        <span class="footer-logo">🍟 Potato Corner</span>
+        <p>Delivering happiness, one fries at a time.</p>
       </div>
-      <div class="col-md-4">
-        <h6 class="fw-bold text-white mb-3">Contact Us</h6>
-        <p class="small mb-1" style="opacity:.75"><i class="fas fa-phone me-2"></i>(02) 1234-5678</p>
-        <p class="small mb-1" style="opacity:.75"><i class="fas fa-envelope me-2"></i>orders@potatocorner.ph</p>
-        <p class="small" style="opacity:.75"><i class="fas fa-clock me-2"></i>Mon–Sun 10:00 AM – 9:00 PM</p>
+      <div class="footer-links">
+        <a href="{{ url_for('index') }}">Menu</a>
+        <a href="{{ url_for('cart') }}">Cart</a>
+        {% if current_user.is_authenticated %}
+          <a href="{{ url_for('orders') }}">Orders</a>
+        {% endif %}
       </div>
-      <div class="col-md-4">
-        <h6 class="fw-bold text-white mb-3">Follow Us</h6>
-        <div class="d-flex gap-3 mb-3">
-          <a href="#" class="text-white fs-5"><i class="fab fa-facebook"></i></a>
-          <a href="#" class="text-white fs-5"><i class="fab fa-instagram"></i></a>
-          <a href="#" class="text-white fs-5"><i class="fab fa-tiktok"></i></a>
-        </div>
-        <p class="small" style="opacity:.75">© 2025 Potato Corner Philippines. All rights reserved.</p>
-      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 Potato Corner Philippines. All rights reserved.</p>
     </div>
   </div>
 </footer>
-{% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-<script src="{{ url_for('static', filename='js/script.js') }}"></script>
-
-{% if current_user.is_authenticated %}
 <script>
-$(document).ready(function(){
-  $.get('/api/cart-count', function(d){ $('.cart-count').text(d.count||0); });
-});
-</script>
-{% endif %}
+  // Update cart badge
+  function updateCartBadge() {
+    fetch('/api/cart/count')
+      .then(r => r.json())
+      .then(d => {
+        const badge = document.getElementById('cartCount');
+        if (badge) {
+          badge.textContent = d.count || 0;
+          badge.style.display = d.count > 0 ? 'flex' : 'none';
+        }
+      }).catch(() => {});
+  }
+  updateCartBadge();
 
+  // Auto-dismiss flash messages
+  setTimeout(() => {
+    document.querySelectorAll('.flash-alert').forEach(el => {
+      const bsAlert = bootstrap.Alert.getOrCreateInstance(el);
+      bsAlert.close();
+    });
+  }, 4000);
+</script>
 {% block extra_js %}{% endblock %}
 </body>
 </html>

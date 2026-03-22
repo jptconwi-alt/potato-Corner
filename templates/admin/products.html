@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}Manage Products — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-header">
+      <div class="admin-logo">🍟</div>
+      <div class="admin-brand">
+        <span class="admin-brand-name">Admin Panel</span>
+        <span class="admin-brand-sub">Potato Corner</span>
+      </div>
+      <button class="sidebar-close-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
+    </div>
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-item"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
+      <a href="{{ url_for('admin_orders') }}" class="admin-nav-item"><i class="fas fa-clipboard-list"></i><span>Orders</span></a>
+      <a href="{{ url_for('admin_users') }}" class="admin-nav-item"><i class="fas fa-users"></i><span>Users</span></a>
+      <a href="{{ url_for('admin_products') }}" class="admin-nav-item active"><i class="fas fa-utensils"></i><span>Products</span></a>
+      <hr class="admin-nav-divider">
+      <a href="{{ url_for('index') }}" class="admin-nav-item"><i class="fas fa-store"></i><span>View Store</span></a>
+      <a href="{{ url_for('logout') }}" class="admin-nav-item danger"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+    </nav>
+    <div class="admin-sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div>
+          <div class="admin-user-name">{{ current_user.full_name }}</div>
+          <div class="admin-user-role"><i class="fas fa-shield-alt me-1"></i>Administrator</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div class="admin-topbar-title">Product Management</div>
+      <div class="admin-topbar-actions">
+        <button class="btn-admin-add" onclick="openAddProduct()">
+          <i class="fas fa-plus me-2"></i>Add Product
+        </button>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Search & Filter -->
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="productSearch" placeholder="Search products..." class="admin-search-input" oninput="filterProducts()">
+      </div>
+
+      <!-- Products Grid -->
+      <div class="admin-products-grid" id="adminProductsGrid">
+        {% for product in products %}
+        <div class="admin-product-card" id="prod-{{ product.id }}" data-name="{{ product.name.lower() }}">
+          <div class="admin-product-img-wrap">
+            {% if product.image_url %}
+              <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="admin-product-img">
+            {% else %}
+              <div class="admin-product-img-placeholder">🍟</div>
+            {% endif %}
+            <div class="admin-product-overlay">
+              <button class="btn-upload-img" onclick="openUploadImage({{ product.id }}, '{{ product.name }}')">
+                <i class="fas fa-camera me-1"></i>Change Photo
+              </button>
+            </div>
+            <div class="admin-avail-toggle">
+              <label class="toggle-switch" title="{{ 'Available' if product.is_available else 'Unavailable' }}">
+                <input type="checkbox" {% if product.is_available %}checked{% endif %}
+                       onchange="toggleAvailability({{ product.id }}, this)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="admin-product-info">
+            <div class="admin-product-flavor-chip">{{ product.flavor }}</div>
+            <div class="admin-product-name">{{ product.name }}</div>
+            <div class="admin-product-price">₱{{ "%.0f"|format(product.price) }}</div>
+            <div class="admin-product-size-chip">{{ product.size }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Image Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-camera me-2"></i>Upload Product Image</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3" id="uploadProductName"></p>
+        <form id="uploadImageForm" enctype="multipart/form-data">
+          <input type="hidden" id="uploadProductId" name="product_id">
+          <div class="upload-drop-zone" id="dropZone" onclick="document.getElementById('imageInput').click()">
+            <div class="upload-drop-inner">
+              <i class="fas fa-cloud-upload-alt upload-icon"></i>
+              <p>Click or drag & drop image here</p>
+              <p class="upload-hint">PNG, JPG, WEBP up to 5MB</p>
+            </div>
+            <div class="upload-preview-wrap d-none" id="previewWrap">
+              <img id="imagePreview" src="" alt="Preview" class="upload-preview-img">
+            </div>
+          </div>
+          <input type="file" id="imageInput" name="image" accept="image/*" class="d-none" onchange="previewImage(this)">
+          <div class="mt-3 d-flex gap-2">
+            <button type="button" class="btn btn-secondary flex-fill" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn-auth-submit flex-fill" onclick="uploadImage()" style="max-width:none">
+              <i class="fas fa-upload me-2"></i>Upload
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Product Modal -->
+<div class="modal fade" id="addProductModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-plus me-2"></i>Add New Product</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addProductForm" enctype="multipart/form-data" class="auth-form">
+          <div class="form-row-2">
+            <div class="form-group-custom">
+              <label class="form-label-custom">Product Name</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-tag input-icon"></i>
+                <input type="text" name="name" class="form-control-custom" placeholder="e.g. Cheese Fries (Large)" required>
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Price (₱)</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-peso-sign input-icon"></i>
+                <input type="number" name="price" class="form-control-custom" placeholder="89" min="1" required>
+              </div>
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="form-group-custom">
+              <label class="form-label-custom">Flavor</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-pepper-hot input-icon"></i>
+                <input type="text" name="flavor" class="form-control-custom" placeholder="e.g. Cheese" required>
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Size</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-expand-arrows-alt input-icon"></i>
+                <select name="size" class="form-control-custom" required>
+                  <option value="">Select size</option>
+                  <option>Small</option><option>Medium</option><option>Large</option><option>Mega</option><option>Jumbo</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Description</label>
+            <div class="input-icon-wrap">
+              <i class="fas fa-align-left input-icon"></i>
+              <textarea name="description" class="form-control-custom" rows="2" placeholder="Describe this product..." required></textarea>
+            </div>
+          </div>
+          <div class="form-group-custom">
+            <label class="form-label-custom">Product Image (optional)</label>
+            <div class="upload-drop-zone" id="addDropZone" onclick="document.getElementById('addImageInput').click()" style="min-height:100px">
+              <div class="upload-drop-inner">
+                <i class="fas fa-camera upload-icon" style="font-size:1.5rem"></i>
+                <p style="font-size:.85rem">Click to upload image</p>
+              </div>
+              <div class="upload-preview-wrap d-none" id="addPreviewWrap">
+                <img id="addImagePreview" src="" alt="Preview" class="upload-preview-img">
+              </div>
+            </div>
+            <input type="file" id="addImageInput" name="image" accept="image/*" class="d-none" onchange="previewAddImage(this)">
+          </div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-secondary flex-fill" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn-auth-submit flex-fill" onclick="addProduct()" style="max-width:none">
+              <i class="fas fa-plus me-2"></i>Add Product
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+function filterProducts() {
+  const q = document.getElementById('productSearch').value.toLowerCase();
+  document.querySelectorAll('.admin-product-card').forEach(card => {
+    card.style.display = card.dataset.name.includes(q) ? '' : 'none';
+  });
+}
+
+function toggleAvailability(productId, checkbox) {
+  fetch('/admin/product/' + productId + '/toggle', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({available: checkbox.checked})
+  }).then(r => r.json()).then(d => {
+    if (!d.success) {
+      checkbox.checked = !checkbox.checked;
+      alert('Failed to update availability');
+    }
+  });
+}
+
+let currentUploadProductId = null;
+
+function openUploadImage(productId, productName) {
+  currentUploadProductId = productId;
+  document.getElementById('uploadProductId').value = productId;
+  document.getElementById('uploadProductName').textContent = 'Product: ' + productName;
+  document.getElementById('previewWrap').classList.add('d-none');
+  document.getElementById('imageInput').value = '';
+  new bootstrap.Modal(document.getElementById('uploadModal')).show();
+}
+
+function previewImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const preview = document.getElementById('imagePreview');
+      preview.src = e.target.result;
+      document.getElementById('previewWrap').classList.remove('d-none');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function previewAddImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('addImagePreview').src = e.target.result;
+      document.getElementById('addPreviewWrap').classList.remove('d-none');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function uploadImage() {
+  const form = document.getElementById('uploadImageForm');
+  const formData = new FormData(form);
+  fetch('/admin/product/upload-image', {
+    method: 'POST',
+    body: formData
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      const card = document.getElementById('prod-' + currentUploadProductId);
+      if (card) {
+        const img = card.querySelector('.admin-product-img');
+        if (img) img.src = d.image_url + '?t=' + Date.now();
+        else {
+          const placeholder = card.querySelector('.admin-product-img-placeholder');
+          if (placeholder) placeholder.outerHTML = '<img src="' + d.image_url + '" class="admin-product-img" alt="Product">';
+        }
+      }
+      bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+      showToast('Image uploaded successfully!', 'success');
+    } else {
+      alert(d.message || 'Upload failed');
+    }
+  });
+}
+
+function openAddProduct() {
+  new bootstrap.Modal(document.getElementById('addProductModal')).show();
+}
+
+function addProduct() {
+  const form = document.getElementById('addProductForm');
+  const formData = new FormData(form);
+  fetch('/admin/product/add', {
+    method: 'POST',
+    body: formData
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
+      showToast('Product added!', 'success');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      alert(d.message || 'Failed to add product');
+    }
+  });
+}
+
+function showToast(msg, type) {
+  const toast = document.createElement('div');
+  toast.className = 'admin-toast admin-toast-' + type;
+  toast.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// Drag & drop
+['dropZone', 'addDropZone'].forEach(id => {
+  const zone = document.getElementById(id);
+  if (!zone) return;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const inputId = id === 'dropZone' ? 'imageInput' : 'addImageInput';
+    const input = document.getElementById(inputId);
+    if (e.dataTransfer.files[0]) {
+      const dt = new DataTransfer();
+      dt.items.add(e.dataTransfer.files[0]);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+    }
+  });
+});
+</script>
+{% endblock %}

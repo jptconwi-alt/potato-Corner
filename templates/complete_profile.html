@@ -1,143 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Complete Your Profile{% endblock %}
+{% block title %}Complete Profile — Potato Corner{% endblock %}
 
 {% block content %}
-<div class="auth-wrap" style="align-items:flex-start;padding-top:2.5rem;padding-bottom:2.5rem">
-  <div class="auth-card card" style="max-width:560px">
-    <div class="card-header text-center py-4">
-      <div style="font-size:2.8rem;margin-bottom:.5rem">🍟</div>
-      <h3 class="mb-0 fw-bold">Almost There!</h3>
-      <p class="mb-0 mt-1 small opacity-75">Complete your delivery information to start ordering</p>
-    </div>
-    <div class="card-body p-4">
-
-      <!-- Welcome notice -->
-      <div class="alert alert-warning d-flex align-items-center gap-3 mb-4 py-3" style="border-radius:10px;border:2px solid #f9a825">
-        <span style="font-size:1.6rem">👋</span>
-        <div>
-          <div class="fw-bold">Welcome, {{ current_user.full_name }}!</div>
-          <div class="small">We need a few details to deliver your flavored fries to you.</div>
+<div class="auth-page">
+  <div class="container">
+    <div class="auth-wrapper auth-wrapper-wide">
+      <div class="auth-card">
+        <div class="auth-card-header">
+          <div class="auth-icon">📍</div>
+          <h1 class="auth-title">Complete Your Profile</h1>
+          <p class="auth-sub">We need your delivery address to get those fries to you!</p>
+        </div>
+        <div class="auth-card-body">
+          <form method="POST" action="{{ url_for('complete_profile') }}" class="auth-form">
+            <div class="form-row-2">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Full Name</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-user input-icon"></i>
+                  <input type="text" name="full_name" class="form-control-custom" value="{{ current_user.full_name }}" required>
+                </div>
+              </div>
+              <div class="form-group-custom">
+                <label class="form-label-custom">Phone Number</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-phone input-icon"></i>
+                  <input type="text" name="phone" class="form-control-custom" placeholder="09xx-xxx-xxxx" required>
+                </div>
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Street / House No.</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-home input-icon"></i>
+                <input type="text" name="street" class="form-control-custom" placeholder="123 Mabini St." required>
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Barangay</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-map-pin input-icon"></i>
+                  <input type="text" name="barangay" class="form-control-custom" required>
+                </div>
+              </div>
+              <div class="form-group-custom">
+                <label class="form-label-custom">City / Municipality</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-city input-icon"></i>
+                  <input type="text" name="city" class="form-control-custom" required>
+                </div>
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Province</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-map input-icon"></i>
+                  <input type="text" name="province" class="form-control-custom">
+                </div>
+              </div>
+              <div class="form-group-custom">
+                <label class="form-label-custom">ZIP Code</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-mail-bulk input-icon"></i>
+                  <input type="text" name="zipcode" class="form-control-custom">
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="btn-auth-submit">
+              <i class="fas fa-check me-2"></i>Save & Continue
+            </button>
+          </form>
         </div>
       </div>
-
-      <form method="POST" action="{{ url_for('complete_profile') }}">
-        <div class="row g-3">
-
-          <!-- Personal Info -->
-          <div class="col-12">
-            <div class="fw-bold text-success mb-2" style="font-size:.95rem">
-              <i class="fas fa-user me-2"></i>Personal Information
-            </div>
-          </div>
-
-          <div class="col-12 col-sm-6">
-            <label class="form-label">Full Name *</label>
-            <input type="text" class="form-control" name="full_name"
-                   value="{{ current_user.full_name }}" required placeholder="Juan dela Cruz">
-          </div>
-
-          <div class="col-12 col-sm-6">
-            <label class="form-label">Email Address *</label>
-            <input type="email" class="form-control" value="{{ current_user.email }}" disabled
-                   style="background:#f3f4f6;color:#6b7280">
-            <div class="form-text"><i class="fas fa-lock me-1"></i>Linked from Google</div>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">Phone Number *</label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-phone text-success"></i>
-              </span>
-              <input type="tel" class="form-control" name="phone" required
-                     placeholder="09123456789" pattern="[0-9]{10,11}"
-                     title="Enter a valid PH phone number (10-11 digits)">
-            </div>
-          </div>
-
-          <!-- Delivery Address -->
-          <div class="col-12 mt-2">
-            <div class="fw-bold text-success mb-2" style="font-size:.95rem">
-              <i class="fas fa-map-marker-alt me-2"></i>Delivery Address
-            </div>
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">House/Unit No. & Street *</label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-road text-success"></i>
-              </span>
-              <input type="text" class="form-control" name="street" required
-                     placeholder="123 Rizal Street, Block 4 Lot 2">
-            </div>
-          </div>
-
-          <div class="col-12 col-sm-6">
-            <label class="form-label">Barangay *</label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-map text-success"></i>
-              </span>
-              <input type="text" class="form-control" name="barangay" required
-                     placeholder="Brgy. San Antonio">
-            </div>
-          </div>
-
-          <div class="col-12 col-sm-6">
-            <label class="form-label">City / Municipality *</label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-city text-success"></i>
-              </span>
-              <input type="text" class="form-control" name="city" required
-                     placeholder="Quezon City">
-            </div>
-          </div>
-
-          <div class="col-12 col-sm-6">
-            <label class="form-label">Province / Region *</label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-flag text-success"></i>
-              </span>
-              <input type="text" class="form-control" name="province" required
-                     placeholder="Metro Manila / NCR">
-            </div>
-          </div>
-
-          <div class="col-12 col-sm-6">
-            <label class="form-label">ZIP Code *</label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-mail-bulk text-success"></i>
-              </span>
-              <input type="text" class="form-control" name="zipcode" required
-                     placeholder="1100" pattern="[0-9]{4}" title="4-digit ZIP code"
-                     maxlength="4">
-            </div>
-          </div>
-
-          <!-- Landmark (optional) -->
-          <div class="col-12">
-            <label class="form-label">Landmark / Delivery Notes <span class="text-muted fw-normal">(optional)</span></label>
-            <div class="input-group">
-              <span class="input-group-text" style="background:var(--green-pale);border-color:var(--gray-200)">
-                <i class="fas fa-thumbtack text-success"></i>
-              </span>
-              <input type="text" class="form-control" name="landmark"
-                     placeholder="Near the 7-Eleven, white gate, etc.">
-            </div>
-          </div>
-
-          <div class="col-12 mt-2">
-            <button type="submit" class="btn btn-primary w-100 py-3" style="font-size:1rem">
-              <i class="fas fa-check-circle me-2"></i>Complete Profile & Start Ordering!
-            </button>
-          </div>
-
-        </div>
-      </form>
     </div>
   </div>
 </div>

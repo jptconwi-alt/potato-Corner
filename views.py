@@ -1,278 +1,402 @@
-from flask import render_template, request, jsonify, session, redirect, url_for, flash
-from models import db
-from controllers import ProductController, CartController, OrderController, AuthController
-from auth_decorator import login_required, admin_required
-from flask_login import current_user
+import os
 import uuid
+from flask import render_template, request, redirect, url_for, flash, jsonify, session
+from flask_login import login_required, current_user, logout_user
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from models import db, User, Product, Order, OrderItem, CartItem
+from controllers import AuthController, ProductController, CartController, OrderController
+from auth_decorator import admin_required
 
-FOOD_IMAGES = {
-    "Cheese":        "https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&q=80",
-    "Sour Cream":    "https://images.unsplash.com/photo-1630384060421-cb20d0e0649d?w=400&q=80",
-    "BBQ":           "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=400&q=80",
-    "Chili BBQ":     "https://images.unsplash.com/photo-1619881590738-a111d176d906?w=400&q=80",
-    "Wasabi":        "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5?w=400&q=80",
-    "White Cheddar": "https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=400&q=80",
-    "Chili Powder":  "https://images.unsplash.com/photo-1596649299486-4cdea56fd59d?w=400&q=80",
-    "Salted Caramel":"https://images.unsplash.com/photo-1518013431117-eb1465fa5752?w=400&q=80",
-}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+UPLOAD_FOLDER = os.path.join('static', 'images', 'uploads')
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def get_session_id():
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    return session['session_id']
+
 
 def register_routes(app):
+    os.makedirs(os.path.join(app.root_path, UPLOAD_FOLDER), exist_ok=True)
 
-    @app.context_processor
-    def inject_globals():
-        return dict(FOOD_IMAGES=FOOD_IMAGES)
+    # ─────────────────────────────────────────
+    # PUBLIC ROUTES
+    # ─────────────────────────────────────────
 
-    # ── Root ──────────────────────────────────────────────
     @app.route('/')
-    def root():
-        if current_user.is_authenticated:
-            return redirect(url_for('index'))
-        return redirect(url_for('login'))
-
-    @app.route('/menu')
-    @login_required
     def index():
-        # Banner if profile incomplete
-        needs_profile = not current_user.profile_complete
         products = ProductController.get_all_products()
-        flavors  = ProductController.get_flavors()
-        return render_template('index.html', products=products, flavors=flavors, needs_profile=needs_profile)
+        flavors = ProductController.get_flavors()
+        return render_template('index.html', products=products, flavors=flavors)
 
-    # ── AUTH ──────────────────────────────────────────────
-    @app.route('/register', methods=['GET', 'POST'])
-    def register():
-        if current_user.is_authenticated:
-            return redirect(url_for('index'))
-        if request.method == 'POST':
-            success, result = AuthController.register_user(
-                request.form['username'], request.form['email'],
-                request.form['password'], request.form['full_name'],
-                request.form.get('phone', ''), request.form.get('address', '')
-            )
-            if success:
-                flash('Registration successful! Please log in.', 'success')
-                return redirect(url_for('login'))
-            flash(result, 'danger')
-        return render_template('register.html')
+    # ─────────────────────────────────────────
+    # AUTH ROUTES
+    # ─────────────────────────────────────────
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
         if current_user.is_authenticated:
             return redirect(url_for('index'))
         if request.method == 'POST':
-            success, result = AuthController.login_user(
-                request.form['username_or_email'],
-                request.form['password'],
-                'remember' in request.form
-            )
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            remember = bool(request.form.get('remember'))
+            success, result = AuthController.login_user(username, password, remember)
             if success:
-                if 'cart_id' in session:
-                    CartController.merge_carts(session['cart_id'], result.id)
+                session['user_id'] = result.id
+                sid = get_session_id()
+                CartController.merge_carts(sid, result.id)
                 flash(f'Welcome back, {result.full_name}! 🍟', 'success')
-                next_page = request.args.get('next')
-                return redirect(next_page or url_for('index'))
-            flash(result, 'danger')
+                if result.is_admin:
+                    return redirect(url_for('admin_dashboard'))
+                return redirect(url_for('index'))
+            else:
+                flash(result, 'danger')
         return render_template('login.html')
 
+    @app.route('/register', methods=['GET', 'POST'])
+    def register():
+        if current_user.is_authenticated:
+            return redirect(url_for('index'))
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            confirm = request.form.get('confirm_password', '')
+            full_name = request.form.get('full_name', '').strip()
+            phone = request.form.get('phone', '').strip()
+            street = request.form.get('street', '').strip()
+            barangay = request.form.get('barangay', '').strip()
+            city = request.form.get('city', '').strip()
+            province = request.form.get('province', '').strip()
+            zipcode = request.form.get('zipcode', '').strip()
+
+            if password != confirm:
+                flash('Passwords do not match', 'danger')
+                return render_template('register.html')
+            if len(password) < 6:
+                flash('Password must be at least 6 characters', 'danger')
+                return render_template('register.html')
+
+            success, result = AuthController.register_user(username, email, password, full_name, phone)
+            if success:
+                # Save address fields
+                result.street = street
+                result.barangay = barangay
+                result.city = city
+                result.province = province
+                result.zipcode = zipcode
+                result.profile_complete = True
+                db.session.commit()
+                flash('Account created! Please log in.', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash(result, 'danger')
+        return render_template('register.html')
+
     @app.route('/logout')
-    @login_required
     def logout():
         AuthController.logout_user()
+        session.clear()
         flash('You have been logged out.', 'info')
         return redirect(url_for('login'))
 
-    # ── Complete Profile (Google new users) ───────────────
     @app.route('/complete-profile', methods=['GET', 'POST'])
     @login_required
     def complete_profile():
         if request.method == 'POST':
-            from models import User
-            user = User.query.get(current_user.id)
-            user.full_name  = request.form.get('full_name', user.full_name).strip()
-            user.phone      = request.form.get('phone', '').strip()
-            user.street     = request.form.get('street', '').strip()
-            user.barangay   = request.form.get('barangay', '').strip()
-            user.city       = request.form.get('city', '').strip()
-            user.province   = request.form.get('province', '').strip()
-            user.zipcode    = request.form.get('zipcode', '').strip()
-            user.address    = user.get_full_address()
-            user.profile_complete = True
+            current_user.full_name = request.form.get('full_name', current_user.full_name).strip()
+            current_user.phone = request.form.get('phone', '').strip()
+            current_user.street = request.form.get('street', '').strip()
+            current_user.barangay = request.form.get('barangay', '').strip()
+            current_user.city = request.form.get('city', '').strip()
+            current_user.province = request.form.get('province', '').strip()
+            current_user.zipcode = request.form.get('zipcode', '').strip()
+            current_user.profile_complete = True
             db.session.commit()
-            flash('Profile completed! Welcome to Potato Corner! 🍟', 'success')
+            flash('Profile complete! Start ordering.', 'success')
             return redirect(url_for('index'))
         return render_template('complete_profile.html')
 
-    # ── Profile ───────────────────────────────────────────
-    @app.route('/profile')
+    # ─────────────────────────────────────────
+    # PROFILE & ORDERS
+    # ─────────────────────────────────────────
+
+    @app.route('/profile', methods=['GET', 'POST'])
     @login_required
     def profile():
-        user, orders = AuthController.get_user_profile(current_user.id)
-        return render_template('profile.html', user=user, orders=orders)
+        orders = OrderController.get_user_orders(current_user.id)
+        if request.method == 'POST':
+            current_user.full_name = request.form.get('full_name', current_user.full_name).strip()
+            current_user.phone = request.form.get('phone', current_user.phone or '').strip()
+            current_user.street = request.form.get('street', current_user.street or '').strip()
+            current_user.barangay = request.form.get('barangay', current_user.barangay or '').strip()
+            current_user.city = request.form.get('city', current_user.city or '').strip()
+            new_email = request.form.get('email', '').strip()
+            if new_email and new_email != current_user.email:
+                if User.query.filter_by(email=new_email).first():
+                    flash('Email already in use', 'danger')
+                    return render_template('profile.html', orders=orders)
+                current_user.email = new_email
+            db.session.commit()
+            flash('Profile updated!', 'success')
+        return render_template('profile.html', orders=orders)
 
-    @app.route('/profile/update', methods=['POST'])
+    @app.route('/orders')
     @login_required
-    def update_profile():
-        from models import User
-        user = User.query.get(current_user.id)
-        user.full_name  = request.form.get('full_name', user.full_name)
-        user.phone      = request.form.get('phone', user.phone)
-        user.street     = request.form.get('street', user.street)
-        user.barangay   = request.form.get('barangay', user.barangay)
-        user.city       = request.form.get('city', user.city)
-        user.province   = request.form.get('province', user.province)
-        user.zipcode    = request.form.get('zipcode', user.zipcode)
-        new_email = request.form.get('email', user.email)
-        from models import User as U
-        if new_email != user.email and U.query.filter_by(email=new_email).first():
-            flash('Email already in use.', 'danger')
-            return redirect(url_for('profile'))
-        user.email   = new_email
-        user.address = user.get_full_address()
-        user.profile_complete = True
-        db.session.commit()
-        flash('Profile updated successfully!', 'success')
-        return redirect(url_for('profile'))
+    def orders():
+        user_orders = OrderController.get_user_orders(current_user.id)
+        return render_template('orders.html', orders=user_orders)
 
-    @app.route('/change-password', methods=['POST'])
-    @login_required
-    def change_password():
-        success, message = AuthController.change_password(
-            current_user.id,
-            request.form['old_password'],
-            request.form['new_password']
-        )
-        flash(message, 'success' if success else 'danger')
-        return redirect(url_for('profile'))
-
-    # ── Products ──────────────────────────────────────────
-    @app.route('/api/products')
-    @login_required
-    def api_products():
-        products = ProductController.get_all_products()
-        return jsonify([p.to_dict() for p in products])
-
-    # ── Cart ──────────────────────────────────────────────
-    @app.route('/add-to-cart', methods=['POST'])
-    @login_required
-    def add_to_cart():
-        data = request.json
-        if 'cart_id' not in session:
-            session['cart_id'] = str(uuid.uuid4())
-        CartController.add_to_cart(
-            session_id=session['cart_id'],
-            user_id=current_user.id,
-            product_id=data['product_id'],
-            quantity=data.get('quantity', 1)
-        )
-        items = CartController.get_cart_items(session['cart_id'], current_user.id)
-        return jsonify({'success': True, 'cart_count': len(items), 'message': 'Added to cart! 🍟'})
+    # ─────────────────────────────────────────
+    # CART ROUTES
+    # ─────────────────────────────────────────
 
     @app.route('/cart')
-    @login_required
-    def view_cart():
-        items = CartController.get_cart_items(session.get('cart_id'), current_user.id)
-        total = CartController.get_cart_total(session.get('cart_id'), current_user.id)
-        return render_template('cart.html', cart_items=items, total=total)
+    def cart():
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        cart_items = CartController.get_cart_items(sid, uid)
+        total = sum(i.product.price * i.quantity for i in cart_items)
+        return render_template('cart.html', cart_items=cart_items, total=total)
 
-    @app.route('/update-cart', methods=['POST'])
-    @login_required
-    def update_cart():
-        data = request.json
-        success = CartController.update_quantity(
-            session_id=session.get('cart_id'), user_id=current_user.id,
-            item_id=data['item_id'], quantity=data['quantity']
-        )
-        if success:
-            items = CartController.get_cart_items(session.get('cart_id'), current_user.id)
-            total = CartController.get_cart_total(session.get('cart_id'), current_user.id)
-            return jsonify({'success': True, 'cart_count': len(items), 'total': total})
-        return jsonify({'success': False})
+    @app.route('/cart/add', methods=['POST'])
+    def cart_add():
+        data = request.get_json()
+        product_id = data.get('product_id')
+        quantity = int(data.get('quantity', 1))
+        product = Product.query.get(product_id)
+        if not product or not product.is_available:
+            return jsonify({'success': False, 'message': 'Product not available'})
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        CartController.add_to_cart(sid, product_id, uid, quantity)
+        return jsonify({'success': True, 'message': 'Added to cart'})
 
-    @app.route('/remove-from-cart/<int:item_id>', methods=['DELETE'])
-    @login_required
-    def remove_from_cart(item_id):
-        success = CartController.remove_from_cart(
-            session_id=session.get('cart_id'), user_id=current_user.id, item_id=item_id
-        )
-        return jsonify({'success': success})
+    @app.route('/cart/update', methods=['POST'])
+    def cart_update():
+        data = request.get_json()
+        item_id = data.get('item_id')
+        quantity = int(data.get('quantity', 1))
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        CartController.update_quantity(sid, item_id, quantity, uid)
+        return jsonify({'success': True})
 
-    @app.route('/api/cart-count')
-    @login_required
+    @app.route('/cart/remove', methods=['POST'])
+    def cart_remove():
+        data = request.get_json()
+        item_id = data.get('item_id')
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        CartController.remove_from_cart(sid, item_id, uid)
+        return jsonify({'success': True})
+
+    @app.route('/api/cart/count')
     def cart_count():
-        items = CartController.get_cart_items(session.get('cart_id'), current_user.id)
-        return jsonify({'count': len(items)})
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        cart_items = CartController.get_cart_items(sid, uid)
+        total = sum(i.quantity for i in cart_items)
+        return jsonify({'count': total})
 
-    # ── Checkout ──────────────────────────────────────────
+    # ─────────────────────────────────────────
+    # CHECKOUT & ORDERS
+    # ─────────────────────────────────────────
+
     @app.route('/checkout', methods=['GET', 'POST'])
-    @login_required
     def checkout():
-        cart_items = CartController.get_cart_items(session.get('cart_id'), current_user.id)
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        cart_items = CartController.get_cart_items(sid, uid)
         if not cart_items:
-            flash('Your cart is empty.', 'warning')
-            return redirect(url_for('view_cart'))
+            flash('Your cart is empty', 'warning')
+            return redirect(url_for('cart'))
+        total = sum(i.product.price * i.quantity for i in cart_items)
 
         if request.method == 'POST':
             customer_data = {
-                'name':           request.form['name'],
-                'email':          request.form['email'],
-                'phone':          request.form['phone'],
-                'address':        request.form['address'],
-                'payment_method': request.form['payment_method']
+                'name': request.form.get('name', '').strip(),
+                'email': request.form.get('email', '').strip(),
+                'phone': request.form.get('phone', '').strip(),
+                'address': request.form.get('address', '').strip(),
+                'payment_method': request.form.get('payment_method', 'Cash on Delivery'),
             }
-            order = OrderController.create_order(
-                session_id=session.get('cart_id'), user_id=current_user.id,
-                customer_data=customer_data, cart_items=cart_items
-            )
-            CartController.clear_cart(session.get('cart_id'), current_user.id)
-            flash('Order placed successfully! 🎉', 'success')
+            if not all([customer_data['name'], customer_data['email'], customer_data['phone'], customer_data['address']]):
+                flash('Please fill in all required fields', 'danger')
+                return render_template('checkout.html', cart_items=cart_items, total=total)
+
+            order = OrderController.create_order(sid, customer_data, cart_items, uid)
+            CartController.clear_cart(sid, uid)
             return redirect(url_for('order_confirmation', order_number=order.order_number))
 
-        user_data = {
-            'name':    current_user.full_name,
-            'email':   current_user.email,
-            'phone':   current_user.phone or '',
-            'address': current_user.get_full_address() if hasattr(current_user, 'get_full_address') else (current_user.address or '')
-        }
-        total = CartController.get_cart_total(session.get('cart_id'), current_user.id)
-        return render_template('checkout.html', cart_items=cart_items, total=total, user=user_data)
+        return render_template('checkout.html', cart_items=cart_items, total=total)
 
-    @app.route('/order/<order_number>')
-    @login_required
+    @app.route('/order/confirmation/<order_number>')
     def order_confirmation(order_number):
         order = OrderController.get_order(order_number)
-        if not order or (order.user_id != current_user.id and not current_user.is_admin):
-            flash('Order not found.', 'danger')
+        if not order:
+            flash('Order not found', 'danger')
             return redirect(url_for('index'))
-        return render_template('orders.html', order=order, track_mode=False)
+        return render_template('order_confirmation.html', order=order)
 
-    @app.route('/my-orders')
-    @login_required
-    def my_orders():
-        orders = OrderController.get_user_orders(current_user.id)
-        return render_template('my_orders.html', orders=orders)
+    # ─────────────────────────────────────────
+    # ADMIN ROUTES
+    # ─────────────────────────────────────────
 
-    @app.route('/track-order')
-    @login_required
-    def track_order():
-        order_number = request.args.get('order_number', '')
-        order = None
-        if order_number:
-            order = OrderController.get_order(order_number)
-            if order and order.user_id != current_user.id and not current_user.is_admin:
-                flash('You can only track your own orders.', 'warning')
-                return redirect(url_for('track_order'))
-        return render_template('track_order.html', order=order, track_mode=True)
-
-    # ── Admin ─────────────────────────────────────────────
     @app.route('/admin')
     @admin_required
     def admin_dashboard():
-        orders = OrderController.get_all_orders()
-        return render_template('admin.html', orders=orders)
+        all_orders = Order.query.all()
+        stats = {
+            'total_orders': len(all_orders),
+            'pending_orders': sum(1 for o in all_orders if o.status == 'Pending'),
+            'delivered_orders': sum(1 for o in all_orders if o.status == 'Delivered'),
+            'out_for_delivery': sum(1 for o in all_orders if o.status == 'Out for Delivery'),
+            'total_revenue': sum(o.total_amount for o in all_orders if o.status == 'Delivered'),
+            'total_users': User.query.count(),
+        }
+        recent_orders = Order.query.order_by(Order.order_date.desc()).limit(8).all()
+        pending_delivery = Order.query.filter(
+            Order.status.in_(['Pending', 'Preparing', 'Out for Delivery'])
+        ).order_by(Order.order_date.asc()).limit(5).all()
+        pending_count = stats['pending_orders']
+        return render_template('admin/dashboard.html',
+                               stats=stats,
+                               recent_orders=recent_orders,
+                               pending_delivery=pending_delivery,
+                               pending_count=pending_count,
+                               now=datetime.utcnow())
 
-    @app.route('/admin/update-order/<int:order_id>', methods=['POST'])
+    @app.route('/admin/orders')
     @admin_required
-    def admin_update_order(order_id):
-        data = request.json
-        success = OrderController.update_order_status(order_id, data['status'])
+    def admin_orders():
+        all_orders = Order.query.order_by(Order.order_date.desc()).all()
+        return render_template('admin/orders.html', orders=all_orders)
+
+    @app.route('/admin/users')
+    @admin_required
+    def admin_users():
+        all_users = User.query.order_by(User.created_at.desc()).all()
+        return render_template('admin/users.html', users=all_users)
+
+    @app.route('/admin/products')
+    @admin_required
+    def admin_products():
+        all_products = Product.query.order_by(Product.flavor, Product.size).all()
+        return render_template('admin/products.html', products=all_products)
+
+    # ── Admin AJAX: Update order status ─────
+
+    @app.route('/admin/order/<int:order_id>/status', methods=['POST'])
+    @admin_required
+    def admin_update_order_status(order_id):
+        data = request.get_json()
+        new_status = data.get('status')
+        valid = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled']
+        if new_status not in valid:
+            return jsonify({'success': False, 'message': 'Invalid status'})
+        success = OrderController.update_order_status(order_id, new_status)
         return jsonify({'success': success})
+
+    # ── Admin AJAX: Get user orders ─────────
+
+    @app.route('/admin/user/<int:user_id>/orders')
+    @admin_required
+    def admin_user_orders(user_id):
+        user_orders = Order.query.filter_by(user_id=user_id).order_by(Order.order_date.desc()).all()
+        data = []
+        for o in user_orders:
+            data.append({
+                'order_number': o.order_number,
+                'status': o.status,
+                'total_amount': o.total_amount,
+                'order_date': o.order_date.strftime('%b %d, %Y %I:%M %p'),
+                'items': [{'product_name': i.product_name, 'quantity': i.quantity} for i in o.items]
+            })
+        return jsonify({'orders': data})
+
+    # ── Admin AJAX: Upload product image ────
+
+    @app.route('/admin/product/upload-image', methods=['POST'])
+    @admin_required
+    def admin_upload_product_image():
+        product_id = request.form.get('product_id')
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'success': False, 'message': 'Product not found'})
+
+        file = request.files.get('image')
+        if not file or not file.filename:
+            return jsonify({'success': False, 'message': 'No file uploaded'})
+        if not allowed_file(file.filename):
+            return jsonify({'success': False, 'message': 'Invalid file type'})
+
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"product_{product_id}_{uuid.uuid4().hex[:8]}.{ext}"
+        upload_path = os.path.join(app.root_path, UPLOAD_FOLDER, filename)
+        file.save(upload_path)
+
+        product.image_url = f"uploads/{filename}"
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'image_url': url_for('static', filename=f'images/uploads/{filename}')
+        })
+
+    # ── Admin AJAX: Toggle product availability ─
+
+    @app.route('/admin/product/<int:product_id>/toggle', methods=['POST'])
+    @admin_required
+    def admin_toggle_product(product_id):
+        product = Product.query.get(product_id)
+        if not product:
+            return jsonify({'success': False})
+        data = request.get_json()
+        product.is_available = data.get('available', True)
+        db.session.commit()
+        return jsonify({'success': True})
+
+    # ── Admin: Add new product ───────────────
+
+    @app.route('/admin/product/add', methods=['POST'])
+    @admin_required
+    def admin_add_product():
+        name = request.form.get('name', '').strip()
+        price = request.form.get('price')
+        flavor = request.form.get('flavor', '').strip()
+        size = request.form.get('size', '').strip()
+        description = request.form.get('description', '').strip()
+
+        if not all([name, price, flavor, size, description]):
+            return jsonify({'success': False, 'message': 'All fields required'})
+
+        try:
+            price = float(price)
+        except ValueError:
+            return jsonify({'success': False, 'message': 'Invalid price'})
+
+        image_url = 'fries/cheese.svg'  # default
+        file = request.files.get('image')
+        if file and file.filename and allowed_file(file.filename):
+            ext = file.filename.rsplit('.', 1)[1].lower()
+            filename = f"product_new_{uuid.uuid4().hex[:10]}.{ext}"
+            upload_path = os.path.join(app.root_path, UPLOAD_FOLDER, filename)
+            file.save(upload_path)
+            image_url = f"uploads/{filename}"
+
+        product = Product(
+            name=name, price=price, flavor=flavor, size=size,
+            description=description, image_url=image_url, is_available=True
+        )
+        db.session.add(product)
+        db.session.commit()
+
+        return jsonify({'success': True, 'product_id': product.id})

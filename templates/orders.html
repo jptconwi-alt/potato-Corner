@@ -1,113 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Order Confirmation{% endblock %}
+{% block title %}My Orders — Potato Corner{% endblock %}
 
 {% block content %}
-<div class="container">
-  {% if order %}
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      {% if not track_mode %}
-      <div class="text-center mb-4">
-        <div style="font-size:4rem">✅</div>
-        <h2 class="fw-bold text-success mt-2">Order Confirmed!</h2>
-        <p class="text-muted">Thank you for ordering from Potato Corner!</p>
-      </div>
-      {% endif %}
+<div class="page-header-section">
+  <div class="container">
+    <div class="page-header-inner">
+      <h1 class="page-title"><i class="fas fa-box me-3"></i>My Orders</h1>
+      <p class="page-sub">Track all your orders</p>
+    </div>
+  </div>
+</div>
 
-      <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Order #{{ order.order_number }}</h5>
-          <span class="status-badge status-{{ order.status.lower() }}">
-            <i class="fas fa-circle" style="font-size:.5rem"></i> {{ order.status }}
-          </span>
+<section class="orders-section">
+  <div class="container">
+    {% if orders %}
+    <div class="orders-list">
+      {% for order in orders %}
+      <div class="order-card">
+        <div class="order-card-header">
+          <div class="order-header-left">
+            <div class="order-number-badge">{{ order.order_number }}</div>
+            <div class="order-date"><i class="fas fa-clock me-1"></i>{{ order.order_date.strftime('%b %d, %Y • %I:%M %p') }}</div>
+          </div>
+          <div class="order-header-right">
+            <span class="order-status-badge status-{{ order.status.lower().replace(' ', '-') }}">
+              {{ '✅' if order.status == 'Delivered' else '🚚' if order.status == 'Out for Delivery' else '🔥' if order.status == 'Preparing' else '⏳' }}
+              {{ order.status }}
+            </span>
+            <span class="order-total-badge">₱{{ "%.0f"|format(order.total_amount) }}</span>
+          </div>
         </div>
-        <div class="card-body p-4">
-          <!-- Tracker -->
-          {% set steps = [('Pending','clock','Order Placed'),('Confirmed','check','Confirmed'),('Preparing','fire','Preparing'),('Ready','box','Ready'),('Delivered','truck','Delivered')] %}
-          {% set statuses = ['Pending','Confirmed','Preparing','Ready','Delivered'] %}
-          {% set cur = statuses.index(order.status) if order.status in statuses else 0 %}
-          <div class="tracker-wrap mb-4">
-            {% for s, icon, label in steps %}
-            {% set idx = loop.index0 %}
-            <div class="tracker-step {% if idx < cur %}done{% elif idx == cur %}active{% endif %}">
-              <div class="tracker-dot"><i class="fas fa-{{ icon }}"></i></div>
-              <div class="tracker-label">{{ label }}</div>
+        <div class="order-card-body">
+          <div class="order-items-list">
+            {% for item in order.items %}
+            <div class="order-item-row">
+              <span class="order-item-name">🍟 {{ item.product_name }}</span>
+              <span class="order-item-qty">× {{ item.quantity }}</span>
+              <span class="order-item-price">₱{{ "%.0f"|format(item.subtotal) }}</span>
             </div>
             {% endfor %}
           </div>
-
-          <div class="row g-3 mb-4">
-            <div class="col-sm-6">
-              <div class="p-3 bg-light rounded">
-                <div class="text-muted small mb-1">Customer</div>
-                <div class="fw-bold">{{ order.customer_name }}</div>
-              </div>
+          <div class="order-card-footer">
+            <div class="order-meta">
+              <span><i class="fas fa-map-marker-alt me-1"></i>{{ order.delivery_address[:50] }}{% if order.delivery_address|length > 50 %}...{% endif %}</span>
+              <span><i class="fas fa-wallet me-1"></i>{{ order.payment_method }}</span>
             </div>
-            <div class="col-sm-6">
-              <div class="p-3 bg-light rounded">
-                <div class="text-muted small mb-1">Order Date</div>
-                <div class="fw-bold">{{ order.order_date.strftime('%b %d, %Y %I:%M %p') }}</div>
-              </div>
-            </div>
-            <div class="col-sm-6">
-              <div class="p-3 bg-light rounded">
-                <div class="text-muted small mb-1">Payment</div>
-                <div class="fw-bold">{{ order.payment_method }}</div>
-                <span class="badge {% if order.payment_status == 'Paid' %}bg-success{% else %}bg-warning text-dark{% endif %} mt-1">{{ order.payment_status }}</span>
-              </div>
-            </div>
-            <div class="col-sm-6">
-              <div class="p-3 bg-light rounded">
-                <div class="text-muted small mb-1">Delivery Address</div>
-                <div class="fw-bold small">{{ order.delivery_address }}</div>
-              </div>
-            </div>
-          </div>
-
-          <h6 class="fw-bold mb-3">Order Items</h6>
-          <div class="table-responsive">
-            <table class="table table-sm">
-              <thead>
-                <tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Price</th><th class="text-end">Subtotal</th></tr>
-              </thead>
-              <tbody>
-                {% for item in order.items %}
-                <tr>
-                  <td>{{ item.product_name }}</td>
-                  <td class="text-center">{{ item.quantity }}</td>
-                  <td class="text-end">₱{{ "%.2f"|format(item.price) }}</td>
-                  <td class="text-end">₱{{ "%.2f"|format(item.subtotal) }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-              <tfoot>
-                <tr><td colspan="3" class="text-end fw-bold">Delivery Fee:</td><td class="text-end">₱50.00</td></tr>
-                <tr><td colspan="3" class="text-end fw-bold text-success fs-6">Total:</td>
-                    <td class="text-end fw-bold text-success fs-6">₱{{ "%.2f"|format(order.total_amount) }}</td></tr>
-              </tfoot>
-            </table>
-          </div>
-          <div class="d-flex flex-wrap gap-2 mt-4">
-            <a href="{{ url_for('index') }}" class="btn btn-primary"><i class="fas fa-utensils me-2"></i>Order Again</a>
-            <a href="{{ url_for('my_orders') }}" class="btn btn-outline-secondary"><i class="fas fa-history me-2"></i>My Orders</a>
           </div>
         </div>
       </div>
+      {% endfor %}
     </div>
-  </div>
-  {% else %}
-  <div class="row justify-content-center">
-    <div class="col-md-5">
-      <div class="card">
-        <div class="card-header"><h5 class="mb-0"><i class="fas fa-search me-2"></i>Order Not Found</h5></div>
-        <div class="card-body p-4 text-center">
-          <div style="font-size:3rem;margin-bottom:1rem">🔍</div>
-          <p class="text-muted">We couldn't find that order. Please check the order number.</p>
-          <a href="{{ url_for('my_orders') }}" class="btn btn-primary">View My Orders</a>
-        </div>
-      </div>
+    {% else %}
+    <div class="empty-state">
+      <div class="empty-icon">📦</div>
+      <h3>No orders yet</h3>
+      <p>Start ordering your favorite Potato Corner fries!</p>
+      <a href="{{ url_for('index') }}" class="btn-auth-submit" style="max-width:200px;margin:0 auto;display:block">
+        <i class="fas fa-utensils me-2"></i>Order Now
+      </a>
     </div>
+    {% endif %}
   </div>
-  {% endif %}
-</div>
+</section>
 {% endblock %}

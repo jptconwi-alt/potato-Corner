@@ -1,139 +1,189 @@
 {% extends "base.html" %}
-{% block title %}Menu{% endblock %}
+{% block title %}Menu — Potato Corner{% endblock %}
 
 {% block content %}
-<div class="container">
-
-  <!-- Profile incomplete banner -->
-  {% if needs_profile %}
-  <div class="profile-complete-banner">
-    <span class="icon">⚠️</span>
-    <div class="flex-grow-1">
-      <div class="fw-bold">Your delivery address is incomplete!</div>
-      <div class="small text-muted">Please complete your profile so we can deliver your fries to you.</div>
-    </div>
-    <a href="{{ url_for('complete_profile') }}" class="btn btn-warning btn-sm px-3 fw-bold flex-shrink-0">
-      Complete Now
-    </a>
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="hero-bg-art" aria-hidden="true">
+    <div class="hero-circle c1"></div>
+    <div class="hero-circle c2"></div>
+    <div class="hero-circle c3"></div>
+    <div class="hero-fries-art">🍟</div>
+    <div class="hero-fries-art art2">🍟</div>
   </div>
-  {% endif %}
-
-  <!-- Hero -->
-  <div class="hero-section">
-    <div class="row align-items-center">
-      <div class="col-md-8">
-        <div class="hero-fries-emoji mb-2">🍟</div>
-        <h1>Welcome to Potato Corner!</h1>
-        <p>The flavor is the memory! Pick your favorite flavored fries.</p>
-      </div>
-      <div class="col-md-4 text-md-end mt-3 mt-md-0">
-        <a href="{{ url_for('view_cart') }}" class="btn btn-outline-light px-4 py-2">
-          <i class="fas fa-shopping-cart me-2"></i>View Cart
-          <span class="badge ms-1" style="background:var(--gold);color:#333" id="hero-cart-count">0</span>
+  <div class="container">
+    <div class="hero-inner">
+      <div class="hero-badge">🏆 Philippines' #1 Fries</div>
+      <h1 class="hero-title">
+        Crispy Fries,<br>
+        <span class="hero-accent">Bold Flavors</span>
+      </h1>
+      <p class="hero-sub">Choose from 8 amazing flavors in 5 different sizes. Delivered hot and crispy to your door!</p>
+      <div class="hero-actions">
+        <a href="#menu" class="btn btn-hero-primary">
+          <i class="fas fa-utensils me-2"></i>Order Now
+        </a>
+        <a href="{{ url_for('cart') }}" class="btn btn-hero-secondary">
+          <i class="fas fa-shopping-bag me-2"></i>View Cart
         </a>
       </div>
-    </div>
-  </div>
-
-  <!-- Filters -->
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-1">
-    <div class="section-title mb-0"><i class="fas fa-utensils text-success"></i> Our Menu</div>
-    <div class="text-muted small" id="product-count"></div>
-  </div>
-  <div class="filter-bar mb-4">
-    <button class="filter-btn active" data-flavor="all">🍟 All</button>
-    {% for flavor in flavors %}
-    <button class="filter-btn" data-flavor="{{ flavor }}">{{ flavor }}</button>
-    {% endfor %}
-  </div>
-
-  <!-- Product Grid -->
-  <div class="row g-3" id="products-container">
-    {% for product in products %}
-    <div class="col-6 col-md-4 col-lg-3 product-card-wrap" data-flavor="{{ product.flavor }}">
-      <div class="card h-100">
-        <div class="product-img-wrap">
-          <img src="{{ FOOD_IMAGES.get(product.flavor, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=400&q=80') }}"
-               alt="{{ product.name }}" loading="lazy">
-          <span class="flavor-badge">{{ product.flavor }}</span>
-          <span class="size-badge">{{ product.size }}</span>
-        </div>
-        <div class="card-body p-3 d-flex flex-column">
-          <h6 class="mb-1" style="font-weight:800;font-size:.9rem;line-height:1.3">{{ product.name }}</h6>
-          <p class="text-muted mb-2" style="font-size:.78rem;line-height:1.4">{{ product.description[:65] }}...</p>
-          <div class="mt-auto d-flex justify-content-between align-items-center">
-            <span class="price-tag">₱{{ "%.0f"|format(product.price) }}</span>
-            <button class="btn btn-primary btn-sm add-to-cart" data-product-id="{{ product.id }}"
-                    style="padding:7px 14px;font-size:.82rem;border-radius:8px">
-              <i class="fas fa-cart-plus"></i>
-            </button>
-          </div>
-        </div>
+      <div class="hero-stats">
+        <div class="stat"><strong>8+</strong><span>Flavors</span></div>
+        <div class="stat"><strong>5</strong><span>Sizes</span></div>
+        <div class="stat"><strong>⚡</strong><span>Fast Delivery</span></div>
       </div>
     </div>
-    {% endfor %}
   </div>
+</section>
 
-  <div class="text-center py-5 d-none" id="no-results">
-    <div style="font-size:3.5rem">🔍</div>
-    <p class="text-muted mt-2">No products found for this flavor.</p>
-  </div>
-</div>
+<!-- Menu Section -->
+<section id="menu" class="menu-section">
+  <div class="container">
+    <div class="section-header">
+      <h2 class="section-title">Our Menu</h2>
+      <p class="section-sub">Pick your flavor, pick your size</p>
+    </div>
 
-<!-- Toast -->
-<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1100">
-  <div id="cartToast" class="toast align-items-center text-white bg-success border-0" role="alert">
-    <div class="d-flex">
-      <div class="toast-body fw-bold"><i class="fas fa-check-circle me-2"></i><span id="toastMsg">Added to cart!</span></div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    <!-- Flavor Filter -->
+    <div class="flavor-filter-wrap">
+      <div class="flavor-filter" id="flavorFilter">
+        <button class="flavor-btn active" data-flavor="all">
+          <span>🍟</span> All
+        </button>
+        {% for flavor in flavors %}
+        <button class="flavor-btn" data-flavor="{{ flavor }}">
+          <span>{{ '🧀' if 'Cheese' in flavor else '🔥' if 'Chili' in flavor else '💚' if 'Wasabi' in flavor else '🍬' if 'Caramel' in flavor else '🍦' if 'Cream' in flavor else '🥩' if 'BBQ' in flavor else '🧀' }}</span>
+          {{ flavor }}
+        </button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Size Filter -->
+    <div class="size-filter-wrap">
+      <div class="size-filter" id="sizeFilter">
+        <button class="size-btn active" data-size="all">All Sizes</button>
+        {% for size in ['Small', 'Medium', 'Large', 'Mega', 'Jumbo'] %}
+        <button class="size-btn" data-size="{{ size }}">{{ size }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="product-grid" id="productGrid">
+      {% for product in products %}
+      <div class="product-card" data-flavor="{{ product.flavor }}" data-size="{{ product.size }}">
+        <div class="product-img-wrap">
+          {% if product.image_url and product.image_url.startswith('uploads/') %}
+            <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="product-img" loading="lazy">
+          {% elif product.image_url %}
+            <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="product-img" loading="lazy">
+          {% else %}
+            <div class="product-img-placeholder">🍟</div>
+          {% endif %}
+          <div class="product-overlay">
+            <button class="btn-quick-add" onclick="addToCart({{ product.id }}, this)">
+              <i class="fas fa-cart-plus"></i> Quick Add
+            </button>
+          </div>
+          <div class="product-size-tag">{{ product.size }}</div>
+        </div>
+        <div class="product-info">
+          <div class="product-flavor-chip">{{ product.flavor }}</div>
+          <h3 class="product-name">{{ product.name }}</h3>
+          <p class="product-desc">{{ product.description }}</p>
+          <div class="product-footer">
+            <span class="product-price">₱{{ "%.0f"|format(product.price) }}</span>
+            <div class="product-qty">
+              <button class="qty-btn minus" onclick="changeQty({{ product.id }}, -1)">−</button>
+              <span class="qty-val" id="qty-{{ product.id }}">1</span>
+              <button class="qty-btn plus" onclick="changeQty({{ product.id }}, 1)">+</button>
+            </div>
+          </div>
+          <button class="btn-add-cart w-100" onclick="addToCart({{ product.id }}, this)">
+            <i class="fas fa-shopping-cart me-2"></i>Add to Cart
+          </button>
+        </div>
+      </div>
+      {% endfor %}
     </div>
   </div>
-</div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-$(function(){
-  // Update hero cart count
-  $.get('/api/cart-count', function(d){ $('#hero-cart-count').text(d.count||0); });
+  const quantities = {};
 
-  // Show product count
-  function updateCount(){
-    const n = $('.product-card-wrap:visible').length;
-    $('#product-count').text(n + ' item' + (n !== 1 ? 's' : '') + ' shown');
-    $('#no-results').toggleClass('d-none', n > 0);
+  function changeQty(productId, delta) {
+    if (!quantities[productId]) quantities[productId] = 1;
+    quantities[productId] = Math.max(1, quantities[productId] + delta);
+    const el = document.getElementById('qty-' + productId);
+    if (el) el.textContent = quantities[productId];
   }
-  updateCount();
 
-  // Flavor filter
-  $('.filter-btn').click(function(){
-    $('.filter-btn').removeClass('active');
-    $(this).addClass('active');
-    const f = $(this).data('flavor');
-    if (f === 'all') $('.product-card-wrap').show();
-    else { $('.product-card-wrap').hide(); $(`.product-card-wrap[data-flavor="${f}"]`).show(); }
-    updateCount();
-  });
+  function addToCart(productId, btn) {
+    const qty = quantities[productId] || 1;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+    btn.disabled = true;
 
-  // Add to cart
-  $(document).on('click','.add-to-cart', function(){
-    const btn = $(this);
-    const productId = btn.data('product-id');
-    btn.prop('disabled',true).html('<i class="fas fa-spinner fa-spin"></i>');
-    $.ajax({
-      url:'/add-to-cart', method:'POST', contentType:'application/json',
-      data: JSON.stringify({product_id: productId, quantity: 1}),
-      success: function(res){
-        if(res.success){
-          $('.cart-count').text(res.cart_count);
-          $('#hero-cart-count').text(res.cart_count);
-          $('#toastMsg').text(res.message || 'Added to cart!');
-          new bootstrap.Toast(document.getElementById('cartToast'),{delay:2200}).show();
-        }
-      },
-      complete: function(){ btn.prop('disabled',false).html('<i class="fas fa-cart-plus"></i>'); }
+    fetch('/cart/add', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({product_id: productId, quantity: qty})
+    })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        btn.innerHTML = '<i class="fas fa-check me-2"></i>Added!';
+        btn.classList.add('btn-success-state');
+        updateCartBadge();
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.classList.remove('btn-success-state');
+          btn.disabled = false;
+        }, 1500);
+      } else {
+        btn.innerHTML = original;
+        btn.disabled = false;
+        alert(d.message || 'Could not add to cart');
+      }
+    })
+    .catch(() => {
+      btn.innerHTML = original;
+      btn.disabled = false;
+    });
+  }
+
+  // Filter functionality
+  let activeFlavorFilter = 'all';
+  let activeSizeFilter = 'all';
+
+  document.querySelectorAll('.flavor-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.flavor-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFlavorFilter = btn.dataset.flavor;
+      applyFilters();
     });
   });
-});
+
+  document.querySelectorAll('.size-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeSizeFilter = btn.dataset.size;
+      applyFilters();
+    });
+  });
+
+  function applyFilters() {
+    document.querySelectorAll('.product-card').forEach(card => {
+      const flavorMatch = activeFlavorFilter === 'all' || card.dataset.flavor === activeFlavorFilter;
+      const sizeMatch = activeSizeFilter === 'all' || card.dataset.size === activeSizeFilter;
+      card.style.display = (flavorMatch && sizeMatch) ? '' : 'none';
+    });
+  }
 </script>
 {% endblock %}

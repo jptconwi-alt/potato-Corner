@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Order Confirmed — Potato Corner{% endblock %}
+
+{% block content %}
+<section class="confirmation-section">
+  <div class="container">
+    <div class="confirmation-card">
+      <div class="confirm-animation">
+        <div class="confirm-circle">
+          <i class="fas fa-check confirm-check"></i>
+        </div>
+        <div class="confirm-rings">
+          <div class="ring r1"></div>
+          <div class="ring r2"></div>
+          <div class="ring r3"></div>
+        </div>
+      </div>
+      <h1 class="confirm-title">Order Confirmed! 🎉</h1>
+      <p class="confirm-sub">Your fries are being prepared. We'll deliver them hot and crispy!</p>
+
+      <div class="order-number-box">
+        <div class="order-number-label">Order Number</div>
+        <div class="order-number-val">{{ order.order_number }}</div>
+      </div>
+
+      <div class="confirm-details">
+        <div class="confirm-detail-row">
+          <div class="cd-icon"><i class="fas fa-user"></i></div>
+          <div>
+            <div class="cd-label">Customer</div>
+            <div class="cd-val">{{ order.customer_name }}</div>
+          </div>
+        </div>
+        <div class="confirm-detail-row">
+          <div class="cd-icon"><i class="fas fa-map-marker-alt"></i></div>
+          <div>
+            <div class="cd-label">Deliver to</div>
+            <div class="cd-val">{{ order.delivery_address }}</div>
+          </div>
+        </div>
+        <div class="confirm-detail-row">
+          <div class="cd-icon"><i class="fas fa-wallet"></i></div>
+          <div>
+            <div class="cd-label">Payment</div>
+            <div class="cd-val">{{ order.payment_method }}</div>
+          </div>
+        </div>
+        <div class="confirm-detail-row">
+          <div class="cd-icon"><i class="fas fa-receipt"></i></div>
+          <div>
+            <div class="cd-label">Total</div>
+            <div class="cd-val total-highlight">₱{{ "%.0f"|format(order.total_amount) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ordered Items -->
+      <div class="confirmed-items">
+        <h4>Items Ordered</h4>
+        {% for item in order.items %}
+        <div class="confirmed-item">
+          <span>{{ item.product_name }} × {{ item.quantity }}</span>
+          <span>₱{{ "%.0f"|format(item.subtotal) }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Status tracker -->
+      <div class="order-tracker">
+        <div class="tracker-step active">
+          <div class="tracker-icon"><i class="fas fa-clipboard-check"></i></div>
+          <div class="tracker-label">Order Placed</div>
+        </div>
+        <div class="tracker-line"></div>
+        <div class="tracker-step">
+          <div class="tracker-icon"><i class="fas fa-fire"></i></div>
+          <div class="tracker-label">Preparing</div>
+        </div>
+        <div class="tracker-line"></div>
+        <div class="tracker-step">
+          <div class="tracker-icon"><i class="fas fa-motorcycle"></i></div>
+          <div class="tracker-label">On the Way</div>
+        </div>
+        <div class="tracker-line"></div>
+        <div class="tracker-step">
+          <div class="tracker-icon"><i class="fas fa-home"></i></div>
+          <div class="tracker-label">Delivered</div>
+        </div>
+      </div>
+
+      <div class="confirm-actions">
+        <a href="{{ url_for('orders') }}" class="btn-auth-submit" style="max-width:200px">
+          <i class="fas fa-box me-2"></i>Track Order
+        </a>
+        <a href="{{ url_for('index') }}" class="btn-continue-shopping">
+          <i class="fas fa-arrow-left me-2"></i>Order More
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

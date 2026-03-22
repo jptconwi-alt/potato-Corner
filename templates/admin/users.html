@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}Manage Users — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-header">
+      <div class="admin-logo">🍟</div>
+      <div class="admin-brand">
+        <span class="admin-brand-name">Admin Panel</span>
+        <span class="admin-brand-sub">Potato Corner</span>
+      </div>
+      <button class="sidebar-close-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
+    </div>
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-item"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
+      <a href="{{ url_for('admin_orders') }}" class="admin-nav-item"><i class="fas fa-clipboard-list"></i><span>Orders</span></a>
+      <a href="{{ url_for('admin_users') }}" class="admin-nav-item active"><i class="fas fa-users"></i><span>Users</span></a>
+      <a href="{{ url_for('admin_products') }}" class="admin-nav-item"><i class="fas fa-utensils"></i><span>Products</span></a>
+      <hr class="admin-nav-divider">
+      <a href="{{ url_for('index') }}" class="admin-nav-item"><i class="fas fa-store"></i><span>View Store</span></a>
+      <a href="{{ url_for('logout') }}" class="admin-nav-item danger"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+    </nav>
+    <div class="admin-sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div>
+          <div class="admin-user-name">{{ current_user.full_name }}</div>
+          <div class="admin-user-role"><i class="fas fa-shield-alt me-1"></i>Administrator</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div class="admin-topbar-title">User Management</div>
+      <div class="admin-topbar-actions">
+        <span class="orders-count-badge">{{ users|length }} Users</span>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Search bar -->
+      <div class="admin-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="userSearch" placeholder="Search users by name or email..." class="admin-search-input" oninput="filterUsers()">
+      </div>
+
+      <!-- Users Grid -->
+      <div class="users-grid" id="usersGrid">
+        {% for user in users %}
+        <div class="user-card" id="user-card-{{ user.id }}" data-name="{{ user.full_name.lower() }}" data-email="{{ user.email.lower() }}">
+          <div class="user-card-header">
+            <div class="user-card-avatar">{{ user.full_name[0].upper() }}</div>
+            <div class="user-card-info">
+              <div class="user-card-name">{{ user.full_name }}</div>
+              <div class="user-card-email">{{ user.email }}</div>
+            </div>
+            {% if user.is_admin %}
+            <div class="user-admin-badge"><i class="fas fa-shield-alt me-1"></i>Admin</div>
+            {% endif %}
+          </div>
+          <div class="user-card-body">
+            <div class="user-detail-row">
+              <i class="fas fa-phone me-2"></i>
+              <span>{{ user.phone or 'No phone' }}</span>
+            </div>
+            <div class="user-detail-row">
+              <i class="fas fa-map-marker-alt me-2"></i>
+              <span>{{ user.get_full_address()[:50] if user.get_full_address() else 'No address' }}{% if user.get_full_address()|length > 50 %}...{% endif %}</span>
+            </div>
+            <div class="user-detail-row">
+              <i class="fas fa-calendar me-2"></i>
+              <span>Joined {{ user.created_at.strftime('%b %d, %Y') }}</span>
+            </div>
+            <div class="user-detail-row">
+              <i class="fas fa-box me-2"></i>
+              <span>{{ user.orders|length }} order{{ 's' if user.orders|length != 1 }}</span>
+            </div>
+          </div>
+          <div class="user-card-footer">
+            <button class="btn-user-orders" onclick="viewUserOrders({{ user.id }}, '{{ user.full_name }}')">
+              <i class="fas fa-clipboard-list me-1"></i>View Orders
+            </button>
+            {% if not user.is_admin %}
+            <button class="btn-user-contact" onclick="showContact('{{ user.email }}', '{{ user.phone or '' }}')">
+              <i class="fas fa-envelope me-1"></i>Contact
+            </button>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- User Orders Modal -->
+<div class="modal fade" id="userOrdersModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="userOrdersTitle"><i class="fas fa-box me-2"></i>Orders</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="userOrdersBody">
+        <div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+function filterUsers() {
+  const q = document.getElementById('userSearch').value.toLowerCase();
+  document.querySelectorAll('.user-card').forEach(card => {
+    const name = card.dataset.name;
+    const email = card.dataset.email;
+    card.style.display = (name.includes(q) || email.includes(q)) ? '' : 'none';
+  });
+}
+
+function viewUserOrders(userId, userName) {
+  document.getElementById('userOrdersTitle').innerHTML = '<i class="fas fa-box me-2"></i>' + userName + "'s Orders";
+  const modal = new bootstrap.Modal(document.getElementById('userOrdersModal'));
+  modal.show();
+  fetch('/admin/user/' + userId + '/orders')
+    .then(r => r.json())
+    .then(d => {
+      if (!d.orders || d.orders.length === 0) {
+        document.getElementById('userOrdersBody').innerHTML = '<div class="text-center py-4 text-muted"><i class="fas fa-box-open fa-3x mb-3"></i><p>No orders yet</p></div>';
+        return;
+      }
+      let html = '<div class="user-orders-list">';
+      d.orders.forEach(o => {
+        html += `<div class="user-order-item">
+          <div class="uo-header">
+            <span class="admin-order-num">${o.order_number}</span>
+            <span class="admin-status-badge status-${o.status.toLowerCase().replace(' ','-')}">${o.status}</span>
+            <strong>₱${Math.round(o.total_amount)}</strong>
+          </div>
+          <div class="uo-date">${o.order_date}</div>
+          <div class="uo-items">${o.items.map(i => i.product_name + ' × ' + i.quantity).join(' • ')}</div>
+        </div>`;
+      });
+      html += '</div>';
+      document.getElementById('userOrdersBody').innerHTML = html;
+    });
+}
+
+function showContact(email, phone) {
+  alert('Email: ' + email + (phone ? '\nPhone: ' + phone : '\nNo phone number on file'));
+}
+</script>
+{% endblock %}

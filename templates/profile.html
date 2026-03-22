@@ -1,229 +1,92 @@
 {% extends "base.html" %}
-{% block title %}My Profile{% endblock %}
+{% block title %}Profile — Potato Corner{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="section-title"><i class="fas fa-user-circle text-success"></i> My Profile</div>
-
-  <!-- Incomplete banner -->
-  {% if not user.profile_complete %}
-  <div class="profile-complete-banner mb-4">
-    <span class="icon">⚠️</span>
-    <div class="flex-grow-1">
-      <div class="fw-bold">Delivery information incomplete</div>
-      <div class="small text-muted">Please add your address to enable checkout.</div>
+<div class="page-header-section">
+  <div class="container">
+    <div class="page-header-inner">
+      <h1 class="page-title"><i class="fas fa-user me-3"></i>My Profile</h1>
     </div>
-    <button class="btn btn-warning btn-sm px-3 fw-bold" data-bs-toggle="modal" data-bs-target="#editProfileModal">
-      Complete Now
-    </button>
   </div>
-  {% endif %}
+</div>
 
-  <div class="row g-4">
-    <!-- Left: Profile card -->
-    <div class="col-md-4">
-      <div class="card mb-4">
-        <div class="card-body p-4 text-center">
-          <div class="avatar-circle">{{ user.full_name[0].upper() }}</div>
-          <h5 class="fw-bold mb-1">{{ user.full_name }}</h5>
-          <div class="text-muted small mb-2">@{{ user.username }}</div>
-          {% if user.is_admin %}<span class="badge bg-warning text-dark mb-2">Administrator</span>{% endif %}
-          {% if not user.profile_complete %}<span class="badge bg-danger mb-2">Profile Incomplete</span>{% endif %}
-          <hr>
-          <div class="text-start">
-            <div class="mb-2 small"><i class="fas fa-envelope me-2 text-success"></i>{{ user.email }}</div>
-            {% if user.phone %}<div class="mb-2 small"><i class="fas fa-phone me-2 text-success"></i>{{ user.phone }}</div>{% endif %}
-            {% if user.street %}<div class="mb-1 small"><i class="fas fa-road me-2 text-success"></i>{{ user.street }}</div>{% endif %}
-            {% if user.barangay %}<div class="mb-1 small"><i class="fas fa-map me-2 text-success"></i>{{ user.barangay }}</div>{% endif %}
-            {% if user.city %}<div class="mb-1 small"><i class="fas fa-city me-2 text-success"></i>{{ user.city }}{% if user.province %}, {{ user.province }}{% endif %}</div>{% endif %}
-            {% if user.zipcode %}<div class="mb-2 small"><i class="fas fa-mail-bulk me-2 text-success"></i>ZIP: {{ user.zipcode }}</div>{% endif %}
-            <div class="small text-muted"><i class="fas fa-calendar me-2 text-success"></i>Member since {{ user.created_at.strftime('%B %Y') }}</div>
-          </div>
-          <hr>
-          <div class="d-grid gap-2">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#editProfileModal">
-              <i class="fas fa-edit me-2"></i>Edit Profile
-            </button>
-            <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-              <i class="fas fa-key me-2"></i>Change Password
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Stats -->
-      <div class="card">
-        <div class="card-body p-4">
-          <h6 class="fw-bold mb-3">Order Stats</h6>
-          <div class="d-flex justify-content-around mb-3">
-            <div class="text-center">
-              <div class="fw-bold text-success fs-4">{{ orders|length }}</div>
-              <div class="small text-muted">Total</div>
-            </div>
-            <div class="vr"></div>
-            <div class="text-center">
-              <div class="fw-bold text-success fs-4">{{ orders|selectattr('status','equalto','Delivered')|list|length }}</div>
-              <div class="small text-muted">Delivered</div>
-            </div>
-          </div>
-          {% if orders %}
-          <div class="text-center p-3 rounded" style="background:var(--green-pale)">
-            <div class="small text-muted">Total Spent</div>
-            <div class="fw-bold text-success fs-5">₱{{ "%.2f"|format(orders|sum(attribute='total_amount')) }}</div>
-          </div>
+<section class="profile-section">
+  <div class="container">
+    <div class="profile-layout">
+      <!-- Profile Card -->
+      <div class="profile-side">
+        <div class="profile-card">
+          <div class="profile-avatar-big">{{ current_user.full_name[0].upper() }}</div>
+          <h3 class="profile-name">{{ current_user.full_name }}</h3>
+          <p class="profile-email">{{ current_user.email }}</p>
+          {% if current_user.is_admin %}
+          <div class="admin-badge-profile"><i class="fas fa-shield-alt me-1"></i>Admin</div>
           {% endif %}
+          <div class="profile-stats">
+            <div class="profile-stat"><strong>{{ orders|length }}</strong><span>Orders</span></div>
+            <div class="profile-stat"><strong>{{ current_user.created_at.strftime('%Y') }}</strong><span>Member Since</span></div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Right: Orders -->
-    <div class="col-md-8">
-      <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="fas fa-history me-2"></i>Recent Orders</h5>
-          <a href="{{ url_for('my_orders') }}" class="btn btn-sm btn-outline-light">View All</a>
-        </div>
-        <div class="card-body p-0">
-          {% if orders %}
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Order #</th><th>Date</th><th>Total</th><th>Status</th><th></th></tr></thead>
-              <tbody>
-                {% for order in orders[:5] %}
-                <tr>
-                  <td class="fw-bold text-success">{{ order.order_number }}</td>
-                  <td class="small">{{ order.order_date.strftime('%b %d, %Y') }}</td>
-                  <td class="fw-bold">₱{{ "%.2f"|format(order.total_amount) }}</td>
-                  <td><span class="status-badge status-{{ order.status.lower() }}">{{ order.status }}</span></td>
-                  <td><a href="{{ url_for('order_confirmation', order_number=order.order_number) }}" class="btn btn-sm btn-outline-primary"><i class="fas fa-eye"></i></a></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <div class="text-center py-5">
-            <div style="font-size:3rem">📋</div>
-            <p class="text-muted mt-2">No orders yet. <a href="{{ url_for('index') }}" class="text-success fw-bold">Browse the menu!</a></p>
-          </div>
-          {% endif %}
+      <!-- Edit Form -->
+      <div class="profile-main">
+        <div class="checkout-card">
+          <h3 class="checkout-card-title"><i class="fas fa-edit me-2"></i>Edit Profile</h3>
+          <form method="POST" action="{{ url_for('profile') }}" class="auth-form">
+            <div class="form-row-2">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Full Name</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-user input-icon"></i>
+                  <input type="text" name="full_name" class="form-control-custom" value="{{ current_user.full_name }}" required>
+                </div>
+              </div>
+              <div class="form-group-custom">
+                <label class="form-label-custom">Phone</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-phone input-icon"></i>
+                  <input type="text" name="phone" class="form-control-custom" value="{{ current_user.phone or '' }}">
+                </div>
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Email</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-envelope input-icon"></i>
+                <input type="email" name="email" class="form-control-custom" value="{{ current_user.email }}" required>
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Street / House No.</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-home input-icon"></i>
+                <input type="text" name="street" class="form-control-custom" value="{{ current_user.street or '' }}">
+              </div>
+            </div>
+            <div class="form-row-2">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Barangay</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-map-pin input-icon"></i>
+                  <input type="text" name="barangay" class="form-control-custom" value="{{ current_user.barangay or '' }}">
+                </div>
+              </div>
+              <div class="form-group-custom">
+                <label class="form-label-custom">City</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-city input-icon"></i>
+                  <input type="text" name="city" class="form-control-custom" value="{{ current_user.city or '' }}">
+                </div>
+              </div>
+            </div>
+            <button type="submit" class="btn-auth-submit">
+              <i class="fas fa-save me-2"></i>Save Changes
+            </button>
+          </form>
         </div>
       </div>
     </div>
   </div>
-</div>
-
-<!-- Edit Profile Modal -->
-<div class="modal fade" id="editProfileModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header" style="background:linear-gradient(135deg,#2e7d32,#1a5c2e);color:#fff">
-        <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Profile</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-4">
-        <form method="POST" action="{{ url_for('update_profile') }}">
-          <div class="row g-3">
-            <div class="col-12">
-              <div class="fw-bold text-success mb-1" style="font-size:.92rem"><i class="fas fa-user me-1"></i> Personal Info</div>
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label">Full Name *</label>
-              <input type="text" class="form-control" name="full_name" value="{{ user.full_name }}" required>
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label">Email *</label>
-              <input type="email" class="form-control" name="email" value="{{ user.email }}" required>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Phone *</label>
-              <input type="tel" class="form-control" name="phone" value="{{ user.phone or '' }}" placeholder="09123456789">
-            </div>
-            <div class="col-12 mt-2">
-              <div class="fw-bold text-success mb-1" style="font-size:.92rem"><i class="fas fa-map-marker-alt me-1"></i> Delivery Address</div>
-            </div>
-            <div class="col-12">
-              <label class="form-label">House/Unit No. & Street</label>
-              <input type="text" class="form-control" name="street" value="{{ user.street or '' }}" placeholder="123 Rizal Street">
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label">Barangay</label>
-              <input type="text" class="form-control" name="barangay" value="{{ user.barangay or '' }}" placeholder="Brgy. San Antonio">
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label">City / Municipality</label>
-              <input type="text" class="form-control" name="city" value="{{ user.city or '' }}" placeholder="Quezon City">
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label">Province / Region</label>
-              <input type="text" class="form-control" name="province" value="{{ user.province or '' }}" placeholder="Metro Manila">
-            </div>
-            <div class="col-sm-6">
-              <label class="form-label">ZIP Code</label>
-              <input type="text" class="form-control" name="zipcode" value="{{ user.zipcode or '' }}" placeholder="1100" maxlength="4">
-            </div>
-            <div class="col-12 mt-2">
-              <button type="submit" class="btn btn-primary w-100 py-2">
-                <i class="fas fa-save me-2"></i>Save Changes
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Change Password Modal -->
-<div class="modal fade" id="changePasswordModal" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header" style="background:linear-gradient(135deg,#2e7d32,#1a5c2e);color:#fff">
-        <h5 class="modal-title"><i class="fas fa-key me-2"></i>Change Password</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-4">
-        <form method="POST" action="{{ url_for('change_password') }}" id="pwdForm">
-          <div class="mb-3">
-            <label class="form-label">Current Password</label>
-            <div class="input-group">
-              <input type="password" class="form-control" id="old_password" name="old_password" required>
-              <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('old_password',this)"><i class="fas fa-eye"></i></button>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">New Password</label>
-            <div class="input-group">
-              <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
-              <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('new_password',this)"><i class="fas fa-eye"></i></button>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Confirm New Password</label>
-            <div class="input-group">
-              <input type="password" class="form-control" id="confirm_new" name="confirm_new" required>
-              <button class="btn btn-outline-secondary" type="button" onclick="togglePwd('confirm_new',this)"><i class="fas fa-eye"></i></button>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary w-100"><i class="fas fa-lock me-2"></i>Update Password</button>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function togglePwd(id, btn) {
-  const inp = document.getElementById(id);
-  inp.type = inp.type === 'password' ? 'text' : 'password';
-  btn.querySelector('i').className = inp.type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
-}
-document.getElementById('pwdForm').addEventListener('submit', function(e){
-  if (document.getElementById('new_password').value !== document.getElementById('confirm_new').value) {
-    e.preventDefault(); alert('New passwords do not match!');
-  }
-});
-</script>
+</section>
 {% endblock %}

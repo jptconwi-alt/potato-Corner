@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard — Potato Corner{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  <!-- Admin Sidebar -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-header">
+      <div class="admin-logo">🍟</div>
+      <div class="admin-brand">
+        <span class="admin-brand-name">Admin Panel</span>
+        <span class="admin-brand-sub">Potato Corner</span>
+      </div>
+      <button class="sidebar-close-btn d-lg-none" onclick="toggleSidebar()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-item {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+        <i class="fas fa-tachometer-alt"></i><span>Dashboard</span>
+      </a>
+      <a href="{{ url_for('admin_orders') }}" class="admin-nav-item {% if request.endpoint == 'admin_orders' %}active{% endif %}">
+        <i class="fas fa-clipboard-list"></i><span>Orders</span>
+        {% if pending_count %}<div class="nav-badge">{{ pending_count }}</div>{% endif %}
+      </a>
+      <a href="{{ url_for('admin_users') }}" class="admin-nav-item {% if request.endpoint == 'admin_users' %}active{% endif %}">
+        <i class="fas fa-users"></i><span>Users</span>
+      </a>
+      <a href="{{ url_for('admin_products') }}" class="admin-nav-item {% if request.endpoint == 'admin_products' %}active{% endif %}">
+        <i class="fas fa-utensils"></i><span>Products</span>
+      </a>
+      <hr class="admin-nav-divider">
+      <a href="{{ url_for('index') }}" class="admin-nav-item">
+        <i class="fas fa-store"></i><span>View Store</span>
+      </a>
+      <a href="{{ url_for('logout') }}" class="admin-nav-item danger">
+        <i class="fas fa-sign-out-alt"></i><span>Logout</span>
+      </a>
+    </nav>
+
+    <div class="admin-sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div>
+          <div class="admin-user-name">{{ current_user.full_name }}</div>
+          <div class="admin-user-role"><i class="fas fa-shield-alt me-1"></i>Administrator</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- Admin Main Content -->
+  <div class="admin-main">
+    <!-- Admin Top Bar -->
+    <div class="admin-topbar">
+      <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="admin-topbar-title">Dashboard Overview</div>
+      <div class="admin-topbar-actions">
+        <span class="admin-date"><i class="fas fa-calendar me-1"></i>{{ now.strftime('%B %d, %Y') if now else '' }}</span>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Stats Cards -->
+      <div class="admin-stats-grid">
+        <div class="stat-card stat-blue">
+          <div class="stat-card-icon"><i class="fas fa-clipboard-list"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ stats.total_orders }}</div>
+            <div class="stat-card-label">Total Orders</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-clipboard-list"></i></div>
+        </div>
+        <div class="stat-card stat-orange">
+          <div class="stat-card-icon"><i class="fas fa-clock"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ stats.pending_orders }}</div>
+            <div class="stat-card-label">Pending Orders</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-clock"></i></div>
+        </div>
+        <div class="stat-card stat-green">
+          <div class="stat-card-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ stats.delivered_orders }}</div>
+            <div class="stat-card-label">Delivered</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-check-circle"></i></div>
+        </div>
+        <div class="stat-card stat-purple">
+          <div class="stat-card-icon"><i class="fas fa-peso-sign"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">₱{{ "%.0f"|format(stats.total_revenue) }}</div>
+            <div class="stat-card-label">Total Revenue</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-peso-sign"></i></div>
+        </div>
+        <div class="stat-card stat-teal">
+          <div class="stat-card-icon"><i class="fas fa-users"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ stats.total_users }}</div>
+            <div class="stat-card-label">Total Users</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-users"></i></div>
+        </div>
+        <div class="stat-card stat-red">
+          <div class="stat-card-icon"><i class="fas fa-motorcycle"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ stats.out_for_delivery }}</div>
+            <div class="stat-card-label">Out for Delivery</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-motorcycle"></i></div>
+        </div>
+      </div>
+
+      <!-- Recent Orders + Quick Actions -->
+      <div class="admin-dashboard-grid">
+        <!-- Recent Orders -->
+        <div class="admin-card admin-card-wide">
+          <div class="admin-card-header">
+            <h3><i class="fas fa-clock me-2"></i>Recent Orders</h3>
+            <a href="{{ url_for('admin_orders') }}" class="admin-card-link">View All</a>
+          </div>
+          <div class="admin-card-body p-0">
+            <div class="admin-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Order #</th>
+                    <th>Customer</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for order in recent_orders %}
+                  <tr>
+                    <td><span class="admin-order-num">{{ order.order_number }}</span></td>
+                    <td>{{ order.customer_name }}</td>
+                    <td><strong>₱{{ "%.0f"|format(order.total_amount) }}</strong></td>
+                    <td>
+                      <span class="admin-status-badge status-{{ order.status.lower().replace(' ', '-') }}">
+                        {{ order.status }}
+                      </span>
+                    </td>
+                    <td>
+                      <a href="{{ url_for('admin_orders') }}?highlight={{ order.id }}" class="admin-btn-sm">
+                        <i class="fas fa-eye"></i>
+                      </a>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Delivery Actions -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3><i class="fas fa-motorcycle me-2"></i>Quick Deliver</h3>
+          </div>
+          <div class="admin-card-body">
+            <p class="admin-helper-text">Mark orders as delivered quickly</p>
+            <div class="quick-deliver-list">
+              {% for order in pending_delivery %}
+              <div class="quick-deliver-item">
+                <div class="qd-info">
+                  <div class="qd-number">{{ order.order_number }}</div>
+                  <div class="qd-customer">{{ order.customer_name }}</div>
+                  <div class="qd-address">{{ order.delivery_address[:40] }}{% if order.delivery_address|length > 40 %}...{% endif %}</div>
+                </div>
+                <button class="btn-deliver" onclick="markDelivered({{ order.id }}, this)">
+                  <i class="fas fa-check me-1"></i>Done
+                </button>
+              </div>
+              {% else %}
+              <div class="empty-quick-deliver">
+                <i class="fas fa-check-circle text-success"></i>
+                <p>All caught up! No pending deliveries.</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+function markDelivered(orderId, btn) {
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  btn.disabled = true;
+  fetch('/admin/order/' + orderId + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'Delivered'})
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      btn.closest('.quick-deliver-item').style.opacity = '0';
+      setTimeout(() => { location.reload(); }, 400);
+    }
+  });
+}
+</script>
+{% endblock %}

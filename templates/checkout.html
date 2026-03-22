@@ -1,111 +1,142 @@
 {% extends "base.html" %}
-{% block title %}Checkout{% endblock %}
+{% block title %}Checkout — Potato Corner{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="section-title"><i class="fas fa-credit-card text-success"></i>Checkout</div>
-  <div class="row g-4">
-    <div class="col-lg-7">
-      <div class="card mb-4">
-        <div class="card-header"><h5 class="mb-0"><i class="fas fa-user me-2"></i>Customer Information</h5></div>
-        <div class="card-body p-4">
-          <form method="POST" id="checkout-form">
-            <div class="row g-3">
-              <div class="col-12">
-                <label class="form-label">Full Name *</label>
-                <input type="text" class="form-control" name="name" value="{{ user.name }}" required>
+<div class="page-header-section">
+  <div class="container">
+    <div class="page-header-inner">
+      <h1 class="page-title"><i class="fas fa-credit-card me-3"></i>Checkout</h1>
+      <p class="page-sub">Just one step away from your fries!</p>
+    </div>
+  </div>
+</div>
+
+<section class="checkout-section">
+  <div class="container">
+    <div class="checkout-layout">
+      <div class="checkout-form-col">
+        <form method="POST" action="{{ url_for('checkout') }}" class="checkout-form">
+          <div class="checkout-card">
+            <h3 class="checkout-card-title"><i class="fas fa-user me-2"></i>Delivery Information</h3>
+            <div class="form-row-2">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Full Name</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-user input-icon"></i>
+                  <input type="text" name="name" class="form-control-custom"
+                    value="{{ current_user.full_name if current_user.is_authenticated else '' }}" required>
+                </div>
               </div>
-              <div class="col-12 col-sm-6">
-                <label class="form-label">Email Address *</label>
-                <input type="email" class="form-control" name="email" value="{{ user.email }}" required>
-              </div>
-              <div class="col-12 col-sm-6">
-                <label class="form-label">Phone Number *</label>
-                <input type="tel" class="form-control" name="phone" value="{{ user.phone }}" pattern="[0-9]{11}" placeholder="09123456789" required>
-              </div>
-              <div class="col-12">
-                <label class="form-label">Delivery Address *</label>
-                <textarea class="form-control" name="address" rows="3" required>{{ user.address }}</textarea>
+              <div class="form-group-custom">
+                <label class="form-label-custom">Phone Number</label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-phone input-icon"></i>
+                  <input type="text" name="phone" class="form-control-custom"
+                    value="{{ current_user.phone if current_user.is_authenticated else '' }}" required>
+                </div>
               </div>
             </div>
-          </form>
-        </div>
-      </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Email</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-envelope input-icon"></i>
+                <input type="email" name="email" class="form-control-custom"
+                  value="{{ current_user.email if current_user.is_authenticated else '' }}" required>
+              </div>
+            </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Delivery Address</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-map-marker-alt input-icon"></i>
+                <textarea name="address" class="form-control-custom" rows="3" required>{{ current_user.get_full_address() if current_user.is_authenticated else '' }}</textarea>
+              </div>
+            </div>
+          </div>
 
-      <div class="card">
-        <div class="card-header"><h5 class="mb-0"><i class="fas fa-wallet me-2"></i>Payment Method</h5></div>
-        <div class="card-body p-4">
-          <div class="row g-3">
-            {% set methods = [
-              ('Cash on Delivery', 'fa-money-bill-wave', 'text-success', 'Pay when your fries arrive at your door.'),
-              ('GCash', 'fa-mobile-alt', 'text-primary', 'Pay via GCash e-wallet.'),
-              ('Credit/Debit Card', 'fa-credit-card', 'text-info', 'Visa, Mastercard, JCB accepted.')
-            ] %}
-            {% for method, icon, color, desc in methods %}
-            <div class="col-12">
-              <label class="d-flex align-items-center gap-3 p-3 border rounded cursor-pointer payment-option" style="cursor:pointer;border-radius:10px !important;transition:.2s">
-                <input type="radio" name="payment_method" form="checkout-form" value="{{ method }}" {% if loop.first %}checked{% endif %} class="form-check-input mt-0" style="width:1.1em;height:1.1em">
-                <i class="fas {{ icon }} {{ color }} fs-5"></i>
-                <div>
-                  <div class="fw-bold">{{ method }}</div>
-                  <div class="text-muted small">{{ desc }}</div>
+          <div class="checkout-card">
+            <h3 class="checkout-card-title"><i class="fas fa-wallet me-2"></i>Payment Method</h3>
+            <div class="payment-options">
+              <label class="payment-option">
+                <input type="radio" name="payment_method" value="Cash on Delivery" checked>
+                <div class="payment-option-inner">
+                  <div class="payment-icon">💵</div>
+                  <div>
+                    <div class="payment-name">Cash on Delivery</div>
+                    <div class="payment-desc">Pay when your order arrives</div>
+                  </div>
+                </div>
+              </label>
+              <label class="payment-option">
+                <input type="radio" name="payment_method" value="GCash">
+                <div class="payment-option-inner">
+                  <div class="payment-icon">📱</div>
+                  <div>
+                    <div class="payment-name">GCash</div>
+                    <div class="payment-desc">Pay via GCash e-wallet</div>
+                  </div>
+                </div>
+              </label>
+              <label class="payment-option">
+                <input type="radio" name="payment_method" value="Maya">
+                <div class="payment-option-inner">
+                  <div class="payment-icon">💳</div>
+                  <div>
+                    <div class="payment-name">Maya</div>
+                    <div class="payment-desc">Pay via Maya e-wallet</div>
+                  </div>
                 </div>
               </label>
             </div>
-            {% endfor %}
           </div>
-          <button type="submit" form="checkout-form" class="btn btn-primary w-100 py-2 mt-4" id="place-order">
+
+          <button type="submit" class="btn-place-order">
             <i class="fas fa-check-circle me-2"></i>Place Order
           </button>
-        </div>
+        </form>
       </div>
-    </div>
 
-    <div class="col-lg-5">
-      <div class="card sticky-top" style="top:80px">
-        <div class="card-header"><h5 class="mb-0"><i class="fas fa-receipt me-2"></i>Your Order</h5></div>
-        <div class="card-body p-4">
-          {% for item in cart_items %}
-          <div class="d-flex align-items-center gap-3 mb-3 pb-3 border-bottom">
-            <img src="{{ FOOD_IMAGES.get(item.product.flavor, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=200&q=80') }}"
-                 style="width:52px;height:52px;object-fit:cover;border-radius:8px;flex-shrink:0" alt="{{ item.product.name }}">
-            <div class="flex-grow-1">
-              <div class="fw-bold small">{{ item.product.name }}</div>
-              <div class="text-muted" style="font-size:.78rem">Qty: {{ item.quantity }}</div>
+      <!-- Order Summary -->
+      <div class="checkout-summary-col">
+        <div class="order-summary-card sticky-summary">
+          <h3 class="summary-title">Order Summary</h3>
+          <div class="summary-items">
+            {% for item in cart_items %}
+            <div class="summary-item">
+              <span class="summary-item-name">{{ item.product.name }} × {{ item.quantity }}</span>
+              <span class="summary-item-price">₱{{ "%.0f"|format(item.product.price * item.quantity) }}</span>
             </div>
-            <div class="fw-bold text-success">₱{{ "%.2f"|format(item.product.price * item.quantity) }}</div>
+            {% endfor %}
           </div>
-          {% endfor %}
-          <div class="summary-box">
-            <div class="summary-row"><span>Subtotal:</span><span>₱{{ "%.2f"|format(total) }}</span></div>
-            <div class="summary-row"><span>Delivery Fee:</span><span>₱50.00</span></div>
-            <div class="summary-row total"><span>Total:</span><span>₱{{ "%.2f"|format(total + 50) }}</span></div>
+          <div class="summary-rows">
+            <div class="summary-row">
+              <span>Subtotal</span>
+              <span>₱{{ "%.0f"|format(total) }}</span>
+            </div>
+            <div class="summary-row">
+              <span>Delivery</span>
+              <span class="text-success">Free</span>
+            </div>
+            <div class="summary-row total-row">
+              <span>Total</span>
+              <span class="total-price">₱{{ "%.0f"|format(total) }}</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-</div>
+</section>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-$(function(){
-  // Highlight selected payment method
-  $('.payment-option').click(function(){
-    $('.payment-option').css({'background':'','border-color':''});
-    $(this).css({'background':'#e8f5e9','border-color':'#4caf50'});
-  });
-  // Trigger on page load
-  $('input[name="payment_method"]:checked').closest('.payment-option').css({'background':'#e8f5e9','border-color':'#4caf50'});
-  $('input[name="payment_method"]').change(function(){
-    $('.payment-option').css({'background':'','border-color':''});
-    $(this).closest('.payment-option').css({'background':'#e8f5e9','border-color':'#4caf50'});
-  });
-
-  $('#checkout-form').submit(function(){
-    $('#place-order').prop('disabled',true).html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+// Style payment options on click
+document.querySelectorAll('.payment-option input').forEach(input => {
+  input.addEventListener('change', () => {
+    document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
+    input.closest('.payment-option').classList.add('selected');
   });
 });
+document.querySelector('.payment-option input:checked')?.closest('.payment-option')?.classList.add('selected');
 </script>
 {% endblock %}

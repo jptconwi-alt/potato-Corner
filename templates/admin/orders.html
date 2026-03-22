@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Manage Orders — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  <!-- Sidebar (same as dashboard) -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-header">
+      <div class="admin-logo">🍟</div>
+      <div class="admin-brand">
+        <span class="admin-brand-name">Admin Panel</span>
+        <span class="admin-brand-sub">Potato Corner</span>
+      </div>
+      <button class="sidebar-close-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
+    </div>
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-item"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
+      <a href="{{ url_for('admin_orders') }}" class="admin-nav-item active"><i class="fas fa-clipboard-list"></i><span>Orders</span></a>
+      <a href="{{ url_for('admin_users') }}" class="admin-nav-item"><i class="fas fa-users"></i><span>Users</span></a>
+      <a href="{{ url_for('admin_products') }}" class="admin-nav-item"><i class="fas fa-utensils"></i><span>Products</span></a>
+      <hr class="admin-nav-divider">
+      <a href="{{ url_for('index') }}" class="admin-nav-item"><i class="fas fa-store"></i><span>View Store</span></a>
+      <a href="{{ url_for('logout') }}" class="admin-nav-item danger"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+    </nav>
+    <div class="admin-sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div>
+          <div class="admin-user-name">{{ current_user.full_name }}</div>
+          <div class="admin-user-role"><i class="fas fa-shield-alt me-1"></i>Administrator</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div class="admin-topbar-title">Order Management</div>
+      <div class="admin-topbar-actions">
+        <span class="orders-count-badge">{{ orders|length }} Total Orders</span>
+      </div>
+    </div>
+
+    <div class="admin-content">
+      <!-- Status Filter Tabs -->
+      <div class="order-status-tabs">
+        <button class="status-tab active" data-filter="all">All <span>{{ orders|length }}</span></button>
+        <button class="status-tab" data-filter="pending">Pending <span>{{ orders|selectattr('status','eq','Pending')|list|length }}</span></button>
+        <button class="status-tab" data-filter="preparing">Preparing <span>{{ orders|selectattr('status','eq','Preparing')|list|length }}</span></button>
+        <button class="status-tab" data-filter="out-for-delivery">Out for Delivery <span>{{ orders|selectattr('status','eq','Out for Delivery')|list|length }}</span></button>
+        <button class="status-tab" data-filter="delivered">Delivered <span>{{ orders|selectattr('status','eq','Delivered')|list|length }}</span></button>
+      </div>
+
+      <!-- Orders Table -->
+      <div class="admin-card mt-3">
+        <div class="admin-card-body p-0">
+          <div class="admin-table-wrap">
+            <table class="admin-table admin-orders-table">
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th>Phone</th>
+                  <th>Address</th>
+                  <th>Items</th>
+                  <th>Total</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for order in orders %}
+                <tr class="order-row" data-status="{{ order.status.lower().replace(' ', '-') }}" id="order-row-{{ order.id }}">
+                  <td><span class="admin-order-num">{{ order.order_number }}</span></td>
+                  <td>
+                    <div class="admin-customer-cell">
+                      <div class="admin-customer-avatar">{{ order.customer_name[0].upper() }}</div>
+                      <span>{{ order.customer_name }}</span>
+                    </div>
+                  </td>
+                  <td>{{ order.customer_phone }}</td>
+                  <td>
+                    <div class="admin-address-cell" title="{{ order.delivery_address }}">
+                      {{ order.delivery_address[:35] }}{% if order.delivery_address|length > 35 %}...{% endif %}
+                    </div>
+                  </td>
+                  <td>
+                    <button class="btn-view-items" onclick="showItems({{ order.id }})">
+                      {{ order.items|length }} item{{ 's' if order.items|length != 1 }}
+                    </button>
+                    <!-- Hidden items data -->
+                    <div id="items-{{ order.id }}" class="d-none">
+                      {% for item in order.items %}
+                      <div>{{ item.product_name }} × {{ item.quantity }} = ₱{{ "%.0f"|format(item.subtotal) }}</div>
+                      {% endfor %}
+                    </div>
+                  </td>
+                  <td><strong>₱{{ "%.0f"|format(order.total_amount) }}</strong></td>
+                  <td><span class="payment-chip">{{ order.payment_method }}</span></td>
+                  <td>
+                    <select class="status-select status-{{ order.status.lower().replace(' ', '-') }}"
+                            onchange="updateStatus({{ order.id }}, this)"
+                            data-original="{{ order.status }}">
+                      <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>⏳ Pending</option>
+                      <option value="Preparing" {% if order.status == 'Preparing' %}selected{% endif %}>🔥 Preparing</option>
+                      <option value="Out for Delivery" {% if order.status == 'Out for Delivery' %}selected{% endif %}>🚚 Out for Delivery</option>
+                      <option value="Delivered" {% if order.status == 'Delivered' %}selected{% endif %}>✅ Delivered</option>
+                      <option value="Cancelled" {% if order.status == 'Cancelled' %}selected{% endif %}>❌ Cancelled</option>
+                    </select>
+                  </td>
+                  <td><span class="admin-date-small">{{ order.order_date.strftime('%b %d, %Y') }}<br>{{ order.order_date.strftime('%I:%M %p') }}</span></td>
+                  <td>
+                    <div class="admin-action-btns">
+                      {% if order.status != 'Delivered' %}
+                      <button class="admin-btn-deliver" onclick="quickDeliver({{ order.id }}, this)" title="Mark Delivered">
+                        <i class="fas fa-check"></i>
+                      </button>
+                      {% else %}
+                      <span class="delivered-check"><i class="fas fa-check-circle text-success"></i></span>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Items Modal -->
+<div class="modal fade" id="itemsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-box me-2"></i>Order Items</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalItemsBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+// Status filter tabs
+document.querySelectorAll('.status-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const filter = tab.dataset.filter;
+    document.querySelectorAll('.order-row').forEach(row => {
+      row.style.display = (filter === 'all' || row.dataset.status === filter) ? '' : 'none';
+    });
+  });
+});
+
+function updateStatus(orderId, sel) {
+  const newStatus = sel.value;
+  const original = sel.dataset.original;
+  fetch('/admin/order/' + orderId + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: newStatus})
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      sel.className = 'status-select status-' + newStatus.toLowerCase().replace(' ', '-');
+      sel.dataset.original = newStatus;
+      const row = document.getElementById('order-row-' + orderId);
+      if (row) row.dataset.status = newStatus.toLowerCase().replace(' ', '-');
+    } else {
+      sel.value = original;
+      alert('Failed to update status');
+    }
+  });
+}
+
+function quickDeliver(orderId, btn) {
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  btn.disabled = true;
+  fetch('/admin/order/' + orderId + '/status', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({status: 'Delivered'})
+  }).then(r => r.json()).then(d => {
+    if (d.success) {
+      const sel = document.querySelector('#order-row-' + orderId + ' .status-select');
+      if (sel) { sel.value = 'Delivered'; sel.className = 'status-select status-delivered'; }
+      btn.closest('td').innerHTML = '<span class="delivered-check"><i class="fas fa-check-circle text-success"></i></span>';
+      const row = document.getElementById('order-row-' + orderId);
+      if (row) row.dataset.status = 'delivered';
+    }
+  });
+}
+
+function showItems(orderId) {
+  const itemsDiv = document.getElementById('items-' + orderId);
+  const rows = itemsDiv ? itemsDiv.querySelectorAll('div') : [];
+  let html = '<div class="modal-items-list">';
+  rows.forEach(r => {
+    html += '<div class="modal-item-row">' + r.innerHTML + '</div>';
+  });
+  html += '</div>';
+  document.getElementById('modalItemsBody').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('itemsModal')).show();
+}
+</script>
+{% endblock %}
