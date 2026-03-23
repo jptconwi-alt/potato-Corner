@@ -39,12 +39,14 @@
             <i class="fas fa-home me-1"></i>Menu
           </a>
         </li>
+        {% if request.endpoint not in ['login', 'register'] and not (request.endpoint and request.endpoint.startswith('admin')) %}
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint == 'cart' %}active{% endif %}" href="{{ url_for('cart') }}">
             <i class="fas fa-shopping-cart me-1"></i>Cart
             <span class="cart-badge" id="cartCount">0</span>
           </a>
         </li>
+        {% endif %}
         {% if current_user.is_authenticated %}
           {% if current_user.is_admin %}
           <li class="nav-item">

@@ -44,6 +44,8 @@ def create_app():
     with app.app_context():
         try:
             db.create_all()
+            from init_db import run_migrations
+            run_migrations(db.engine)
             init_database()
         except Exception as e:
             print(f"❌ DB error: {e}")

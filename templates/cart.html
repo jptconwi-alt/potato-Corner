@@ -20,7 +20,9 @@
         {% for item in cart_items %}
         <div class="cart-item-card" id="cart-item-{{ item.id }}">
           <div class="cart-item-img">
-            {% if item.product.image_url %}
+            {% if item.product.image_data %}
+              <img src="{{ item.product.image_data }}" alt="{{ item.product.name }}">
+            {% elif item.product.image_url and item.product.image_url != '_data_' %}
               <img src="{{ url_for('static', filename='images/' + item.product.image_url) }}" alt="{{ item.product.name }}">
             {% else %}
               <div class="cart-img-placeholder">🍟</div>

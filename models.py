@@ -57,6 +57,7 @@ class Product(db.Model):
     size         = db.Column(db.String(20), nullable=False)
     flavor       = db.Column(db.String(50), nullable=False)
     image_url    = db.Column(db.String(200), default='fries/cheese.svg')
+    image_data   = db.Column(db.Text, nullable=True)   # base64 encoded for persistent storage
     is_available = db.Column(db.Boolean, default=True)
     category     = db.Column(db.String(50), default='Fries')
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)

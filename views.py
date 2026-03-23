@@ -344,11 +344,12 @@ def register_routes(app):
             })
         return jsonify({'orders': data})
 
-    # ── Admin AJAX: Upload product image ────
+    # ── Admin AJAX: Upload product image (base64 stored in DB) ────
 
     @app.route('/admin/product/upload-image', methods=['POST'])
     @admin_required
     def admin_upload_product_image():
+        import base64
         product_id = request.form.get('product_id')
         product = Product.query.get(product_id)
         if not product:
@@ -361,17 +362,19 @@ def register_routes(app):
             return jsonify({'success': False, 'message': 'Invalid file type'})
 
         ext = file.filename.rsplit('.', 1)[1].lower()
-        filename = f"product_{product_id}_{uuid.uuid4().hex[:8]}.{ext}"
-        upload_path = os.path.join(app.root_path, UPLOAD_FOLDER, filename)
-        file.save(upload_path)
+        mime = 'image/svg+xml' if ext == 'svg' else f'image/{ext}'
+        img_bytes = file.read()
+        if len(img_bytes) > 5 * 1024 * 1024:
+            return jsonify({'success': False, 'message': 'Image too large (max 5MB)'})
 
-        product.image_url = f"uploads/{filename}"
+        b64 = base64.b64encode(img_bytes).decode('utf-8')
+        data_url = f"data:{mime};base64,{b64}"
+
+        product.image_data = data_url
+        product.image_url = f"_data_"   # sentinel: use image_data
         db.session.commit()
 
-        return jsonify({
-            'success': True,
-            'image_url': url_for('static', filename=f'images/uploads/{filename}')
-        })
+        return jsonify({'success': True, 'image_url': data_url})
 
     # ── Admin AJAX: Toggle product availability ─
 
@@ -391,6 +394,7 @@ def register_routes(app):
     @app.route('/admin/product/add', methods=['POST'])
     @admin_required
     def admin_add_product():
+        import base64
         name = request.form.get('name', '').strip()
         price = request.form.get('price')
         flavor = request.form.get('flavor', '').strip()
@@ -399,31 +403,31 @@ def register_routes(app):
         category = request.form.get('category', 'Fries').strip()
 
         if not all([name, price, flavor, size, description]):
-            return jsonify({'success': False, 'message': 'All fields required'})
+            missing = [k for k,v in {'name':name,'price':price,'flavor':flavor,'size':size,'description':description}.items() if not v]
+            return jsonify({'success': False, 'message': f'Missing fields: {", ".join(missing)}'})
 
         try:
             price = float(price)
-        except ValueError:
+        except (ValueError, TypeError):
             return jsonify({'success': False, 'message': 'Invalid price'})
 
-        # Default image based on category
-        if category == 'Drinks':
-            image_url = 'fries/cheese.svg'  # placeholder; admin can upload
-        else:
-            image_url = 'fries/cheese.svg'
+        image_url = 'fries/cheese.svg'
+        image_data = None
 
         file = request.files.get('image')
         if file and file.filename and allowed_file(file.filename):
             ext = file.filename.rsplit('.', 1)[1].lower()
-            filename = f"product_new_{uuid.uuid4().hex[:10]}.{ext}"
-            upload_path = os.path.join(app.root_path, UPLOAD_FOLDER, filename)
-            file.save(upload_path)
-            image_url = f"uploads/{filename}"
+            mime = 'image/svg+xml' if ext == 'svg' else f'image/{ext}'
+            img_bytes = file.read()
+            if len(img_bytes) <= 5 * 1024 * 1024:
+                b64 = base64.b64encode(img_bytes).decode('utf-8')
+                image_data = f"data:{mime};base64,{b64}"
+                image_url = '_data_'
 
         product = Product(
             name=name, price=price, flavor=flavor, size=size,
             description=description, image_url=image_url,
-            is_available=True, category=category
+            image_data=image_data, is_available=True, category=category
         )
         db.session.add(product)
         db.session.commit()

@@ -74,9 +74,9 @@
       {% for product in products %}
       <div class="product-card" data-flavor="{{ product.flavor }}" data-size="{{ product.size }}">
         <div class="product-img-wrap">
-          {% if product.image_url and product.image_url.startswith('uploads/') %}
-            <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="product-img" loading="lazy">
-          {% elif product.image_url %}
+          {% if product.image_data %}
+            <img src="{{ product.image_data }}" alt="{{ product.name }}" class="product-img" loading="lazy">
+          {% elif product.image_url and product.image_url != '_data_' %}
             <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="product-img" loading="lazy">
           {% else %}
             <div class="product-img-placeholder">🍟</div>

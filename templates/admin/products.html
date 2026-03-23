@@ -56,7 +56,9 @@
         {% for product in products %}
         <div class="admin-product-card" id="prod-{{ product.id }}" data-name="{{ product.name.lower() }}">
           <div class="admin-product-img-wrap">
-            {% if product.image_url %}
+            {% if product.image_data %}
+              <img src="{{ product.image_data }}" alt="{{ product.name }}" class="admin-product-img">
+            {% elif product.image_url and product.image_url != '_data_' %}
               <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="admin-product-img">
             {% else %}
               <div class="admin-product-img-placeholder">🍟</div>
@@ -281,18 +283,29 @@ function previewAddImage(input) {
 }
 
 function uploadImage() {
+  const fileInput = document.getElementById('imageInput');
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert('Please select an image first');
+    return;
+  }
   const form = document.getElementById('uploadImageForm');
   const formData = new FormData(form);
+  const btn = document.querySelector('#uploadModal .btn-auth-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
   fetch('/admin/product/upload-image', {
     method: 'POST',
     body: formData
   }).then(r => r.json()).then(d => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
     if (d.success) {
       const card = document.getElementById('prod-' + currentUploadProductId);
       if (card) {
-        const img = card.querySelector('.admin-product-img');
-        if (img) img.src = d.image_url + '?t=' + Date.now();
-        else {
+        let img = card.querySelector('.admin-product-img');
+        if (img) {
+          img.src = d.image_url;
+        } else {
           const placeholder = card.querySelector('.admin-product-img-placeholder');
           if (placeholder) placeholder.outerHTML = '<img src="' + d.image_url + '" class="admin-product-img" alt="Product">';
         }
@@ -302,6 +315,10 @@ function uploadImage() {
     } else {
       alert(d.message || 'Upload failed');
     }
+  }).catch(err => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+    alert('Network error: ' + err.message);
   });
 }
 
@@ -327,30 +344,60 @@ function openAddProduct() {
 }
 
 function addProduct() {
-  const form = document.getElementById('addProductForm');
-  const formData = new FormData(form);
-  // Handle custom size for drinks/snacks
+  const name = document.querySelector('#addProductForm [name="name"]').value.trim();
+  const price = document.querySelector('#addProductForm [name="price"]').value.trim();
+  const flavor = document.querySelector('#addProductForm [name="flavor"]').value.trim();
+  const description = document.querySelector('#addProductForm [name="description"]').value.trim();
   const cat = document.getElementById('addCategory').value;
+
+  // Determine size
+  let size = '';
   if (cat === 'Drinks' || cat === 'Snacks' || cat === 'Others') {
-    const customSize = document.getElementById('sizeCustomInput').value.trim();
-    if (!customSize) { alert('Please enter a size/volume'); return; }
-    formData.set('size', customSize);
+    size = document.getElementById('sizeCustomInput').value.trim();
+  } else {
+    size = document.getElementById('sizeSelect').value;
   }
-  // Pass category as flavor prefix if not Fries
-  if (cat && cat !== 'Fries') {
-    formData.set('category', cat);
+
+  if (!name || !price || !flavor || !size || !description) {
+    alert('Please fill in all required fields (including size).');
+    return;
   }
+
+  const formData = new FormData();
+  formData.set('name', name);
+  formData.set('price', price);
+  formData.set('flavor', flavor);
+  formData.set('size', size);
+  formData.set('description', description);
+  formData.set('category', cat);
+
+  // Add image if selected
+  const imgInput = document.getElementById('addImageInput');
+  if (imgInput.files && imgInput.files[0]) {
+    formData.set('image', imgInput.files[0]);
+  }
+
+  const btn = document.querySelector('#addProductModal .btn-auth-submit');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
+
   fetch('/admin/product/add', {
     method: 'POST',
     body: formData
   }).then(r => r.json()).then(d => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
     if (d.success) {
       bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
       showToast('Product added!', 'success');
-      setTimeout(() => location.reload(), 800);
+      setTimeout(() => location.reload(), 900);
     } else {
       alert(d.message || 'Failed to add product');
     }
+  }).catch(err => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
+    alert('Network error: ' + err.message);
   });
 }
 
