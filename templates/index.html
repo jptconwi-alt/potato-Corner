@@ -23,9 +23,11 @@
         <a href="#menu" class="btn btn-hero-primary">
           <i class="fas fa-utensils me-2"></i>Order Now
         </a>
+        {% if not (current_user.is_authenticated and current_user.is_admin) %}
         <a href="{{ url_for('cart') }}" class="btn btn-hero-secondary">
           <i class="fas fa-shopping-bag me-2"></i>View Cart
         </a>
+        {% endif %}
       </div>
       <div class="hero-stats">
         <div class="stat"><strong>8+</strong><span>Flavors</span></div>
@@ -82,9 +84,11 @@
             <div class="product-img-placeholder">🍟</div>
           {% endif %}
           <div class="product-overlay">
+            {% if not (current_user.is_authenticated and current_user.is_admin) %}
             <button class="btn-quick-add" onclick="addToCart({{ product.id }}, this)">
               <i class="fas fa-cart-plus"></i> Quick Add
             </button>
+            {% endif %}
           </div>
           <div class="product-size-tag">{{ product.size }}</div>
         </div>
@@ -100,9 +104,11 @@
               <button class="qty-btn plus" onclick="changeQty({{ product.id }}, 1)">+</button>
             </div>
           </div>
+          {% if not (current_user.is_authenticated and current_user.is_admin) %}
           <button class="btn-add-cart w-100" onclick="addToCart({{ product.id }}, this)">
             <i class="fas fa-shopping-cart me-2"></i>Add to Cart
           </button>
+          {% endif %}
         </div>
       </div>
       {% endfor %}

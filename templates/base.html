@@ -51,8 +51,8 @@
             </ul>
           </li>
 
-        {# ── Auth pages (login/register): show only brand, no nav items ── #}
-        {% elif request.endpoint in ['login', 'register'] %}
+        {# ── Auth pages: show only brand, no nav items ── #}
+        {% elif request.endpoint in ['login', 'register', 'complete_profile'] %}
           {# intentionally empty #}
 
         {# ── Regular customer pages ── #}
@@ -133,10 +133,12 @@
         <p>Delivering happiness, one fries at a time.</p>
       </div>
       <div class="footer-links">
+        {% if not (request.endpoint and (request.endpoint.startswith('admin') or request.endpoint in ['login','register','complete_profile'])) %}
         <a href="{{ url_for('index') }}">Menu</a>
         <a href="{{ url_for('cart') }}">Cart</a>
-        {% if current_user.is_authenticated %}
+        {% if current_user.is_authenticated and not current_user.is_admin %}
           <a href="{{ url_for('orders') }}">Orders</a>
+        {% endif %}
         {% endif %}
       </div>
     </div>
