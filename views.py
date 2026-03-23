@@ -327,6 +327,23 @@ def register_routes(app):
         success = OrderController.update_order_status(order_id, new_status)
         return jsonify({'success': success})
 
+    # ── Admin AJAX: Update payment status ──────
+
+    @app.route('/admin/order/<int:order_id>/payment', methods=['POST'])
+    @admin_required
+    def admin_update_payment_status(order_id):
+        from models import Order
+        data = request.get_json()
+        new_status = data.get('payment_status')
+        if new_status not in ['Paid', 'Unpaid']:
+            return jsonify({'success': False, 'message': 'Invalid payment status'})
+        order = Order.query.get(order_id)
+        if not order:
+            return jsonify({'success': False, 'message': 'Order not found'})
+        order.payment_status = new_status
+        db.session.commit()
+        return jsonify({'success': True})
+
     # ── Admin AJAX: Get user orders ─────────
 
     @app.route('/admin/user/<int:user_id>/orders')

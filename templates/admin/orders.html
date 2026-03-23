@@ -66,7 +66,8 @@
                   <th>Address</th>
                   <th>Items</th>
                   <th>Total</th>
-                  <th>Payment</th>
+                  <th>Payment Method</th>
+                  <th>Payment Status</th>
                   <th>Status</th>
                   <th>Date</th>
                   <th>Actions</th>
@@ -101,6 +102,13 @@
                   </td>
                   <td><strong>₱{{ "%.0f"|format(order.total_amount) }}</strong></td>
                   <td><span class="payment-chip">{{ order.payment_method }}</span></td>
+                  <td>
+                    <button class="btn-payment-toggle {% if order.payment_status == 'Paid' %}paid{% else %}unpaid{% endif %}"
+                            onclick="togglePayment({{ order.id }}, this)"
+                            data-status="{{ order.payment_status }}">
+                      {{ '💰 Paid' if order.payment_status == 'Paid' else '⏳ Unpaid' }}
+                    </button>
+                  </td>
                   <td>
                     <select class="status-select status-{{ order.status.lower().replace(' ', '-') }}"
                             onchange="updateStatus({{ order.id }}, this)"
@@ -202,6 +210,26 @@ function quickDeliver(orderId, btn) {
       btn.closest('td').innerHTML = '<span class="delivered-check"><i class="fas fa-check-circle text-success"></i></span>';
       const row = document.getElementById('order-row-' + orderId);
       if (row) row.dataset.status = 'delivered';
+    }
+  });
+}
+
+function togglePayment(orderId, btn) {
+  const current = btn.dataset.status;
+  const newStatus = current === 'Paid' ? 'Unpaid' : 'Paid';
+  btn.disabled = true;
+  fetch('/admin/order/' + orderId + '/payment', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({payment_status: newStatus})
+  }).then(r => r.json()).then(d => {
+    btn.disabled = false;
+    if (d.success) {
+      btn.dataset.status = newStatus;
+      btn.className = 'btn-payment-toggle ' + (newStatus === 'Paid' ? 'paid' : 'unpaid');
+      btn.textContent = newStatus === 'Paid' ? '💰 Paid' : '⏳ Unpaid';
+    } else {
+      alert('Failed to update payment status');
     }
   });
 }

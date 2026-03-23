@@ -253,9 +253,12 @@ let currentUploadProductId = null;
 function openUploadImage(productId, productName) {
   currentUploadProductId = productId;
   document.getElementById('uploadProductId').value = productId;
-  document.getElementById('uploadProductName').textContent = 'Product: ' + productName;
+  document.getElementById('uploadProductName').textContent = 'Changing photo for: ' + productName;
   document.getElementById('previewWrap').classList.add('d-none');
   document.getElementById('imageInput').value = '';
+  // Reset button state
+  const btn = document.querySelector('#uploadModal .btn-auth-submit');
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload'; }
   new bootstrap.Modal(document.getElementById('uploadModal')).show();
 }
 

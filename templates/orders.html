@@ -6,7 +6,7 @@
   <div class="container">
     <div class="page-header-inner">
       <h1 class="page-title"><i class="fas fa-box me-3"></i>My Orders</h1>
-      <p class="page-sub">Track all your orders</p>
+      <p class="page-sub">Track all your orders in real time</p>
     </div>
   </div>
 </div>
@@ -24,7 +24,7 @@
           </div>
           <div class="order-header-right">
             <span class="order-status-badge status-{{ order.status.lower().replace(' ', '-') }}">
-              {{ '✅' if order.status == 'Delivered' else '🚚' if order.status == 'Out for Delivery' else '🔥' if order.status == 'Preparing' else '⏳' }}
+              {{ '✅' if order.status == 'Delivered' else '🚚' if order.status == 'Out for Delivery' else '🔥' if order.status == 'Preparing' else '❌' if order.status == 'Cancelled' else '⏳' }}
               {{ order.status }}
             </span>
             <span class="order-total-badge">₱{{ "%.0f"|format(order.total_amount) }}</span>
@@ -42,8 +42,15 @@
           </div>
           <div class="order-card-footer">
             <div class="order-meta">
-              <span><i class="fas fa-map-marker-alt me-1"></i>{{ order.delivery_address[:50] }}{% if order.delivery_address|length > 50 %}...{% endif %}</span>
+              <span><i class="fas fa-map-marker-alt me-1"></i>{{ order.delivery_address[:60] }}{% if order.delivery_address|length > 60 %}...{% endif %}</span>
               <span><i class="fas fa-wallet me-1"></i>{{ order.payment_method }}</span>
+              <span>
+                <i class="fas fa-credit-card me-1"></i>
+                Payment:
+                <strong class="{{ 'text-success' if order.payment_status == 'Paid' else 'text-warning' }}">
+                  {{ order.payment_status }}
+                </strong>
+              </span>
             </div>
           </div>
         </div>

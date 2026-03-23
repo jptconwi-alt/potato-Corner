@@ -82,13 +82,12 @@
             </div>
           </div>
           <div class="user-card-footer">
-            <button class="btn-user-orders" onclick="viewUserOrders({{ user.id }}, '{{ user.full_name }}')">
-              <i class="fas fa-clipboard-list me-1"></i>View Orders
-            </button>
             {% if not user.is_admin %}
-            <button class="btn-user-contact" onclick="showContact('{{ user.email }}', '{{ user.phone or '' }}')">
-              <i class="fas fa-envelope me-1"></i>Contact
+            <button class="btn-user-contact w-100" onclick="showContact('{{ user.email }}', '{{ user.full_name }}', '{{ user.phone or '' }}', '{{ user.get_full_address() }}')">
+              <i class="fas fa-envelope me-1"></i>Contact User
             </button>
+            {% else %}
+            <div class="text-center text-muted small py-1"><i class="fas fa-shield-alt me-1"></i>Administrator Account</div>
             {% endif %}
           </div>
         </div>
@@ -158,8 +157,14 @@ function viewUserOrders(userId, userName) {
     });
 }
 
-function showContact(email, phone) {
-  alert('Email: ' + email + (phone ? '\nPhone: ' + phone : '\nNo phone number on file'));
+function showContact(email, name, phone, address) {
+  const msg = [
+    'Name: ' + name,
+    'Email: ' + email,
+    phone ? 'Phone: ' + phone : 'Phone: Not provided',
+    address ? 'Address: ' + address : 'Address: Not provided'
+  ].join('\n');
+  alert(msg);
 }
 </script>
 {% endblock %}

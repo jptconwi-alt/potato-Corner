@@ -34,46 +34,68 @@
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
       <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
-            <i class="fas fa-home me-1"></i>Menu
-          </a>
-        </li>
-        {% if request.endpoint not in ['login', 'register'] and not (request.endpoint and request.endpoint.startswith('admin')) %}
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint == 'cart' %}active{% endif %}" href="{{ url_for('cart') }}">
-            <i class="fas fa-shopping-cart me-1"></i>Cart
-            <span class="cart-badge" id="cartCount">0</span>
-          </a>
-        </li>
-        {% endif %}
-        {% if current_user.is_authenticated %}
-          {% if current_user.is_admin %}
+        {# ── Admin pages: show only Admin label + user dropdown ── #}
+        {% if request.endpoint and request.endpoint.startswith('admin') %}
           <li class="nav-item">
-            <a class="nav-link admin-link {% if request.endpoint and 'admin' in request.endpoint %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">
-              <i class="fas fa-shield-alt me-1"></i>Admin
+            <a class="nav-link admin-link active" href="{{ url_for('admin_dashboard') }}">
+              <i class="fas fa-shield-alt me-1"></i>Admin Panel
             </a>
           </li>
-          {% endif %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle user-nav" href="#" data-bs-toggle="dropdown">
               <div class="user-avatar">{{ current_user.full_name[0].upper() }}</div>
               <span class="d-none d-lg-inline">{{ current_user.full_name.split()[0] }}</span>
             </a>
             <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user me-2"></i>My Profile</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('orders') }}"><i class="fas fa-box me-2"></i>My Orders</a></li>
-              <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
             </ul>
           </li>
+
+        {# ── Auth pages (login/register): show only brand, no nav items ── #}
+        {% elif request.endpoint in ['login', 'register'] %}
+          {# intentionally empty #}
+
+        {# ── Regular customer pages ── #}
         {% else %}
           <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt me-1"></i>Login</a>
+            <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+              <i class="fas fa-home me-1"></i>Menu
+            </a>
           </li>
           <li class="nav-item">
-            <a class="btn btn-nav-cta" href="{{ url_for('register') }}">Get Started</a>
+            <a class="nav-link {% if request.endpoint == 'cart' %}active{% endif %}" href="{{ url_for('cart') }}">
+              <i class="fas fa-shopping-cart me-1"></i>Cart
+              <span class="cart-badge" id="cartCount">0</span>
+            </a>
           </li>
+          {% if current_user.is_authenticated %}
+            {% if current_user.is_admin %}
+            <li class="nav-item">
+              <a class="nav-link admin-link" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-shield-alt me-1"></i>Admin
+              </a>
+            </li>
+            {% endif %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle user-nav" href="#" data-bs-toggle="dropdown">
+                <div class="user-avatar">{{ current_user.full_name[0].upper() }}</div>
+                <span class="d-none d-lg-inline">{{ current_user.full_name.split()[0] }}</span>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user me-2"></i>My Profile</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('orders') }}"><i class="fas fa-box me-2"></i>My Orders</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+              </ul>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('login') }}"><i class="fas fa-sign-in-alt me-1"></i>Login</a>
+            </li>
+            <li class="nav-item">
+              <a class="btn btn-nav-cta" href="{{ url_for('register') }}">Get Started</a>
+            </li>
+          {% endif %}
         {% endif %}
       </ul>
     </div>
