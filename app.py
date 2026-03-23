@@ -109,7 +109,7 @@ def create_app():
                 if changed:
                     db.session.commit()
 
-            login_user(user, remember=True)
+            login_user(user, remember=False)
             session['user_id'] = user.id
 
             # New Google user → redirect to complete profile

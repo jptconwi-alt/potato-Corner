@@ -41,8 +41,7 @@ def register_routes(app):
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
-        # Only redirect away if user is truly authenticated AND session is valid
-        if current_user.is_authenticated and current_user.is_active:
+        if current_user.is_authenticated:
             if current_user.is_admin:
                 return redirect(url_for('admin_dashboard'))
             return redirect(url_for('index'))
@@ -105,11 +104,14 @@ def register_routes(app):
 
     @app.route('/logout')
     def logout():
-        from flask_login import logout_user as flask_logout
-        flask_logout()
-        session.clear()
+        logout_user()          # Flask-Login: clears user, queues remember cookie deletion
+        session.pop('user_id', None)   # remove only our custom key, NOT session.clear()
+        session.modified = True
         flash('You have been logged out.', 'info')
-        return redirect(url_for('login'))
+        response = redirect(url_for('login'))
+        # Explicitly expire the remember_token cookie that Flask-Login sets
+        response.delete_cookie('remember_token')
+        return response
 
     @app.route('/complete-profile', methods=['GET', 'POST'])
     @login_required
