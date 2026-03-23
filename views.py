@@ -154,6 +154,22 @@ def register_routes(app):
         user_orders = OrderController.get_user_orders(current_user.id)
         return render_template('orders.html', orders=user_orders)
 
+    @app.route('/my-orders')
+    @login_required
+    def my_orders():
+        user_orders = OrderController.get_user_orders(current_user.id)
+        return render_template('my_orders.html', orders=user_orders)
+
+    @app.route('/track-order')
+    def track_order():
+        order_number = request.args.get('order_number', '').strip()
+        order = None
+        if order_number:
+            order = OrderController.get_order(order_number)
+            if not order:
+                flash('Order not found. Please check the order number.', 'danger')
+        return render_template('track_order.html', order=order, order_number=order_number)
+
     # ─────────────────────────────────────────
     # CART ROUTES
     # ─────────────────────────────────────────

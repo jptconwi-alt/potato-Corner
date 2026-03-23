@@ -1,4 +1,4 @@
-from models import db, Product
+from models import db, Product, User
 
 FLAVOR_IMAGES = {
     "Cheese":        "fries/cheese.svg",
@@ -12,6 +12,20 @@ FLAVOR_IMAGES = {
 }
 
 def init_database():
+    # Always ensure a default admin account exists
+    if not User.query.filter_by(is_admin=True).first():
+        admin = User(
+            username='admin',
+            email='admin@potatocorner.com',
+            full_name='Admin',
+            is_admin=True,
+            profile_complete=True
+        )
+        admin.set_password('admin123')
+        db.session.add(admin)
+        db.session.commit()
+        print("✅ Default admin created — username: admin, password: admin123")
+
     if Product.query.first() is not None:
         return
 

@@ -29,7 +29,7 @@ class AuthController:
         user.set_password(password)
         
         # First user becomes admin (optional)
-        if User.query.count() == 0:
+        if not User.query.filter_by(is_admin=True).first():
             user.is_admin = True
         
         db.session.add(user)
@@ -222,7 +222,7 @@ class CartController:
             else:
                 # Assign session item to user
                 session_item.user_id = user_id
-                session_item.session_id = None
+                # Keep session_id intact (nullable but not erased)
         
         db.session.commit()
 
