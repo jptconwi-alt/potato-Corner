@@ -150,23 +150,42 @@
           </div>
           <div class="form-row-2">
             <div class="form-group-custom">
-              <label class="form-label-custom">Flavor</label>
+              <label class="form-label-custom">Category</label>
               <div class="input-icon-wrap">
-                <i class="fas fa-pepper-hot input-icon"></i>
-                <input type="text" name="flavor" class="form-control-custom" placeholder="e.g. Cheese" required>
-              </div>
-            </div>
-            <div class="form-group-custom">
-              <label class="form-label-custom">Size</label>
-              <div class="input-icon-wrap">
-                <i class="fas fa-expand-arrows-alt input-icon"></i>
-                <select name="size" class="form-control-custom" required>
-                  <option value="">Select size</option>
-                  <option>Small</option><option>Medium</option><option>Large</option><option>Mega</option><option>Jumbo</option>
+                <i class="fas fa-list input-icon"></i>
+                <select name="category" id="addCategory" class="form-control-custom" onchange="onCategoryChange()">
+                  <option value="Fries">Fries</option>
+                  <option value="Drinks">Drinks</option>
+                  <option value="Snacks">Snacks</option>
+                  <option value="Others">Others</option>
                 </select>
               </div>
             </div>
+            <div class="form-group-custom">
+              <label class="form-label-custom">Flavor / Variant</label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-pepper-hot input-icon"></i>
+                <input type="text" name="flavor" class="form-control-custom" placeholder="e.g. Cheese, Cola, Original" required>
+              </div>
+            </div>
           </div>
+          <div class="form-row-2">
+            <div class="form-group-custom">
+              <label class="form-label-custom">Size / Volume</label>
+              <div id="sizeSelectWrap">
+                <div class="input-icon-wrap" id="sizeSelectDiv">
+                  <i class="fas fa-expand-arrows-alt input-icon"></i>
+                  <select name="size" id="sizeSelect" class="form-control-custom">
+                    <option value="">Select size</option>
+                    <option>Small</option><option>Medium</option><option>Large</option><option>Mega</option><option>Jumbo</option>
+                  </select>
+                </div>
+                <div class="input-icon-wrap d-none" id="sizeCustomDiv">
+                  <i class="fas fa-expand-arrows-alt input-icon"></i>
+                  <input type="text" name="size_custom" id="sizeCustomInput" class="form-control-custom" placeholder="e.g. Regular, 500ml, 12oz">
+                </div>
+              </div>
+            </div>
           <div class="form-group-custom">
             <label class="form-label-custom">Description</label>
             <div class="input-icon-wrap">
@@ -286,13 +305,41 @@ function uploadImage() {
   });
 }
 
+function onCategoryChange() {
+  const cat = document.getElementById('addCategory').value;
+  const isDrinkOrOther = (cat === 'Drinks' || cat === 'Snacks' || cat === 'Others');
+  document.getElementById('sizeSelectDiv').classList.toggle('d-none', isDrinkOrOther);
+  document.getElementById('sizeCustomDiv').classList.toggle('d-none', !isDrinkOrOther);
+  if (isDrinkOrOther) {
+    document.getElementById('sizeSelect').removeAttribute('required');
+    document.getElementById('sizeCustomInput').setAttribute('required', '');
+  } else {
+    document.getElementById('sizeSelect').setAttribute('required', '');
+    document.getElementById('sizeCustomInput').removeAttribute('required');
+  }
+}
+
 function openAddProduct() {
+  document.getElementById('addProductForm').reset();
+  document.getElementById('addPreviewWrap').classList.add('d-none');
+  onCategoryChange();
   new bootstrap.Modal(document.getElementById('addProductModal')).show();
 }
 
 function addProduct() {
   const form = document.getElementById('addProductForm');
   const formData = new FormData(form);
+  // Handle custom size for drinks/snacks
+  const cat = document.getElementById('addCategory').value;
+  if (cat === 'Drinks' || cat === 'Snacks' || cat === 'Others') {
+    const customSize = document.getElementById('sizeCustomInput').value.trim();
+    if (!customSize) { alert('Please enter a size/volume'); return; }
+    formData.set('size', customSize);
+  }
+  // Pass category as flavor prefix if not Fries
+  if (cat && cat !== 'Fries') {
+    formData.set('category', cat);
+  }
   fetch('/admin/product/add', {
     method: 'POST',
     body: formData

@@ -41,7 +41,10 @@ def register_routes(app):
 
     @app.route('/login', methods=['GET', 'POST'])
     def login():
-        if current_user.is_authenticated:
+        # Only redirect away if user is truly authenticated AND session is valid
+        if current_user.is_authenticated and current_user.is_active:
+            if current_user.is_admin:
+                return redirect(url_for('admin_dashboard'))
             return redirect(url_for('index'))
         if request.method == 'POST':
             username = request.form.get('username', '').strip()
@@ -102,7 +105,8 @@ def register_routes(app):
 
     @app.route('/logout')
     def logout():
-        AuthController.logout_user()
+        from flask_login import logout_user as flask_logout
+        flask_logout()
         session.clear()
         flash('You have been logged out.', 'info')
         return redirect(url_for('login'))
@@ -390,6 +394,7 @@ def register_routes(app):
         flavor = request.form.get('flavor', '').strip()
         size = request.form.get('size', '').strip()
         description = request.form.get('description', '').strip()
+        category = request.form.get('category', 'Fries').strip()
 
         if not all([name, price, flavor, size, description]):
             return jsonify({'success': False, 'message': 'All fields required'})
@@ -399,7 +404,12 @@ def register_routes(app):
         except ValueError:
             return jsonify({'success': False, 'message': 'Invalid price'})
 
-        image_url = 'fries/cheese.svg'  # default
+        # Default image based on category
+        if category == 'Drinks':
+            image_url = 'fries/cheese.svg'  # placeholder; admin can upload
+        else:
+            image_url = 'fries/cheese.svg'
+
         file = request.files.get('image')
         if file and file.filename and allowed_file(file.filename):
             ext = file.filename.rsplit('.', 1)[1].lower()
@@ -410,7 +420,8 @@ def register_routes(app):
 
         product = Product(
             name=name, price=price, flavor=flavor, size=size,
-            description=description, image_url=image_url, is_available=True
+            description=description, image_url=image_url,
+            is_available=True, category=category
         )
         db.session.add(product)
         db.session.commit()

@@ -58,13 +58,15 @@ class Product(db.Model):
     flavor       = db.Column(db.String(50), nullable=False)
     image_url    = db.Column(db.String(200), default='fries/cheese.svg')
     is_available = db.Column(db.Boolean, default=True)
+    category     = db.Column(db.String(50), default='Fries')
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
         return {
             'id': self.id, 'name': self.name, 'description': self.description,
             'price': self.price, 'size': self.size, 'flavor': self.flavor,
-            'image_url': self.image_url, 'is_available': self.is_available
+            'image_url': self.image_url, 'is_available': self.is_available,
+            'category': self.category or 'Fries'
         }
 
 
