@@ -26,7 +26,7 @@ def register_routes(app):
     try:
         os.makedirs(os.path.join(app.root_path, UPLOAD_FOLDER), exist_ok=True)
     except OSError:
-        pass
+        pass  # Read-only filesystem (Vercel) — file uploads via disk unavailable
 
     # ─────────────────────────────────────────
     # PUBLIC ROUTES

@@ -15,12 +15,22 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY']                  = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
-    turso_url = os.environ.get('TURSO_DATABASE_URL', '').replace('libsql://', 'sqlite+libsql://')
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
-    app.config['SQLALCHEMY_DATABASE_URI'] = f"{turso_url}?authToken={turso_token}&secure=true"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['GOOGLE_CLIENT_ID']            = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']        = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+
+    # ── Database: Turso (libsql) or fallback to /tmp SQLite ──────────────────
+    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    if turso_url and turso_token:
+        db_uri = turso_url.replace('libsql://', 'sqlite+libsql://') \
+                          .replace('https://', 'sqlite+libsql://')
+        db_uri = f"{db_uri}?authToken={turso_token}&secure=true"
+    else:
+        # Local dev fallback — /tmp avoids read-only FS issues on Vercel
+        db_uri = 'sqlite:////tmp/potato_corner.db'
+
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -99,7 +109,7 @@ def create_app():
                     username=username, email=email,
                     full_name=name or username,
                     google_id=google_id, is_admin=False,
-                    profile_complete=False   # needs to fill address info
+                    profile_complete=False
                 )
                 user.set_password(secrets.token_urlsafe(16))
                 db.session.add(user)
@@ -116,7 +126,6 @@ def create_app():
             login_user(user, remember=False)
             session['user_id'] = user.id
 
-            # New Google user → redirect to complete profile
             if is_new or not user.profile_complete:
                 flash('Welcome! Please complete your profile so we can deliver your order.', 'warning')
                 return redirect(url_for('complete_profile'))
@@ -136,7 +145,6 @@ def create_app():
 app = create_app()
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Starting Potato Corner at http://0.0.0.0:{port}")
     app.run(host='0.0.0.0', port=port, debug=False)
