@@ -15,7 +15,9 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY']                  = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
-    app.config['SQLALCHEMY_DATABASE_URI']     = 'sqlite:///potato_corner.db'
+    turso_url = os.environ.get('TURSO_DATABASE_URL', '').replace('libsql://', 'sqlite+libsql://')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"{turso_url}?authToken={turso_token}&secure=true"
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['GOOGLE_CLIENT_ID']            = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']        = os.environ.get('GOOGLE_CLIENT_SECRET', '')

@@ -23,7 +23,10 @@ def get_session_id():
 
 
 def register_routes(app):
-    os.makedirs(os.path.join(app.root_path, UPLOAD_FOLDER), exist_ok=True)
+    try:
+        os.makedirs(os.path.join(app.root_path, UPLOAD_FOLDER), exist_ok=True)
+    except OSError:
+        pass
 
     # ─────────────────────────────────────────
     # PUBLIC ROUTES

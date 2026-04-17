@@ -12,19 +12,19 @@ FLAVOR_IMAGES = {
 }
 
 def run_migrations(db_engine):
-    """Add new columns to existing tables without breaking existing data."""
     import sqlalchemy as sa
-    with db_engine.connect() as conn:
-        inspector = sa.inspect(db_engine)
-        cols = [c['name'] for c in inspector.get_columns('products')]
-        if 'image_data' not in cols:
-            conn.execute(sa.text('ALTER TABLE products ADD COLUMN image_data TEXT'))
-            conn.commit()
-            print("✅ Migration: added products.image_data column")
-        if 'category' not in cols:
-            conn.execute(sa.text("ALTER TABLE products ADD COLUMN category TEXT DEFAULT 'Fries'"))
-            conn.commit()
-            print("✅ Migration: added products.category column")
+    try:
+        with db_engine.connect() as conn:
+            inspector = sa.inspect(db_engine)
+            cols = [c['name'] for c in inspector.get_columns('products')]
+            if 'image_data' not in cols:
+                conn.execute(sa.text('ALTER TABLE products ADD COLUMN image_data TEXT'))
+                conn.commit()
+            if 'category' not in cols:
+                conn.execute(sa.text("ALTER TABLE products ADD COLUMN category TEXT DEFAULT 'Fries'"))
+                conn.commit()
+    except Exception as e:
+        print(f"⚠️ Migration skipped: {e}")
 
 
 def init_database():
