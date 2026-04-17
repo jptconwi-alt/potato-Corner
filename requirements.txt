@@ -9,4 +9,4 @@ python-dotenv
 requests
 gunicorn
 psycopg2-binary
-sqalchemy-libsql
+sqlalchemy-libsql
