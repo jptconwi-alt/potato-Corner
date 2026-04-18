@@ -57,13 +57,11 @@ class _LibSQLConnection:
 def _patch_dialect_for_libsql(engine):
     """Override the pysqlite dialect's isolation-level detection.
 
-    During first_connect, the vendored SQLAlchemy runs:
-        PRAGMA read_uncommitted
-    via dialect.initialize() → get_default_isolation_level().
-    On a libsql_experimental connection backed by a remote Turso database
-    this PRAGMA triggers a WAL write that fails with 'wal_insert_begin failed'.
-    Patching the dialect instance to return a fixed value short-circuits the
-    PRAGMA call entirely and avoids the error.
+    During first_connect the vendored SQLAlchemy runs PRAGMA read_uncommitted
+    via dialect.initialize() → get_default_isolation_level().  On a libsql
+    connection backed by a remote Turso database this PRAGMA triggers a WAL
+    write that fails with 'wal_insert_begin failed'.  Returning a fixed value
+    short-circuits the PRAGMA call entirely.
     """
     engine.dialect.get_isolation_level         = lambda conn: 'SERIALIZABLE'
     engine.dialect.get_default_isolation_level = lambda conn: 'SERIALIZABLE'
@@ -113,11 +111,6 @@ def create_app():
     login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'warning'
 
-    # Patch the dialect BEFORE any DB operations so first_connect skips the
-    # PRAGMA read_uncommitted call that breaks libsql remote connections.
-    if use_libsql:
-        _patch_dialect_for_libsql(db.engine)
-
     oauth = OAuth(app)
     google = None
     if app.config['GOOGLE_CLIENT_ID'] and app.config['GOOGLE_CLIENT_SECRET']:
@@ -134,7 +127,7 @@ def create_app():
         return User.query.get(int(user_id))
 
     with app.app_context():
-        # Patch again inside app context in case db.engine is re-created
+        # Patch the dialect INSIDE the app context — db.engine requires it.
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
         try:
