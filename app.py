@@ -12,6 +12,49 @@ load_dotenv()
 login_manager = LoginManager()
 
 
+class _LibSQLConnection:
+    """Thin wrapper around libsql_experimental.Connection.
+
+    Vercel's vendored SQLAlchemy uses the pysqlite dialect, which calls
+    sqlite3-specific methods (create_function, create_aggregate, etc.) on
+    every new connection.  libsql_experimental's Connection is a C-extension
+    type whose attributes are immutable, so we can't monkey-patch it directly.
+    This wrapper forwards all real DB calls and stubs out the sqlite3-compat
+    methods that pysqlite needs but libsql doesn't expose.
+    """
+
+    __slots__ = ('_conn',)
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    # ── Core DBAPI-2 interface ────────────────────────────────────────────────
+    def cursor(self):                        return self._conn.cursor()
+    def execute(self, *a, **kw):             return self._conn.execute(*a, **kw)
+    def executemany(self, *a, **kw):         return self._conn.executemany(*a, **kw)
+    def executescript(self, *a, **kw):       return self._conn.executescript(*a, **kw)
+    def commit(self):                        return self._conn.commit()
+    def rollback(self):                      return self._conn.rollback()
+    def close(self):                         return self._conn.close()
+    def sync(self):                          return self._conn.sync()
+
+    @property
+    def in_transaction(self):               return self._conn.in_transaction
+
+    @property
+    def isolation_level(self):              return self._conn.isolation_level
+
+    @isolation_level.setter
+    def isolation_level(self, value):       pass  # libsql manages this itself
+
+    # ── sqlite3-compat stubs expected by SQLAlchemy's pysqlite dialect ───────
+    def create_function(self, *a, **kw):    pass   # pysqlite registers REGEXP here
+    def create_aggregate(self, *a, **kw):   pass
+    def set_authorizer(self, *a, **kw):     pass
+    def set_trace_callback(self, *a, **kw): pass
+    def set_progress_handler(self, *a, **kw): pass
+
+
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY']                     = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
@@ -24,48 +67,40 @@ def create_app():
     turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
 
     if turso_url and turso_token:
-        # Vercel vendors its own copy of SQLAlchemy in _vendor/, which means
-        # the sqlalchemy-libsql dialect registration is invisible to it — so
-        # sqlite+libsql:// falls back to the plain SQLite dialect and the auth
-        # token is either ignored (error: empty JWT) or rejected (error:
-        # unexpected keyword argument 'authToken').
+        # Vercel bundles its own SQLAlchemy in _vendor/.  The sqlalchemy-libsql
+        # dialect registers against the *system* SQLAlchemy, so the vendored
+        # copy never sees it and sqlite+libsql:// silently falls back to plain
+        # SQLite — causing "empty JWT" (token ignored) or "unexpected keyword
+        # argument 'authToken'" (token rejected) errors.
         #
-        # Fix: use libsql_experimental as a raw DBAPI via SQLAlchemy's
-        # `creator` argument.  creator() returns a raw DBAPI connection;
-        # SQLAlchemy never calls dialect.connect() itself, so the vendored
-        # dialect path is bypassed entirely.
-        #
-        # libsql_experimental.connect() signature:
-        #   connect(database, sync_url=None, auth_token='', ...)
+        # Fix: use a SQLAlchemy `creator` to supply raw DBAPI connections from
+        # libsql_experimental, bypassing dialect.connect() entirely.  Wrap the
+        # connection in _LibSQLConnection so that pysqlite's post-connect hooks
+        # (e.g. registering the REGEXP function) don't crash on the C-extension
+        # type's immutable attribute set.
         try:
             import libsql_experimental as libsql
 
-            # Normalise the Turso URL to https://
             sync_url = (turso_url
                         .replace('libsql://', 'https://')
                         .replace('sqlite+libsql://', 'https://'))
 
-            def _libsql_creator():
-                return libsql.connect(
-                    database=":memory:",   # in-process cache; real data is remote
+            def _creator():
+                raw = libsql.connect(
+                    database=':memory:',
                     sync_url=sync_url,
                     auth_token=turso_token,
                 )
+                return _LibSQLConnection(raw)
 
-            # Use 'sqlite+pysqlite://' as a dummy URI — SQLAlchemy needs *some*
-            # valid URI to pick the SQLite dialect (so it generates correct SQL),
-            # but the actual connection comes from our creator().
+            # 'sqlite+pysqlite://' tells SQLAlchemy to generate SQLite-compatible
+            # SQL, but all actual connections come from _creator() above.
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
-            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                'creator': _libsql_creator,
-            }
+            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'creator': _creator}
 
         except ImportError:
-            # libsql_experimental not available — fall back to plain SQLite.
-            # Should not happen on Vercel if requirements.txt is correct.
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
     else:
-        # Local dev fallback — /tmp avoids read-only FS issues on Vercel.
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
 
     db.init_app(app)
