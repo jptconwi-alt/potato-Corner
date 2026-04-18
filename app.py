@@ -8,7 +8,7 @@ from authlib.integrations.flask_client import OAuth
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)
 login_manager = LoginManager()
 
 
