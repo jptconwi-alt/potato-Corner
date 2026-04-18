@@ -20,17 +20,25 @@ def create_app():
     app.config['GOOGLE_CLIENT_SECRET']        = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
     # ── Database: Turso (libsql) or fallback to /tmp SQLite ──────────────────
-    turso_url   = os.environ.get('TURSO_DATABASE_URL', 'libsql://potata-corner-jpconwi.aws-ap-northeast-1.turso.io')
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', 'eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzY0OTk2MDMsImlkIjoiMDE5ZDk4ZWUtZjMwMS03OTk2LTg5MDItY2M2NzA1OGY5MzhhIiwicmlkIjoiYjRkMjcwNzAtYjUyOS00Y2Q4LTgxZDMtNjY2MDEyNzFjODZlIn0.dwyLCvtATpp9_5MhsSPT0e7jIfBSCFwvYS4MrbrvRH7wOjmuPITbm1Cj6zQkIJTDakg6fFVy1qCF_A6bzDcUCQ')
+    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+
     if turso_url and turso_token:
+        # Convert libsql:// → sqlite+libsql://
         db_uri = turso_url.replace('libsql://', 'sqlite+libsql://') \
                           .replace('https://', 'sqlite+libsql://')
-        db_uri = f"{db_uri}?authToken={turso_token}&secure=true"
+        # Pass the auth token via connect_args, NOT in the URI query string.
+        # The sqlalchemy-libsql dialect reads it from connect_args['authToken'].
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'connect_args': {
+                'authToken': turso_token,
+                'secure': True,
+            }
+        }
     else:
         # Local dev fallback — /tmp avoids read-only FS issues on Vercel
-        db_uri = 'sqlite:////tmp/potato_corner.db'
-
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
 
     db.init_app(app)
     login_manager.init_app(app)
