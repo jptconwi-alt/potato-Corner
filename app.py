@@ -13,14 +13,14 @@ login_manager = LoginManager()
 
 
 class _LibSQLConnection:
-    """Thin wrapper around libsql_experimental.Connection.
+    """Wrapper around libsql_experimental.Connection.
 
     Vercel's vendored SQLAlchemy uses the pysqlite dialect, which calls
-    sqlite3-specific methods (create_function, create_aggregate, etc.) on
-    every new connection.  libsql_experimental's Connection is a C-extension
-    type whose attributes are immutable, so we can't monkey-patch it directly.
-    This wrapper forwards all real DB calls and stubs out the sqlite3-compat
-    methods that pysqlite needs but libsql doesn't expose.
+    sqlite3-specific methods on every new connection (create_function for
+    REGEXP, set_authorizer, etc.).  libsql_experimental's Connection is a
+    C-extension type with immutable attributes, so we wrap it in a plain
+    Python object that forwards real DB calls and stubs out the sqlite3
+    compat methods.
     """
 
     __slots__ = ('_conn',)
@@ -28,31 +28,45 @@ class _LibSQLConnection:
     def __init__(self, conn):
         self._conn = conn
 
-    # ── Core DBAPI-2 interface ────────────────────────────────────────────────
-    def cursor(self):                        return self._conn.cursor()
-    def execute(self, *a, **kw):             return self._conn.execute(*a, **kw)
-    def executemany(self, *a, **kw):         return self._conn.executemany(*a, **kw)
-    def executescript(self, *a, **kw):       return self._conn.executescript(*a, **kw)
-    def commit(self):                        return self._conn.commit()
-    def rollback(self):                      return self._conn.rollback()
-    def close(self):                         return self._conn.close()
-    def sync(self):                          return self._conn.sync()
+    def cursor(self):                          return self._conn.cursor()
+    def execute(self, *a, **kw):               return self._conn.execute(*a, **kw)
+    def executemany(self, *a, **kw):           return self._conn.executemany(*a, **kw)
+    def executescript(self, *a, **kw):         return self._conn.executescript(*a, **kw)
+    def commit(self):                          return self._conn.commit()
+    def rollback(self):                        return self._conn.rollback()
+    def close(self):                           return self._conn.close()
+    def sync(self):                            return self._conn.sync()
 
     @property
-    def in_transaction(self):               return self._conn.in_transaction
+    def in_transaction(self):                  return self._conn.in_transaction
 
     @property
-    def isolation_level(self):              return self._conn.isolation_level
+    def isolation_level(self):                 return self._conn.isolation_level
 
     @isolation_level.setter
-    def isolation_level(self, value):       pass  # libsql manages this itself
+    def isolation_level(self, value):          pass   # libsql manages this itself
 
-    # ── sqlite3-compat stubs expected by SQLAlchemy's pysqlite dialect ───────
-    def create_function(self, *a, **kw):    pass   # pysqlite registers REGEXP here
-    def create_aggregate(self, *a, **kw):   pass
-    def set_authorizer(self, *a, **kw):     pass
-    def set_trace_callback(self, *a, **kw): pass
-    def set_progress_handler(self, *a, **kw): pass
+    # sqlite3-compat stubs that pysqlite's post-connect hooks try to call
+    def create_function(self, *a, **kw):       pass   # pysqlite registers REGEXP here
+    def create_aggregate(self, *a, **kw):      pass
+    def set_authorizer(self, *a, **kw):        pass
+    def set_trace_callback(self, *a, **kw):    pass
+    def set_progress_handler(self, *a, **kw):  pass
+
+
+def _patch_dialect_for_libsql(engine):
+    """Override the pysqlite dialect's isolation-level detection.
+
+    During first_connect, the vendored SQLAlchemy runs:
+        PRAGMA read_uncommitted
+    via dialect.initialize() → get_default_isolation_level().
+    On a libsql_experimental connection backed by a remote Turso database
+    this PRAGMA triggers a WAL write that fails with 'wal_insert_begin failed'.
+    Patching the dialect instance to return a fixed value short-circuits the
+    PRAGMA call entirely and avoids the error.
+    """
+    engine.dialect.get_isolation_level         = lambda conn: 'SERIALIZABLE'
+    engine.dialect.get_default_isolation_level = lambda conn: 'SERIALIZABLE'
 
 
 def create_app():
@@ -66,18 +80,9 @@ def create_app():
     turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
     turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
 
-    if turso_url and turso_token:
-        # Vercel bundles its own SQLAlchemy in _vendor/.  The sqlalchemy-libsql
-        # dialect registers against the *system* SQLAlchemy, so the vendored
-        # copy never sees it and sqlite+libsql:// silently falls back to plain
-        # SQLite — causing "empty JWT" (token ignored) or "unexpected keyword
-        # argument 'authToken'" (token rejected) errors.
-        #
-        # Fix: use a SQLAlchemy `creator` to supply raw DBAPI connections from
-        # libsql_experimental, bypassing dialect.connect() entirely.  Wrap the
-        # connection in _LibSQLConnection so that pysqlite's post-connect hooks
-        # (e.g. registering the REGEXP function) don't crash on the C-extension
-        # type's immutable attribute set.
+    use_libsql = bool(turso_url and turso_token)
+
+    if use_libsql:
         try:
             import libsql_experimental as libsql
 
@@ -93,14 +98,13 @@ def create_app():
                 )
                 return _LibSQLConnection(raw)
 
-            # 'sqlite+pysqlite://' tells SQLAlchemy to generate SQLite-compatible
-            # SQL, but all actual connections come from _creator() above.
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'creator': _creator}
 
         except ImportError:
-            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
-    else:
+            use_libsql = False
+
+    if not use_libsql:
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
 
     db.init_app(app)
@@ -108,6 +112,11 @@ def create_app():
     login_manager.login_view = 'login'
     login_manager.login_message = 'Please log in to access this page.'
     login_manager.login_message_category = 'warning'
+
+    # Patch the dialect BEFORE any DB operations so first_connect skips the
+    # PRAGMA read_uncommitted call that breaks libsql remote connections.
+    if use_libsql:
+        _patch_dialect_for_libsql(db.engine)
 
     oauth = OAuth(app)
     google = None
@@ -125,6 +134,9 @@ def create_app():
         return User.query.get(int(user_id))
 
     with app.app_context():
+        # Patch again inside app context in case db.engine is re-created
+        if use_libsql:
+            _patch_dialect_for_libsql(db.engine)
         try:
             db.create_all()
             from init_db import run_migrations
