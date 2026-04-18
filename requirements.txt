@@ -7,4 +7,4 @@ Werkzeug==2.3.7
 authlib
 python-dotenv
 requests
-sqlalchemy-libsql
+libsql-experimental

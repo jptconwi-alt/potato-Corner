@@ -14,30 +14,58 @@ login_manager = LoginManager()
 
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY']                  = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
+    app.config['SECRET_KEY']                     = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['GOOGLE_CLIENT_ID']            = os.environ.get('GOOGLE_CLIENT_ID', '')
-    app.config['GOOGLE_CLIENT_SECRET']        = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+    app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
+    app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # ── Database: Turso (libsql) or fallback to /tmp SQLite ──────────────────
+    # ── Database ──────────────────────────────────────────────────────────────
     turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
     turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
 
     if turso_url and turso_token:
-        # Convert libsql:// → sqlite+libsql://
-        db_uri = turso_url.replace('libsql://', 'sqlite+libsql://') \
-                          .replace('https://', 'sqlite+libsql://')
-        # Pass the auth token via connect_args, NOT in the URI query string.
-        # The sqlalchemy-libsql dialect reads it from connect_args['authToken'].
-        app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-            'connect_args': {
-                'authToken': turso_token,
-                'secure': True,
+        # Vercel vendors its own copy of SQLAlchemy in _vendor/, which means
+        # the sqlalchemy-libsql dialect registration is invisible to it — so
+        # sqlite+libsql:// falls back to the plain SQLite dialect and the auth
+        # token is either ignored (error: empty JWT) or rejected (error:
+        # unexpected keyword argument 'authToken').
+        #
+        # Fix: use libsql_experimental as a raw DBAPI via SQLAlchemy's
+        # `creator` argument.  creator() returns a raw DBAPI connection;
+        # SQLAlchemy never calls dialect.connect() itself, so the vendored
+        # dialect path is bypassed entirely.
+        #
+        # libsql_experimental.connect() signature:
+        #   connect(database, sync_url=None, auth_token='', ...)
+        try:
+            import libsql_experimental as libsql
+
+            # Normalise the Turso URL to https://
+            sync_url = (turso_url
+                        .replace('libsql://', 'https://')
+                        .replace('sqlite+libsql://', 'https://'))
+
+            def _libsql_creator():
+                return libsql.connect(
+                    database=":memory:",   # in-process cache; real data is remote
+                    sync_url=sync_url,
+                    auth_token=turso_token,
+                )
+
+            # Use 'sqlite+pysqlite://' as a dummy URI — SQLAlchemy needs *some*
+            # valid URI to pick the SQLite dialect (so it generates correct SQL),
+            # but the actual connection comes from our creator().
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
+            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+                'creator': _libsql_creator,
             }
-        }
+
+        except ImportError:
+            # libsql_experimental not available — fall back to plain SQLite.
+            # Should not happen on Vercel if requirements.txt is correct.
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
     else:
-        # Local dev fallback — /tmp avoids read-only FS issues on Vercel
+        # Local dev fallback — /tmp avoids read-only FS issues on Vercel.
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
 
     db.init_app(app)
@@ -73,7 +101,7 @@ def create_app():
 
     register_routes(app)
 
-    # ── Google OAuth ─────────────────────────────────────────
+    # ── Google OAuth ──────────────────────────────────────────────────────────
     @app.route('/login/google')
     def google_login():
         if google is None:
@@ -149,7 +177,7 @@ def create_app():
     return app
 
 
-# Create the global app instance for Gunicorn
+# Create the global app instance for Gunicorn / Vercel
 app = create_app()
 
 if __name__ == '__main__':
