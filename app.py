@@ -13,14 +13,22 @@ login_manager = LoginManager()
 
 
 class _LibSQLConnection:
-    """Wrapper around libsql_experimental.Connection.
+    """Wrapper around libsql_experimental.Connection for Vercel + Turso.
 
-    Vercel's vendored SQLAlchemy uses the pysqlite dialect, which calls
-    sqlite3-specific methods on every new connection (create_function for
-    REGEXP, set_authorizer, etc.).  libsql_experimental's Connection is a
-    C-extension type with immutable attributes, so we wrap it in a plain
-    Python object that forwards real DB calls and stubs out the sqlite3
-    compat methods.
+    Three problems solved here:
+
+    1. Immutable C-extension type: libsql_experimental.Connection attributes
+       can't be set directly, so we can't monkey-patch sqlite3 compat methods
+       onto it.  This wrapper is a plain Python object — attributes are free.
+
+    2. sqlite3 compat stubs: Vercel's vendored pysqlite dialect calls
+       create_function(), set_authorizer(), etc. on every new connection.
+       We stub them as no-ops.
+
+    3. Local-first sync: libsql_experimental works in a local-first mode.
+       Each connection starts as an in-memory SQLite DB.  We must call
+       sync() after connecting to PULL the remote Turso state locally, and
+       after every commit() to PUSH local writes back to Turso.
     """
 
     __slots__ = ('_conn',)
@@ -32,7 +40,15 @@ class _LibSQLConnection:
     def execute(self, *a, **kw):               return self._conn.execute(*a, **kw)
     def executemany(self, *a, **kw):           return self._conn.executemany(*a, **kw)
     def executescript(self, *a, **kw):         return self._conn.executescript(*a, **kw)
-    def commit(self):                          return self._conn.commit()
+
+    def commit(self):
+        self._conn.commit()
+        # Push local writes to remote Turso after every commit
+        try:
+            self._conn.sync()
+        except Exception as e:
+            print(f"⚠️  libsql sync after commit failed: {e}")
+
     def rollback(self):                        return self._conn.rollback()
     def close(self):                           return self._conn.close()
     def sync(self):                            return self._conn.sync()
@@ -47,7 +63,7 @@ class _LibSQLConnection:
     def isolation_level(self, value):          pass   # libsql manages this itself
 
     # sqlite3-compat stubs that pysqlite's post-connect hooks try to call
-    def create_function(self, *a, **kw):       pass   # pysqlite registers REGEXP here
+    def create_function(self, *a, **kw):       pass
     def create_aggregate(self, *a, **kw):      pass
     def set_authorizer(self, *a, **kw):        pass
     def set_trace_callback(self, *a, **kw):    pass
@@ -55,13 +71,12 @@ class _LibSQLConnection:
 
 
 def _patch_dialect_for_libsql(engine):
-    """Override the pysqlite dialect's isolation-level detection.
+    """Stop the pysqlite dialect from running PRAGMA read_uncommitted.
 
-    During first_connect the vendored SQLAlchemy runs PRAGMA read_uncommitted
-    via dialect.initialize() → get_default_isolation_level().  On a libsql
-    connection backed by a remote Turso database this PRAGMA triggers a WAL
-    write that fails with 'wal_insert_begin failed'.  Returning a fixed value
-    short-circuits the PRAGMA call entirely.
+    During first_connect, SQLAlchemy calls get_default_isolation_level()
+    which executes PRAGMA read_uncommitted.  On a libsql connection with a
+    remote sync_url this triggers a WAL write that fails with
+    'wal_insert_begin failed'.  Returning a fixed string skips the PRAGMA.
     """
     engine.dialect.get_isolation_level         = lambda conn: 'SERIALIZABLE'
     engine.dialect.get_default_isolation_level = lambda conn: 'SERIALIZABLE'
@@ -94,8 +109,18 @@ def create_app():
                     sync_url=sync_url,
                     auth_token=turso_token,
                 )
+                # Pull the current remote state into local memory before
+                # handing this connection to SQLAlchemy.  Without this, the
+                # local :memory: DB is empty and every query gets
+                # "no such table: products".
+                try:
+                    raw.sync()
+                except Exception as e:
+                    print(f"⚠️  libsql initial sync failed: {e}")
                 return _LibSQLConnection(raw)
 
+            # 'sqlite+pysqlite://' selects the SQLite dialect for SQL generation.
+            # All actual connections come from _creator() above.
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'creator': _creator}
 
@@ -127,7 +152,7 @@ def create_app():
         return User.query.get(int(user_id))
 
     with app.app_context():
-        # Patch the dialect INSIDE the app context — db.engine requires it.
+        # db.engine requires an active app context — patch here, not before.
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
         try:
