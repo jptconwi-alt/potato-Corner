@@ -264,26 +264,47 @@ def register_routes(app):
             # ── PayMongo e-wallet payment (GCash / Maya) ──────────────────
             if customer_data['payment_method'] in ('GCash', 'Maya'):
                 try:
+                    import base64 as _b64, requests as _req, os as _os
+                    _key = _os.environ.get('PAYMONGO_SECRET_KEY', '')
+                    _encoded = _b64.b64encode(f'{_key}:'.encode()).decode()
+                    _headers = {
+                        'Authorization': f'Basic {_encoded}',
+                        'Content-Type': 'application/json',
+                    }
+                    _source_type = 'gcash' if customer_data['payment_method'] == 'GCash' else 'paymaya'
+                    _amount_centavos = int(round(order.total_amount * 100))
                     success_url = url_for('payment_success',
                                           order_number=order.order_number,
                                           _external=True)
                     failed_url  = url_for('payment_failed',
                                           order_number=order.order_number,
                                           _external=True)
-                    source = paymongo.create_source(
-                        order_number=order.order_number,
-                        amount_php=order.total_amount,
-                        payment_method=customer_data['payment_method'],
-                        success_url=success_url,
-                        failed_url=failed_url,
-                    )
-                    # Save source ID for later verification
-                    order.paymongo_source_id = source['id']
+                    _payload = {
+                        'data': {
+                            'attributes': {
+                                'amount':   _amount_centavos,
+                                'currency': 'PHP',
+                                'type':     _source_type,
+                                'redirect': {
+                                    'success': success_url,
+                                    'failed':  failed_url,
+                                },
+                            }
+                        }
+                    }
+                    print(f"[PayMongo] key_prefix={_key[:8] if _key else 'MISSING'} type={_source_type} amount={_amount_centavos}")
+                    _resp = _req.post('https://api.paymongo.com/v1/sources',
+                                      json=_payload, headers=_headers, timeout=15)
+                    print(f"[PayMongo] status={_resp.status_code} body={_resp.text[:500]}")
+                    if not _resp.ok:
+                        _errors = _resp.json().get('errors', [])
+                        _detail = '; '.join(e.get('detail', '') for e in _errors) or _resp.text
+                        raise ValueError(_detail)
+                    _source = _resp.json()['data']
+                    order.paymongo_source_id = _source['id']
                     db.session.commit()
-
                     CartController.clear_cart(sid, uid)
-                    # Redirect user to GCash / Maya checkout page
-                    checkout_url = source['attributes']['redirect']['checkout_url']
+                    checkout_url = _source['attributes']['redirect']['checkout_url']
                     return redirect(checkout_url)
                 except Exception as e:
                     db.session.delete(order)
