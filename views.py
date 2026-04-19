@@ -7,6 +7,7 @@ from werkzeug.utils import secure_filename
 from models import db, User, Product, Order, OrderItem, CartItem
 from controllers import AuthController, ProductController, CartController, OrderController
 from auth_decorator import admin_required
+import paymongo
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
 UPLOAD_FOLDER = os.path.join('static', 'images', 'uploads')
@@ -247,21 +248,122 @@ def register_routes(app):
 
         if request.method == 'POST':
             customer_data = {
-                'name': request.form.get('name', '').strip(),
-                'email': request.form.get('email', '').strip(),
-                'phone': request.form.get('phone', '').strip(),
-                'address': request.form.get('address', '').strip(),
+                'name':           request.form.get('name', '').strip(),
+                'email':          request.form.get('email', '').strip(),
+                'phone':          request.form.get('phone', '').strip(),
+                'address':        request.form.get('address', '').strip(),
                 'payment_method': request.form.get('payment_method', 'Cash on Delivery'),
             }
-            if not all([customer_data['name'], customer_data['email'], customer_data['phone'], customer_data['address']]):
+            if not all([customer_data['name'], customer_data['email'],
+                        customer_data['phone'], customer_data['address']]):
                 flash('Please fill in all required fields', 'danger')
                 return render_template('checkout.html', cart_items=cart_items, total=total)
 
             order = OrderController.create_order(sid, customer_data, cart_items, uid)
+
+            # ── PayMongo e-wallet payment (GCash / Maya) ──────────────────
+            if customer_data['payment_method'] in ('GCash', 'Maya'):
+                try:
+                    success_url = url_for('payment_success',
+                                          order_number=order.order_number,
+                                          _external=True)
+                    failed_url  = url_for('payment_failed',
+                                          order_number=order.order_number,
+                                          _external=True)
+                    source = paymongo.create_source(
+                        order_number=order.order_number,
+                        amount_php=order.total_amount,
+                        payment_method=customer_data['payment_method'],
+                        success_url=success_url,
+                        failed_url=failed_url,
+                    )
+                    # Save source ID for later verification
+                    order.paymongo_source_id = source['id']
+                    db.session.commit()
+
+                    CartController.clear_cart(sid, uid)
+                    # Redirect user to GCash / Maya checkout page
+                    checkout_url = source['attributes']['redirect']['checkout_url']
+                    return redirect(checkout_url)
+                except Exception as e:
+                    db.session.delete(order)
+                    db.session.commit()
+                    flash(f'Payment setup failed: {str(e)}. Please try again or use Cash on Delivery.', 'danger')
+                    return render_template('checkout.html', cart_items=cart_items, total=total)
+
+            # ── Cash on Delivery ──────────────────────────────────────────
             CartController.clear_cart(sid, uid)
             return redirect(url_for('order_confirmation', order_number=order.order_number))
 
         return render_template('checkout.html', cart_items=cart_items, total=total)
+
+    @app.route('/payment/success/<order_number>')
+    def payment_success(order_number):
+        """User returns here after completing GCash/Maya payment."""
+        order = OrderController.get_order(order_number)
+        if not order:
+            flash('Order not found.', 'danger')
+            return redirect(url_for('index'))
+
+        # Verify payment with PayMongo
+        if order.paymongo_source_id and order.payment_status != 'Paid':
+            try:
+                source = paymongo.get_source(order.paymongo_source_id)
+                status = source['attributes']['status']
+
+                if status == 'chargeable':
+                    payment = paymongo.create_payment(
+                        source_id=order.paymongo_source_id,
+                        amount_php=order.total_amount,
+                        order_number=order.order_number,
+                    )
+                    paid_status = payment['attributes'].get('status', '')
+                    if paid_status == 'paid':
+                        order.payment_status = 'Paid'
+                        order.status = 'Confirmed'
+                        db.session.commit()
+                elif status == 'paid':
+                    order.payment_status = 'Paid'
+                    order.status = 'Confirmed'
+                    db.session.commit()
+            except Exception as e:
+                print(f'PayMongo verify error: {e}')
+
+        return render_template('order_confirmation.html', order=order)
+
+    @app.route('/payment/failed/<order_number>')
+    def payment_failed(order_number):
+        """User returns here if they cancel or payment fails."""
+        order = OrderController.get_order(order_number)
+        if order:
+            order.payment_status = 'Failed'
+            db.session.commit()
+        flash('Payment was cancelled or failed. You can retry below or choose Cash on Delivery.', 'warning')
+        return render_template('payment_failed.html', order=order)
+
+    @app.route('/payment/retry/<order_number>')
+    def retry_payment(order_number):
+        """Re-initiate PayMongo payment for a failed/cancelled order."""
+        order = OrderController.get_order(order_number)
+        if not order or order.payment_status == 'Paid':
+            return redirect(url_for('index'))
+        try:
+            success_url = url_for('payment_success', order_number=order.order_number, _external=True)
+            failed_url  = url_for('payment_failed',  order_number=order.order_number, _external=True)
+            source = paymongo.create_source(
+                order_number=order.order_number,
+                amount_php=order.total_amount,
+                payment_method=order.payment_method,
+                success_url=success_url,
+                failed_url=failed_url,
+            )
+            order.paymongo_source_id = source['id']
+            order.payment_status = 'Unpaid'
+            db.session.commit()
+            return redirect(source['attributes']['redirect']['checkout_url'])
+        except Exception as e:
+            flash(f'Could not initiate payment: {str(e)}', 'danger')
+            return redirect(url_for('payment_failed', order_number=order.order_number))
 
     @app.route('/order/confirmation/<order_number>')
     def order_confirmation(order_number):

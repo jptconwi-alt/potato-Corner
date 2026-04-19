@@ -18,6 +18,20 @@
       <h1 class="confirm-title">Order Confirmed! 🎉</h1>
       <p class="confirm-sub">Your fries are being prepared. We'll deliver them hot and crispy!</p>
 
+      {% if order.payment_method in ['GCash', 'Maya'] %}
+      <div style="margin: 0 auto 8px; display:inline-block;">
+        {% if order.payment_status == 'Paid' %}
+        <span style="background:#2ed573;color:#fff;padding:6px 18px;border-radius:20px;font-weight:600;font-size:.9rem;">
+          <i class="fas fa-check-circle me-1"></i>Payment Confirmed
+        </span>
+        {% else %}
+        <span style="background:#ffa502;color:#fff;padding:6px 18px;border-radius:20px;font-weight:600;font-size:.9rem;">
+          <i class="fas fa-clock me-1"></i>Payment Pending
+        </span>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <div class="order-number-box">
         <div class="order-number-label">Order Number</div>
         <div class="order-number-val">{{ order.order_number }}</div>

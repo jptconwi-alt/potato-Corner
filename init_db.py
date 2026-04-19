@@ -22,6 +22,10 @@ def run_migrations(db_engine):
                 conn.execute(sa.text('ALTER TABLE products ADD COLUMN image_data TEXT'))
                 conn.commit()
                 print("✅ Migration: added products.image_data column")
+            if 'paymongo_source_id' not in [c['name'] for c in inspector.get_columns('orders')]:
+                conn.execute(sa.text('ALTER TABLE orders ADD COLUMN paymongo_source_id TEXT'))
+                conn.commit()
+                print("✅ Migration: added orders.paymongo_source_id column")
             if 'category' not in cols:
                 conn.execute(sa.text("ALTER TABLE products ADD COLUMN category TEXT DEFAULT 'Fries'"))
                 conn.commit()

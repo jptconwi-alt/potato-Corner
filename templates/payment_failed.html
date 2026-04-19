@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Payment Failed — Potato Corner{% endblock %}
+
+{% block content %}
+<section class="confirmation-section">
+  <div class="container">
+    <div class="confirmation-card">
+      <div class="confirm-animation">
+        <div class="confirm-circle" style="background: linear-gradient(135deg, #ff4757, #ff6b81);">
+          <i class="fas fa-times confirm-check"></i>
+        </div>
+        <div class="confirm-rings">
+          <div class="ring r1" style="border-color: rgba(255,71,87,.3)"></div>
+          <div class="ring r2" style="border-color: rgba(255,71,87,.2)"></div>
+          <div class="ring r3" style="border-color: rgba(255,71,87,.1)"></div>
+        </div>
+      </div>
+
+      <h1 class="confirm-title" style="color:#ff4757">Payment Cancelled</h1>
+      <p class="confirm-sub">Your payment was not completed. Your order has been saved — you can retry below.</p>
+
+      {% if order %}
+      <div class="order-number-box">
+        <div class="order-number-label">Order Number</div>
+        <div class="order-number-val">{{ order.order_number }}</div>
+      </div>
+
+      <div class="confirm-details">
+        <div class="confirm-detail-row">
+          <div class="cd-icon"><i class="fas fa-receipt"></i></div>
+          <div>
+            <div class="cd-label">Total</div>
+            <div class="cd-val total-highlight">₱{{ "%.0f"|format(order.total_amount) }}</div>
+          </div>
+        </div>
+        <div class="confirm-detail-row">
+          <div class="cd-icon"><i class="fas fa-wallet"></i></div>
+          <div>
+            <div class="cd-label">Payment Method</div>
+            <div class="cd-val">{{ order.payment_method }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="confirm-actions" style="flex-direction:column; gap:12px; align-items:center;">
+        {% if order %}
+        <a href="{{ url_for('retry_payment', order_number=order.order_number) }}"
+           class="btn-auth-submit" style="max-width:260px">
+          <i class="fas fa-redo me-2"></i>Retry Payment
+        </a>
+        {% endif %}
+        <a href="{{ url_for('index') }}" class="btn-continue-shopping">
+          <i class="fas fa-arrow-left me-2"></i>Back to Menu
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

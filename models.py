@@ -84,6 +84,7 @@ class Order(db.Model):
     status           = db.Column(db.String(20), default='Pending')
     payment_method   = db.Column(db.String(50), nullable=False)
     payment_status   = db.Column(db.String(20), default='Unpaid')
+    paymongo_source_id = db.Column(db.String(100), nullable=True)
     order_date       = db.Column(db.DateTime, default=datetime.utcnow)
     items            = db.relationship('OrderItem', backref='order', lazy=True, cascade='all, delete-orphan')
 
