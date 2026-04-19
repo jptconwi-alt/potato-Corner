@@ -103,15 +103,20 @@ def create_app():
                         .replace('libsql://', 'https://')
                         .replace('sqlite+libsql://', 'https://'))
 
+            # Use /tmp for the local replica — Vercel's /tmp is writable.
+            # :memory: causes "Read-only file system" because libsql needs
+            # to write a WAL temp file alongside the DB path.
+            _local_db_path = '/tmp/libsql_replica.db'
+
             def _creator():
                 raw = libsql.connect(
-                    database=':memory:',
+                    database=_local_db_path,
                     sync_url=sync_url,
                     auth_token=turso_token,
                 )
-                # Pull the current remote state into local memory before
+                # Pull the current remote state into local replica before
                 # handing this connection to SQLAlchemy.  Without this, the
-                # local :memory: DB is empty and every query gets
+                # local DB is empty and every query gets
                 # "no such table: products".
                 try:
                     raw.sync()
@@ -155,10 +160,14 @@ def create_app():
         # db.engine requires an active app context — patch here, not before.
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
-        db.create_all()
-        from init_db import run_migrations
-        run_migrations(db.engine)
-        init_database()
+        try:
+            db.create_all(checkfirst=True)
+            from init_db import run_migrations
+            run_migrations(db.engine)
+            init_database()
+        except Exception as e:
+            print(f"❌ DB error: {e}")
+            import traceback; traceback.print_exc()
 
     register_routes(app)
 
