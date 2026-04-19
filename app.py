@@ -155,14 +155,10 @@ def create_app():
         # db.engine requires an active app context — patch here, not before.
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
-        try:
-            db.create_all()
-            from init_db import run_migrations
-            run_migrations(db.engine)
-            init_database()
-        except Exception as e:
-            print(f"❌ DB error: {e}")
-            import traceback; traceback.print_exc()
+        db.create_all()
+        from init_db import run_migrations
+        run_migrations(db.engine)
+        init_database()
 
     register_routes(app)
 
