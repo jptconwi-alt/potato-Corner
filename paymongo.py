@@ -1,6 +1,6 @@
 """
 PayMongo payment helper — GCash & Maya (PayMaya)
-Docs: https://developers.paymongo.com/docs
+Docs: https://developers.paymongo.com/docs/source-payment-workflow
 """
 import os
 import base64
@@ -9,9 +9,10 @@ import requests
 PAYMONGO_SECRET_KEY = os.environ.get('PAYMONGO_SECRET_KEY', '')
 PAYMONGO_BASE = 'https://api.paymongo.com/v1'
 
+# PayMongo source type strings
 SOURCE_TYPES = {
     'GCash': 'gcash',
-    'Maya':  'paymaya',
+    'Maya':  'paymaya',   # PayMongo still uses 'paymaya' as the type string
 }
 
 
@@ -23,14 +24,32 @@ def _auth_header():
     }
 
 
+def _raise_with_detail(resp):
+    """Raise an exception with the actual PayMongo error message."""
+    try:
+        errors = resp.json().get('errors', [])
+        detail = '; '.join(e.get('detail', '') for e in errors)
+        raise ValueError(f'PayMongo {resp.status_code}: {detail}')
+    except (ValueError, KeyError):
+        resp.raise_for_status()
+
+
 def create_source(order_number: str, amount_php: float,
                   payment_method: str, success_url: str,
                   failed_url: str) -> dict:
     """
     Create a PayMongo Source for GCash or Maya.
-    Returns the full source object on success, raises on error.
+    Returns the full source data dict on success, raises ValueError on error.
 
-    amount_php  — total in Philippine Pesos (e.g. 179.0)
+    Required fields per PayMongo Sources API:
+      - amount   (integer, in centavos)
+      - currency (must be 'PHP')
+      - type     ('gcash' or 'paymaya')
+      - redirect.success
+      - redirect.failed
+
+    NOTE: Do NOT include 'billing' — not a valid field for /v1/sources,
+    causes 400 Bad Request.
     """
     source_type = SOURCE_TYPES.get(payment_method)
     if not source_type:
@@ -48,9 +67,6 @@ def create_source(order_number: str, amount_php: float,
                     'success': success_url,
                     'failed':  failed_url,
                 },
-                'billing': {
-                    'name': order_number,
-                },
             }
         }
     }
@@ -61,7 +77,10 @@ def create_source(order_number: str, amount_php: float,
         headers=_auth_header(),
         timeout=15,
     )
-    resp.raise_for_status()
+
+    if not resp.ok:
+        _raise_with_detail(resp)
+
     return resp.json()['data']
 
 
@@ -72,7 +91,8 @@ def get_source(source_id: str) -> dict:
         headers=_auth_header(),
         timeout=15,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        _raise_with_detail(resp)
     return resp.json()['data']
 
 
@@ -80,7 +100,6 @@ def create_payment(source_id: str, amount_php: float,
                    order_number: str) -> dict:
     """
     Charge the source once it is in 'chargeable' state.
-    Call this from the success redirect or webhook.
     """
     amount_centavos = int(round(amount_php * 100))
 
@@ -104,5 +123,8 @@ def create_payment(source_id: str, amount_php: float,
         headers=_auth_header(),
         timeout=15,
     )
-    resp.raise_for_status()
+
+    if not resp.ok:
+        _raise_with_detail(resp)
+
     return resp.json()['data']
