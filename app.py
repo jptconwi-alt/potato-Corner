@@ -161,7 +161,12 @@ def create_app():
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
         try:
-            db.create_all(checkfirst=True)
+            # Use SQLAlchemy's MetaData.create_all directly with checkfirst=True
+            # so tables that already exist in Turso are silently skipped.
+            # db.create_all() on older vendored Flask-SQLAlchemy ignores
+            # checkfirst and always emits CREATE TABLE, which Turso rejects
+            # with "table X already exists".
+            db.metadata.create_all(bind=db.engine, checkfirst=True)
             from init_db import run_migrations
             run_migrations(db.engine)
             init_database()
