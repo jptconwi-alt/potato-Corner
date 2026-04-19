@@ -271,7 +271,7 @@ def register_routes(app):
                         'Authorization': f'Basic {_encoded}',
                         'Content-Type': 'application/json',
                     }
-                    _source_type = 'gcash' if customer_data['payment_method'] == 'GCash' else 'paymaya'
+                    _source_type = 'gcash' if customer_data['payment_method'] == 'GCash' else 'maya'
                     _amount_centavos = int(round(order.total_amount * 100))
                     success_url = url_for('payment_success',
                                           order_number=order.order_number,
