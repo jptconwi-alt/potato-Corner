@@ -1,7 +1,157 @@
 {% extends "base.html" %}
 {% block title %}Checkout — Potato Corner{% endblock %}
 
+{% block extra_css %}
+<style>
+/* ── Skeleton Loading ─────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -700px 0 }
+  100% { background-position:  700px 0 }
+}
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 700px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 8px;
+}
+.skeleton-line  { height: 14px; margin-bottom: 10px; }
+.skeleton-input { height: 48px; margin-bottom: 14px; border-radius: 10px; }
+.skeleton-btn   { height: 52px; border-radius: 10px; width: 100%; }
+.skeleton-item  { height: 20px; margin-bottom: 8px; }
+
+/* ── Profile Incomplete Warning ───────────────────── */
+.profile-warning-banner {
+  background: linear-gradient(135deg, #fff3cd, #ffe69c);
+  border: 2px solid #ffc107;
+  border-radius: 14px;
+  padding: 1.2rem 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.profile-warning-banner .pw-icon { font-size: 2rem; }
+.profile-warning-banner .pw-text h5 { font-weight: 700; color: #856404; margin: 0 0 3px; }
+.profile-warning-banner .pw-text p  { color: #856404; margin: 0; font-size: .9rem; }
+.profile-warning-banner .pw-btn {
+  margin-left: auto;
+  background: #ffc107;
+  color: #000;
+  border: none;
+  padding: .5rem 1.1rem;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: .85rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+/* ── Security Badge ───────────────────────────────── */
+.security-badge {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  background: #e8f5e9;
+  border: 1.5px solid #a5d6a7;
+  border-radius: 10px;
+  padding: .65rem 1rem;
+  font-size: .82rem;
+  color: #2e7d32;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+
+/* ── Address Fields ───────────────────────────────── */
+.address-fields { display: flex; flex-direction: column; gap: 0; }
+.address-complete-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: #e8f5e9;
+  border: 1.5px solid #a5d6a7;
+  color: #2e7d32;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .35rem .75rem;
+  border-radius: 20px;
+  margin-bottom: .75rem;
+}
+.address-incomplete-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: #fff3e0;
+  border: 1.5px solid #ffcc02;
+  color: #e65100;
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .35rem .75rem;
+  border-radius: 20px;
+  margin-bottom: .75rem;
+}
+
+/* ── Phone Validation ─────────────────────────────── */
+.input-hint { font-size: .75rem; color: #999; margin-top: 3px; padding-left: 2px; }
+.input-error { font-size: .75rem; color: #e53935; margin-top: 3px; padding-left: 2px; display: none; }
+.form-control-custom.is-invalid { border-color: #e53935 !important; }
+.form-control-custom.is-valid   { border-color: #43a047 !important; }
+
+/* ── Order Placing Overlay ────────────────────────── */
+.placing-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,.85);
+  z-index: 9999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+.placing-overlay.active { display: flex; }
+.placing-spinner {
+  width: 56px; height: 56px;
+  border: 5px solid #f0f0f0;
+  border-top-color: #43a047;
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.placing-text { font-weight: 700; font-size: 1.1rem; color: #2e7d32; }
+
+/* ── Payment method icons ─────────────────────────── */
+.payment-option-inner { position: relative; }
+.payment-secure-tag {
+  position: absolute;
+  right: 10px; top: 50%;
+  transform: translateY(-50%);
+  font-size: .68rem;
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+/* ── Rate limit notice ────────────────────────────── */
+.rate-notice {
+  font-size: .78rem;
+  color: #888;
+  text-align: center;
+  margin-top: .75rem;
+}
+</style>
+{% endblock %}
+
 {% block content %}
+
+<!-- Placing order overlay -->
+<div class="placing-overlay" id="placingOverlay">
+  <div class="placing-spinner"></div>
+  <div class="placing-text">Placing your order…</div>
+  <div style="font-size:.85rem;color:#666">Please don't close this page</div>
+</div>
+
 <div class="page-header-section">
   <div class="container">
     <div class="page-header-inner">
@@ -13,46 +163,169 @@
 
 <section class="checkout-section">
   <div class="container">
-    <div class="checkout-layout">
+
+    <!-- ── Skeleton shown while page JS runs ── -->
+    <div id="checkoutSkeleton" class="checkout-layout" style="display:none">
       <div class="checkout-form-col">
-        <form method="POST" action="{{ url_for('checkout') }}" class="checkout-form">
+        <div class="checkout-card">
+          <div class="skeleton skeleton-line" style="width:40%;margin-bottom:1.5rem"></div>
+          <div class="skeleton skeleton-input"></div>
+          <div class="skeleton skeleton-input"></div>
+          <div class="skeleton skeleton-input"></div>
+          <div class="skeleton skeleton-input" style="height:72px"></div>
+        </div>
+        <div class="checkout-card">
+          <div class="skeleton skeleton-line" style="width:35%;margin-bottom:1.5rem"></div>
+          <div class="skeleton skeleton-input"></div>
+          <div class="skeleton skeleton-input"></div>
+          <div class="skeleton skeleton-input"></div>
+        </div>
+        <div class="skeleton skeleton-btn"></div>
+      </div>
+      <div class="checkout-summary-col">
+        <div class="order-summary-card">
+          <div class="skeleton skeleton-line" style="width:50%;margin-bottom:1.5rem"></div>
+          {% for i in range(3) %}
+          <div class="skeleton skeleton-item"></div>
+          {% endfor %}
+          <div class="skeleton skeleton-input" style="margin-top:1rem"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Real checkout form ── -->
+    <div id="checkoutReal" class="checkout-layout" style="display:none">
+      <div class="checkout-form-col">
+
+        {% if current_user.is_authenticated and not current_user.profile_complete %}
+        <div class="profile-warning-banner">
+          <div class="pw-icon">⚠️</div>
+          <div class="pw-text">
+            <h5>Incomplete Profile</h5>
+            <p>Complete your delivery address before ordering.</p>
+          </div>
+          <a href="{{ url_for('complete_profile') }}" class="pw-btn">
+            <i class="fas fa-pencil-alt me-1"></i>Complete Now
+          </a>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('checkout') }}" class="checkout-form" id="checkoutForm" novalidate>
+
+          <!-- ── Delivery Information ── -->
           <div class="checkout-card">
-            <h3 class="checkout-card-title"><i class="fas fa-user me-2"></i>Delivery Information</h3>
+            <h3 class="checkout-card-title"><i class="fas fa-map-marker-alt me-2"></i>Delivery Information</h3>
+
+            <div class="security-badge">
+              <i class="fas fa-lock"></i> Your information is encrypted and secure
+            </div>
+
+            {% if current_user.is_authenticated %}
+              {% set addr = current_user.get_full_address() %}
+              {% if addr %}
+              <span class="address-complete-badge">
+                <i class="fas fa-check-circle"></i> Address on file
+              </span>
+              {% else %}
+              <span class="address-incomplete-badge">
+                <i class="fas fa-exclamation-circle"></i> No address saved — please fill in below
+              </span>
+              {% endif %}
+            {% endif %}
+
             <div class="form-row-2">
               <div class="form-group-custom">
-                <label class="form-label-custom">Full Name</label>
+                <label class="form-label-custom">Full Name <span style="color:#e53935">*</span></label>
                 <div class="input-icon-wrap">
                   <i class="fas fa-user input-icon"></i>
-                  <input type="text" name="name" class="form-control-custom"
-                    value="{{ current_user.full_name if current_user.is_authenticated else '' }}" required>
+                  <input type="text" name="name" id="fieldName" class="form-control-custom"
+                    value="{{ current_user.full_name if current_user.is_authenticated else '' }}"
+                    minlength="3" maxlength="100" required autocomplete="name">
                 </div>
+                <div class="input-error" id="errName">Please enter your full name (at least 3 characters)</div>
               </div>
               <div class="form-group-custom">
-                <label class="form-label-custom">Phone Number</label>
+                <label class="form-label-custom">Phone Number <span style="color:#e53935">*</span></label>
                 <div class="input-icon-wrap">
                   <i class="fas fa-phone input-icon"></i>
-                  <input type="text" name="phone" class="form-control-custom"
-                    value="{{ current_user.phone if current_user.is_authenticated else '' }}" required>
+                  <input type="tel" name="phone" id="fieldPhone" class="form-control-custom"
+                    value="{{ current_user.phone if current_user.is_authenticated else '' }}"
+                    placeholder="09XX-XXX-XXXX" required autocomplete="tel">
+                </div>
+                <div class="input-hint">Philippine mobile number (09XX-XXX-XXXX)</div>
+                <div class="input-error" id="errPhone">Enter a valid PH mobile number (e.g. 09171234567)</div>
+              </div>
+            </div>
+
+            <div class="form-group-custom">
+              <label class="form-label-custom">Email Address <span style="color:#e53935">*</span></label>
+              <div class="input-icon-wrap">
+                <i class="fas fa-envelope input-icon"></i>
+                <input type="email" name="email" id="fieldEmail" class="form-control-custom"
+                  value="{{ current_user.email if current_user.is_authenticated else '' }}"
+                  required autocomplete="email">
+              </div>
+              <div class="input-error" id="errEmail">Enter a valid email address</div>
+            </div>
+
+            <!-- Address breakdown -->
+            <div class="address-fields">
+              <div class="form-group-custom">
+                <label class="form-label-custom">Street / House No. <span style="color:#e53935">*</span></label>
+                <div class="input-icon-wrap">
+                  <i class="fas fa-home input-icon"></i>
+                  <input type="text" name="street" id="fieldStreet" class="form-control-custom"
+                    value="{{ current_user.street or '' }}"
+                    placeholder="123 Mabini St." required minlength="3">
+                </div>
+                <div class="input-error" id="errStreet">Please enter your street/house number</div>
+              </div>
+              <div class="form-row-2">
+                <div class="form-group-custom">
+                  <label class="form-label-custom">Barangay <span style="color:#e53935">*</span></label>
+                  <div class="input-icon-wrap">
+                    <i class="fas fa-map-pin input-icon"></i>
+                    <input type="text" name="barangay" id="fieldBarangay" class="form-control-custom"
+                      value="{{ current_user.barangay or '' }}" required>
+                  </div>
+                  <div class="input-error" id="errBarangay">Please enter your barangay</div>
+                </div>
+                <div class="form-group-custom">
+                  <label class="form-label-custom">City / Municipality <span style="color:#e53935">*</span></label>
+                  <div class="input-icon-wrap">
+                    <i class="fas fa-city input-icon"></i>
+                    <input type="text" name="city" id="fieldCity" class="form-control-custom"
+                      value="{{ current_user.city or '' }}" required>
+                  </div>
+                  <div class="input-error" id="errCity">Please enter your city/municipality</div>
+                </div>
+              </div>
+              <div class="form-row-2">
+                <div class="form-group-custom">
+                  <label class="form-label-custom">Province</label>
+                  <div class="input-icon-wrap">
+                    <i class="fas fa-map input-icon"></i>
+                    <input type="text" name="province" class="form-control-custom"
+                      value="{{ current_user.province or '' }}">
+                  </div>
+                </div>
+                <div class="form-group-custom">
+                  <label class="form-label-custom">ZIP Code</label>
+                  <div class="input-icon-wrap">
+                    <i class="fas fa-mail-bulk input-icon"></i>
+                    <input type="text" name="zipcode" class="form-control-custom"
+                      value="{{ current_user.zipcode or '' }}"
+                      maxlength="4" pattern="\d{4}" placeholder="8300">
+                  </div>
                 </div>
               </div>
             </div>
-            <div class="form-group-custom">
-              <label class="form-label-custom">Email</label>
-              <div class="input-icon-wrap">
-                <i class="fas fa-envelope input-icon"></i>
-                <input type="email" name="email" class="form-control-custom"
-                  value="{{ current_user.email if current_user.is_authenticated else '' }}" required>
-              </div>
-            </div>
-            <div class="form-group-custom">
-              <label class="form-label-custom">Delivery Address</label>
-              <div class="input-icon-wrap">
-                <i class="fas fa-map-marker-alt input-icon"></i>
-                <textarea name="address" class="form-control-custom" rows="3" required>{{ current_user.get_full_address() if current_user.is_authenticated else '' }}</textarea>
-              </div>
-            </div>
+
+            <!-- Hidden combined address for backend -->
+            <input type="hidden" name="address" id="hiddenAddress">
           </div>
 
+          <!-- ── Payment Method ── -->
           <div class="checkout-card">
             <h3 class="checkout-card-title"><i class="fas fa-wallet me-2"></i>Payment Method</h3>
             <div class="payment-options">
@@ -72,8 +345,9 @@
                   <div class="payment-icon">📱</div>
                   <div>
                     <div class="payment-name">GCash</div>
-                    <div class="payment-desc">Pay via GCash e-wallet</div>
+                    <div class="payment-desc">Pay via GCash e-wallet — instant confirmation</div>
                   </div>
+                  <span class="payment-secure-tag">🔒 Secure</span>
                 </div>
               </label>
               <label class="payment-option">
@@ -82,20 +356,43 @@
                   <div class="payment-icon">💳</div>
                   <div>
                     <div class="payment-name">Maya</div>
-                    <div class="payment-desc">Pay via Maya e-wallet</div>
+                    <div class="payment-desc">Pay via Maya e-wallet — instant confirmation</div>
                   </div>
+                  <span class="payment-secure-tag">🔒 Secure</span>
                 </div>
               </label>
             </div>
+
+            <div id="ewalletNotice" style="display:none;margin-top:1rem;background:#e3f2fd;border:1.5px solid #90caf9;border-radius:10px;padding:.85rem 1rem;font-size:.85rem;color:#1565c0">
+              <i class="fas fa-info-circle me-2"></i>
+              You'll be redirected to <strong id="ewalletName"></strong> to complete your payment securely. Your order is saved and won't be lost.
+            </div>
           </div>
 
-          <button type="submit" class="btn-place-order">
-            <i class="fas fa-check-circle me-2"></i>Place Order
+          <!-- ── Order Notes ── -->
+          <div class="checkout-card">
+            <h3 class="checkout-card-title"><i class="fas fa-sticky-note me-2"></i>Order Notes <span style="font-weight:400;font-size:.85rem;color:#999">(optional)</span></h3>
+            <div class="input-icon-wrap">
+              <i class="fas fa-comment input-icon" style="top:14px"></i>
+              <textarea name="notes" class="form-control-custom" rows="2"
+                placeholder="Any special instructions? (e.g. gate code, landmark, extra napkins)"
+                maxlength="300"></textarea>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-place-order" id="placeOrderBtn">
+            <i class="fas fa-check-circle me-2"></i>
+            <span id="placeOrderText">Place Order</span>
           </button>
+
+          <p class="rate-notice">
+            <i class="fas fa-shield-alt me-1"></i>
+            Orders are rate-limited. Duplicate or suspicious submissions will be blocked automatically.
+          </p>
         </form>
       </div>
 
-      <!-- Order Summary -->
+      <!-- ── Order Summary ── -->
       <div class="checkout-summary-col">
         <div class="order-summary-card sticky-summary">
           <h3 class="summary-title">Order Summary</h3>
@@ -114,11 +411,20 @@
             </div>
             <div class="summary-row">
               <span>Delivery</span>
-              <span class="text-success">Free</span>
+              <span class="text-success fw-bold">Free 🎉</span>
             </div>
             <div class="summary-row total-row">
               <span>Total</span>
               <span class="total-price">₱{{ "%.0f"|format(total) }}</span>
+            </div>
+          </div>
+
+          <!-- Security assurance -->
+          <div style="margin-top:1rem;padding-top:1rem;border-top:1px dashed #e0e0e0">
+            <div style="font-size:.78rem;color:#888;display:flex;flex-direction:column;gap:5px">
+              <span><i class="fas fa-lock me-1 text-success"></i> SSL encrypted checkout</span>
+              <span><i class="fas fa-shield-alt me-1 text-success"></i> PayMongo secured payments</span>
+              <span><i class="fas fa-undo me-1 text-success"></i> Order tracked in real-time</span>
             </div>
           </div>
         </div>
@@ -130,13 +436,125 @@
 
 {% block extra_js %}
 <script>
-// Style payment options on click
-document.querySelectorAll('.payment-option input').forEach(input => {
-  input.addEventListener('change', () => {
-    document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
-    input.closest('.payment-option').classList.add('selected');
+(function () {
+  // ── Skeleton → Real transition ──────────────────────────
+  const skeleton = document.getElementById('checkoutSkeleton');
+  const real     = document.getElementById('checkoutReal');
+  skeleton.style.display = 'flex';
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      skeleton.style.display = 'none';
+      real.style.display     = 'flex';
+    }, 600); // brief skeleton flash so user sees it loaded
   });
-});
-document.querySelector('.payment-option input:checked')?.closest('.payment-option')?.classList.add('selected');
+
+  // ── Payment option highlight ────────────────────────────
+  const payInputs = document.querySelectorAll('.payment-option input');
+  const ewalletNotice = document.getElementById('ewalletNotice');
+  const ewalletName   = document.getElementById('ewalletName');
+
+  function updatePayment() {
+    document.querySelectorAll('.payment-option').forEach(o => o.classList.remove('selected'));
+    const checked = document.querySelector('.payment-option input:checked');
+    if (!checked) return;
+    checked.closest('.payment-option').classList.add('selected');
+    const isEwallet = ['GCash', 'Maya'].includes(checked.value);
+    ewalletNotice.style.display = isEwallet ? 'block' : 'none';
+    if (isEwallet) ewalletName.textContent = checked.value;
+  }
+  payInputs.forEach(i => i.addEventListener('change', updatePayment));
+  updatePayment();
+
+  // ── Field validation helpers ─────────────────────────────
+  function showErr(fieldId, errId, show) {
+    const f = document.getElementById(fieldId);
+    const e = document.getElementById(errId);
+    if (!f || !e) return;
+    if (show) {
+      f.classList.add('is-invalid'); f.classList.remove('is-valid');
+      e.style.display = 'block';
+    } else {
+      f.classList.remove('is-invalid'); f.classList.add('is-valid');
+      e.style.display = 'none';
+    }
+    return !show;
+  }
+
+  function validatePhone(v) {
+    // Accept 09XXXXXXXXX or +639XXXXXXXXX or 639XXXXXXXXX
+    return /^(09|\+639|639)\d{9}$/.test(v.replace(/[\s\-]/g, ''));
+  }
+
+  function validateAll() {
+    let ok = true;
+    const name  = document.getElementById('fieldName').value.trim();
+    const phone = document.getElementById('fieldPhone').value.trim();
+    const email = document.getElementById('fieldEmail').value.trim();
+    const street   = document.getElementById('fieldStreet').value.trim();
+    const barangay = document.getElementById('fieldBarangay').value.trim();
+    const city     = document.getElementById('fieldCity').value.trim();
+
+    ok = showErr('fieldName',     'errName',     name.length < 3)     && ok;
+    ok = showErr('fieldPhone',    'errPhone',    !validatePhone(phone)) && ok;
+    ok = showErr('fieldEmail',    'errEmail',    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) && ok;
+    ok = showErr('fieldStreet',   'errStreet',   street.length < 3)   && ok;
+    ok = showErr('fieldBarangay', 'errBarangay', barangay.length < 2) && ok;
+    ok = showErr('fieldCity',     'errCity',     city.length < 2)     && ok;
+
+    return ok;
+  }
+
+  // ── Build combined address into hidden field ─────────────
+  function buildAddress() {
+    const parts = [
+      document.getElementById('fieldStreet').value.trim(),
+      document.querySelector('[name=barangay]').value.trim(),
+      document.querySelector('[name=city]').value.trim(),
+      document.querySelector('[name=province]').value.trim(),
+      document.querySelector('[name=zipcode]').value.trim(),
+    ].filter(Boolean);
+    document.getElementById('hiddenAddress').value = parts.join(', ');
+  }
+
+  // ── Anti-spam: block double submit ──────────────────────
+  let submitted = false;
+
+  document.getElementById('checkoutForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    if (!validateAll()) {
+      // Scroll to first error
+      const firstErr = document.querySelector('.is-invalid');
+      if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    if (submitted) {
+      alert('Your order is already being processed. Please wait.');
+      return;
+    }
+
+    buildAddress();
+
+    // Confirm before e-wallet redirect
+    const method = document.querySelector('.payment-option input:checked').value;
+    if (['GCash', 'Maya'].includes(method)) {
+      if (!confirm(`You will be redirected to ${method} to complete payment. Continue?`)) return;
+    }
+
+    submitted = true;
+    document.getElementById('placeOrderBtn').disabled = true;
+    document.getElementById('placeOrderText').textContent = 'Processing…';
+    document.getElementById('placingOverlay').classList.add('active');
+
+    this.submit();
+  });
+
+  // ── Inline validation on blur ────────────────────────────
+  ['fieldName','fieldPhone','fieldEmail','fieldStreet','fieldBarangay','fieldCity'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('blur', validateAll);
+  });
+})();
 </script>
 {% endblock %}
