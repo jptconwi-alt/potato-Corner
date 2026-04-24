@@ -65,6 +65,46 @@ def register_routes(app):
                 flash(result, 'danger')
         return render_template('login.html')
 
+    # ── AJAX Login (used by inline auth modal) ──────────
+    @app.route('/auth/ajax-login', methods=['POST'])
+    def ajax_login():
+        data     = request.get_json(force=True) or {}
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        if not username or not password:
+            return jsonify({'success': False, 'message': 'Username and password are required.'})
+        success, result = AuthController.login_user(username, password, False)
+        if success:
+            session['user_id'] = result.id
+            sid = get_session_id()
+            CartController.merge_carts(sid, result.id)
+            return jsonify({'success': True, 'full_name': result.full_name})
+        return jsonify({'success': False, 'message': str(result)})
+
+    # ── AJAX Register (used by inline auth modal) ───────
+    @app.route('/auth/ajax-register', methods=['POST'])
+    def ajax_register():
+        data      = request.get_json(force=True) or {}
+        firstname = data.get('firstname', '').strip()
+        lastname  = data.get('lastname', '').strip()
+        username  = data.get('username', '').strip()
+        email     = data.get('email', '').strip()
+        phone     = data.get('phone', '').strip()
+        password  = data.get('password', '')
+        full_name = f'{firstname} {lastname}'.strip()
+        if not all([firstname, lastname, username, email, password]):
+            return jsonify({'success': False, 'message': 'Please fill in all required fields.'})
+        if len(password) < 6:
+            return jsonify({'success': False, 'message': 'Password must be at least 6 characters.'})
+        success, result = AuthController.register_user(username, email, password, full_name, phone)
+        if success:
+            # Auto-login after registration
+            success2, result2 = AuthController.login_user(username, password, False)
+            if success2:
+                session['user_id'] = result2.id
+            return jsonify({'success': True, 'full_name': full_name})
+        return jsonify({'success': False, 'message': str(result)})
+
     @app.route('/register', methods=['GET', 'POST'])
     def register():
         if current_user.is_authenticated:

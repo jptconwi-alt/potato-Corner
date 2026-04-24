@@ -147,29 +147,128 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Login Required Modal -->
-<div class="modal fade" id="loginRequiredModal" tabindex="-1" aria-labelledby="loginRequiredModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius:16px; border:none; overflow:hidden;">
-      <div class="modal-body text-center p-5">
-        <div style="font-size:3rem; margin-bottom:1rem;">🔒</div>
-        <h4 class="fw-bold mb-2" id="loginRequiredModalLabel">Login Required</h4>
-        <p class="text-muted mb-4">You need to be logged in to add items to your cart. Please sign in to continue.</p>
-        <div class="d-flex gap-3 justify-content-center">
-          <a href="{{ url_for('login') }}" class="btn btn-warning fw-semibold px-4">
-            <i class="fas fa-sign-in-alt me-2"></i>Login
-          </a>
-          <a href="{{ url_for('register') }}" class="btn btn-outline-secondary px-4">
-            <i class="fas fa-user-plus me-2"></i>Register
-          </a>
+<!-- ══════════════════════════════════════════════
+     AUTH MODAL  (Login / Register inline)
+══════════════════════════════════════════════ -->
+<div class="modal fade" id="authModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content auth-modal-card">
+
+      <!-- Brand Header -->
+      <div class="auth-modal-header">
+        <span class="auth-modal-logo">🍟</span>
+        <div>
+          <div class="auth-modal-brand">Potato Corner</div>
+          <div class="auth-modal-tagline">Sign in to start ordering!</div>
         </div>
-        <button type="button" class="btn btn-link text-muted mt-3 d-block mx-auto" data-bs-dismiss="modal">
-          Maybe later
+        <button type="button" class="auth-modal-close" data-bs-dismiss="modal" aria-label="Close">
+          <i class="fas fa-times"></i>
         </button>
       </div>
+
+      <!-- Tab Switcher -->
+      <div class="auth-tab-row">
+        <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">
+          <i class="fas fa-sign-in-alt me-1"></i>Login
+        </button>
+        <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">
+          <i class="fas fa-user-plus me-1"></i>Register
+        </button>
+      </div>
+
+      <!-- Alert area -->
+      <div id="auth-alert" class="auth-alert" style="display:none;"></div>
+
+      <!-- ── LOGIN FORM ── -->
+      <div id="auth-login-panel" class="auth-panel">
+        <div class="auth-field">
+          <label class="auth-label">Username</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-user auth-input-icon"></i>
+            <input type="text" id="login-username" class="auth-input" placeholder="Enter your username" autocomplete="username">
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Password</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-lock auth-input-icon"></i>
+            <input type="password" id="login-password" class="auth-input" placeholder="Enter your password" autocomplete="current-password">
+            <button type="button" class="auth-eye" onclick="togglePw('login-password',this)"><i class="fas fa-eye"></i></button>
+          </div>
+        </div>
+        <button class="auth-submit-btn" id="login-btn" onclick="doLogin()">
+          <span id="login-btn-text"><i class="fas fa-sign-in-alt me-2"></i>Login</span>
+          <span id="login-btn-spin" style="display:none;"><i class="fas fa-spinner fa-spin me-2"></i>Signing in…</span>
+        </button>
+        <p class="auth-switch-hint">Don't have an account? <button class="auth-switch-link" onclick="switchAuthTab('register')">Register here</button></p>
+      </div>
+
+      <!-- ── REGISTER FORM ── -->
+      <div id="auth-register-panel" class="auth-panel" style="display:none;">
+        <div class="auth-two-col">
+          <div class="auth-field">
+            <label class="auth-label">First Name</label>
+            <div class="auth-input-wrap">
+              <i class="fas fa-user auth-input-icon"></i>
+              <input type="text" id="reg-firstname" class="auth-input" placeholder="First name">
+            </div>
+          </div>
+          <div class="auth-field">
+            <label class="auth-label">Last Name</label>
+            <div class="auth-input-wrap">
+              <i class="fas fa-user auth-input-icon"></i>
+              <input type="text" id="reg-lastname" class="auth-input" placeholder="Last name">
+            </div>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Username</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-at auth-input-icon"></i>
+            <input type="text" id="reg-username" class="auth-input" placeholder="Choose a username" autocomplete="username">
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Email</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-envelope auth-input-icon"></i>
+            <input type="email" id="reg-email" class="auth-input" placeholder="your@email.com" autocomplete="email">
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Phone</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-phone auth-input-icon"></i>
+            <input type="tel" id="reg-phone" class="auth-input" placeholder="09XX-XXX-XXXX">
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Password</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-lock auth-input-icon"></i>
+            <input type="password" id="reg-password" class="auth-input" placeholder="At least 6 characters" autocomplete="new-password">
+            <button type="button" class="auth-eye" onclick="togglePw('reg-password',this)"><i class="fas fa-eye"></i></button>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Confirm Password</label>
+          <div class="auth-input-wrap">
+            <i class="fas fa-lock auth-input-icon"></i>
+            <input type="password" id="reg-confirm" class="auth-input" placeholder="Repeat your password" autocomplete="new-password">
+            <button type="button" class="auth-eye" onclick="togglePw('reg-confirm',this)"><i class="fas fa-eye"></i></button>
+          </div>
+        </div>
+        <button class="auth-submit-btn" id="reg-btn" onclick="doRegister()">
+          <span id="reg-btn-text"><i class="fas fa-user-plus me-2"></i>Create Account</span>
+          <span id="reg-btn-spin" style="display:none;"><i class="fas fa-spinner fa-spin me-2"></i>Creating…</span>
+        </button>
+        <p class="auth-switch-hint">Already have an account? <button class="auth-switch-link" onclick="switchAuthTab('login')">Login here</button></p>
+      </div>
+
     </div>
   </div>
 </div>
+<!-- ══ End Auth Modal ══ -->
 
 <script>
   // Auth state injected server-side
@@ -191,10 +290,9 @@
   }
 
   function addToCart(productId, btn) {
-    // Guard: show login modal if user is not authenticated
+    // Guard: show auth modal if user is not authenticated
     if (!IS_LOGGED_IN) {
-      const modal = new bootstrap.Modal(document.getElementById('loginRequiredModal'));
-      modal.show();
+      showAuthModal('login');
       return;
     }
 
@@ -260,5 +358,146 @@
       card.style.display = (flavorMatch && sizeMatch) ? '' : 'none';
     });
   }
+
+  /* ═══════════════════════════════════════
+     AUTH MODAL LOGIC
+  ═══════════════════════════════════════ */
+  let _authModalInstance = null;
+  let _pendingProductId   = null;
+  let _pendingBtn         = null;
+
+  function showAuthModal(tab, productId, btn) {
+    _pendingProductId = productId || null;
+    _pendingBtn       = btn       || null;
+    if (!_authModalInstance) {
+      _authModalInstance = new bootstrap.Modal(document.getElementById('authModal'), { backdrop: 'static', keyboard: false });
+    }
+    clearAuthAlert();
+    switchAuthTab(tab || 'login');
+    _authModalInstance.show();
+  }
+
+  function switchAuthTab(tab) {
+    document.getElementById('auth-login-panel').style.display    = tab === 'login'    ? '' : 'none';
+    document.getElementById('auth-register-panel').style.display = tab === 'register' ? '' : 'none';
+    document.getElementById('tab-login').classList.toggle('active',    tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    clearAuthAlert();
+  }
+
+  function togglePw(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    const icon = btn.querySelector('i');
+    if (inp.type === 'password') { inp.type = 'text';     icon.className = 'fas fa-eye-slash'; }
+    else                         { inp.type = 'password'; icon.className = 'fas fa-eye'; }
+  }
+
+  function showAuthAlert(msg, type) {
+    const el = document.getElementById('auth-alert');
+    el.className = 'auth-alert auth-alert-' + (type || 'error');
+    el.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>${msg}`;
+    el.style.display = '';
+  }
+
+  function clearAuthAlert() {
+    const el = document.getElementById('auth-alert');
+    el.style.display = 'none';
+    el.textContent   = '';
+  }
+
+  function setBtnLoading(id, loading) {
+    document.getElementById(id + '-btn-text').style.display = loading ? 'none' : '';
+    document.getElementById(id + '-btn-spin').style.display = loading ? '' : 'none';
+    document.getElementById(id + '-btn').disabled = loading;
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!username || !password) { showAuthAlert('Please fill in all fields.'); return; }
+    setBtnLoading('login', true);
+    clearAuthAlert();
+    try {
+      const res  = await fetch('/auth/ajax-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAuthAlert('Logged in! Adding to cart…', 'success');
+        setTimeout(() => {
+          // reload page logged-in, or proceed with pending cart action
+          if (_pendingProductId !== null) {
+            window.IS_LOGGED_IN = true;
+            _authModalInstance.hide();
+            setTimeout(() => addToCart(_pendingProductId, _pendingBtn), 400);
+          } else {
+            location.reload();
+          }
+        }, 900);
+      } else {
+        showAuthAlert(data.message || 'Invalid username or password.');
+        setBtnLoading('login', false);
+      }
+    } catch (e) {
+      showAuthAlert('Network error. Please try again.');
+      setBtnLoading('login', false);
+    }
+  }
+
+  async function doRegister() {
+    const firstname = document.getElementById('reg-firstname').value.trim();
+    const lastname  = document.getElementById('reg-lastname').value.trim();
+    const username  = document.getElementById('reg-username').value.trim();
+    const email     = document.getElementById('reg-email').value.trim();
+    const phone     = document.getElementById('reg-phone').value.trim();
+    const password  = document.getElementById('reg-password').value;
+    const confirm   = document.getElementById('reg-confirm').value;
+
+    if (!firstname || !lastname || !username || !email || !password || !confirm) {
+      showAuthAlert('Please fill in all fields.'); return;
+    }
+    if (password !== confirm) { showAuthAlert('Passwords do not match.'); return; }
+    if (password.length < 6)  { showAuthAlert('Password must be at least 6 characters.'); return; }
+
+    setBtnLoading('reg', true);
+    clearAuthAlert();
+    try {
+      const res  = await fetch('/auth/ajax-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstname, lastname, username, email, phone, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showAuthAlert('Account created! Logging you in…', 'success');
+        setTimeout(() => {
+          if (_pendingProductId !== null) {
+            window.IS_LOGGED_IN = true;
+            _authModalInstance.hide();
+            setTimeout(() => addToCart(_pendingProductId, _pendingBtn), 400);
+          } else {
+            location.reload();
+          }
+        }, 900);
+      } else {
+        showAuthAlert(data.message || 'Registration failed. Please try again.');
+        setBtnLoading('reg', false);
+      }
+    } catch (e) {
+      showAuthAlert('Network error. Please try again.');
+      setBtnLoading('reg', false);
+    }
+  }
+
+  // Allow Enter key to submit
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') return;
+    const modal = document.getElementById('authModal');
+    if (!modal.classList.contains('show')) return;
+    if (document.getElementById('auth-login-panel').style.display !== 'none') doLogin();
+    else doRegister();
+  });
 </script>
 {% endblock %}
