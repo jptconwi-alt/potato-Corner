@@ -87,7 +87,7 @@
     <!-- Product Grid -->
     <div class="product-grid" id="productGrid" style="display:none">
       {% for product in products %}
-      <div class="product-card" data-flavor="{{ product.flavor }}" data-size="{{ product.size }}">
+      <div class="product-card {% if not product.is_available %}product-unavailable{% endif %}" data-flavor="{{ product.flavor }}" data-size="{{ product.size }}">
         <div class="product-img-wrap">
           {% if product.image_data %}
             <img src="{{ product.image_data }}" alt="{{ product.name }}" class="product-img" loading="lazy">
@@ -97,13 +97,21 @@
             <div class="product-img-placeholder">🍟</div>
           {% endif %}
           <div class="product-overlay">
-            {% if not (current_user.is_authenticated and current_user.is_admin) %}
+            {% if not (current_user.is_authenticated and current_user.is_admin) and product.is_available %}
             <button class="btn-quick-add" onclick="addToCart({{ product.id }}, this)">
               <i class="fas fa-cart-plus"></i> Quick Add
             </button>
             {% endif %}
           </div>
           <div class="product-size-tag">{{ product.size }}</div>
+          <!-- Availability Badge -->
+          <div class="product-avail-badge {% if product.is_available %}badge-available{% else %}badge-unavailable{% endif %}">
+            {% if product.is_available %}
+              <i class="fas fa-check-circle me-1"></i>Available
+            {% else %}
+              <i class="fas fa-times-circle me-1"></i>Unavailable
+            {% endif %}
+          </div>
         </div>
         <div class="product-info">
           <div class="product-flavor-chip">{{ product.flavor }}</div>
@@ -111,16 +119,24 @@
           <p class="product-desc">{{ product.description }}</p>
           <div class="product-footer">
             <span class="product-price">₱{{ "%.0f"|format(product.price) }}</span>
+            {% if product.is_available %}
             <div class="product-qty">
               <button class="qty-btn minus" onclick="changeQty({{ product.id }}, -1)">−</button>
               <span class="qty-val" id="qty-{{ product.id }}">1</span>
               <button class="qty-btn plus" onclick="changeQty({{ product.id }}, 1)">+</button>
             </div>
+            {% endif %}
           </div>
           {% if not (current_user.is_authenticated and current_user.is_admin) %}
-          <button class="btn-add-cart w-100" onclick="addToCart({{ product.id }}, this)">
-            <i class="fas fa-shopping-cart me-2"></i>Add to Cart
-          </button>
+            {% if product.is_available %}
+            <button class="btn-add-cart w-100" onclick="addToCart({{ product.id }}, this)">
+              <i class="fas fa-shopping-cart me-2"></i>Add to Cart
+            </button>
+            {% else %}
+            <button class="btn-add-cart w-100 btn-sold-out" disabled>
+              <i class="fas fa-ban me-2"></i>Currently Unavailable
+            </button>
+            {% endif %}
           {% endif %}
         </div>
       </div>

@@ -37,7 +37,16 @@
     <div class="admin-topbar">
       <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div class="admin-topbar-title">Product Management</div>
-      <div class="admin-topbar-actions">
+      <div class="admin-topbar-actions" style="display:flex;gap:8px;align-items:center;">
+        <a href="{{ url_for('admin_export_report', type='products', format='csv') }}" class="btn-report csv" title="Export CSV" style="padding:7px 12px;border-radius:8px;">
+          <i class="fas fa-file-csv"></i><span>CSV</span>
+        </a>
+        <a href="{{ url_for('admin_export_report', type='products', format='pdf') }}" class="btn-report pdf" title="Export PDF" style="padding:7px 12px;border-radius:8px;">
+          <i class="fas fa-file-pdf"></i><span>PDF</span>
+        </a>
+        <a href="{{ url_for('admin_export_report', type='products', format='docx') }}" class="btn-report docx" title="Export DOCX" style="padding:7px 12px;border-radius:8px;">
+          <i class="fas fa-file-word"></i><span>DOCX</span>
+        </a>
         <button class="btn-admin-add" onclick="openAddProduct()">
           <i class="fas fa-plus me-2"></i>Add Product
         </button>

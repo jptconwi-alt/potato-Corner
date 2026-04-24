@@ -34,7 +34,7 @@ def register_routes(app):
 
     @app.route('/')
     def index():
-        products = ProductController.get_all_products()
+        products = Product.query.order_by(Product.flavor, Product.size).all()
         flavors = ProductController.get_flavors()
         return render_template('index.html', products=products, flavors=flavors)
 
@@ -453,3 +453,194 @@ def register_routes(app):
         db.session.commit()
 
         return jsonify({'success': True, 'product_id': product.id})
+
+    # ── Admin: Export Reports ────────────────
+
+    @app.route('/admin/report/export')
+    @admin_required
+    def admin_export_report():
+        import csv, io
+        from flask import make_response, Response
+        report_type = request.args.get('type', 'orders')  # orders | products | users
+        fmt = request.args.get('format', 'csv')           # csv | pdf | docx
+
+        # ── Gather data ──────────────────────────────
+        if report_type == 'products':
+            rows = Product.query.order_by(Product.flavor, Product.size).all()
+            headers = ['ID', 'Name', 'Category', 'Flavor', 'Size', 'Price (₱)', 'Available']
+            data = [[p.id, p.name, p.category, p.flavor, p.size,
+                     f'{p.price:.2f}', 'Yes' if p.is_available else 'No'] for p in rows]
+            title = 'Products Report'
+        elif report_type == 'users':
+            rows = User.query.order_by(User.created_at.desc()).all()
+            headers = ['ID', 'Username', 'Full Name', 'Email', 'Phone', 'Admin', 'Joined']
+            data = [[u.id, u.username, u.full_name, u.email, u.phone or '',
+                     'Yes' if u.is_admin else 'No',
+                     u.created_at.strftime('%Y-%m-%d')] for u in rows]
+            title = 'Users Report'
+        else:  # orders
+            rows = Order.query.order_by(Order.order_date.desc()).all()
+            headers = ['Order #', 'Customer', 'Email', 'Phone', 'Total (₱)', 'Status', 'Payment', 'Date']
+            data = [[o.order_number, o.customer_name, o.customer_email, o.customer_phone,
+                     f'{o.total_amount:.2f}', o.status, o.payment_status,
+                     o.order_date.strftime('%Y-%m-%d %H:%M')] for o in rows]
+            title = 'Orders Report'
+
+        generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
+
+        # ── CSV ──────────────────────────────────────
+        if fmt == 'csv':
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow([title, f'Generated: {generated_at}'])
+            writer.writerow([])
+            writer.writerow(headers)
+            writer.writerows(data)
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{datetime.now().strftime("%Y%m%d")}.csv'
+            return response
+
+        # ── PDF ──────────────────────────────────────
+        elif fmt == 'pdf':
+            try:
+                from reportlab.lib.pagesizes import A4, landscape
+                from reportlab.lib import colors
+                from reportlab.lib.units import cm
+                from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+                from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            except ImportError:
+                return jsonify({'error': 'reportlab not installed'}), 500
+
+            buf = io.BytesIO()
+            doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                                    rightMargin=1.5*cm, leftMargin=1.5*cm,
+                                    topMargin=2*cm, bottomMargin=1.5*cm)
+            styles = getSampleStyleSheet()
+            brand_color = colors.HexColor('#f59e0b')
+            dark_color  = colors.HexColor('#1e293b')
+
+            title_style = ParagraphStyle('TitleStyle', parent=styles['Title'],
+                                         fontSize=20, textColor=dark_color,
+                                         spaceAfter=4, alignment=TA_CENTER)
+            sub_style   = ParagraphStyle('SubStyle', parent=styles['Normal'],
+                                         fontSize=9, textColor=colors.HexColor('#64748b'),
+                                         spaceAfter=12, alignment=TA_CENTER)
+
+            table_data = [headers] + data
+            col_count  = len(headers)
+            page_w     = landscape(A4)[0] - 3*cm
+            col_w      = [page_w / col_count] * col_count
+
+            tbl = Table(table_data, colWidths=col_w, repeatRows=1)
+            tbl.setStyle(TableStyle([
+                ('BACKGROUND',   (0, 0), (-1, 0), brand_color),
+                ('TEXTCOLOR',    (0, 0), (-1, 0), colors.white),
+                ('FONTNAME',     (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE',     (0, 0), (-1, 0), 10),
+                ('ALIGN',        (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor('#fef9ec')]),
+                ('FONTNAME',     (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE',     (0, 1), (-1, -1), 9),
+                ('GRID',         (0, 0), (-1, -1), 0.4, colors.HexColor('#e2e8f0')),
+                ('TOPPADDING',   (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING',(0, 0), (-1, -1), 6),
+                ('LEFTPADDING',  (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('ROUNDEDCORNERS', [4]),
+            ]))
+
+            story = [
+                Paragraph('🍟 Potato Corner', title_style),
+                Paragraph(f'{title}  •  Generated: {generated_at}', sub_style),
+                tbl,
+            ]
+            doc.build(story)
+            buf.seek(0)
+            response = make_response(buf.read())
+            response.headers['Content-Type'] = 'application/pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{datetime.now().strftime("%Y%m%d")}.pdf'
+            return response
+
+        # ── DOCX ─────────────────────────────────────
+        elif fmt == 'docx':
+            try:
+                from docx import Document
+                from docx.shared import Pt, RGBColor, Cm, Inches
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
+                from docx.enum.table import WD_ALIGN_VERTICAL
+                from docx.oxml.ns import qn
+                from docx.oxml import OxmlElement
+            except ImportError:
+                return jsonify({'error': 'python-docx not installed'}), 500
+
+            doc = Document()
+
+            # Page margins
+            for section in doc.sections:
+                section.top_margin    = Cm(2)
+                section.bottom_margin = Cm(2)
+                section.left_margin   = Cm(2.5)
+                section.right_margin  = Cm(2.5)
+
+            # Title
+            h = doc.add_heading('🍟 Potato Corner', 0)
+            h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            h.runs[0].font.color.rgb = RGBColor(0x1e, 0x29, 0x3b)
+
+            sub = doc.add_paragraph(f'{title}  |  Generated: {generated_at}')
+            sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            sub.runs[0].font.size = Pt(10)
+            sub.runs[0].font.color.rgb = RGBColor(0x64, 0x74, 0x8b)
+
+            doc.add_paragraph()
+
+            # Table
+            tbl = doc.add_table(rows=1, cols=len(headers))
+            tbl.style = 'Table Grid'
+
+            # Header row
+            hdr_cells = tbl.rows[0].cells
+            for i, h_txt in enumerate(headers):
+                cell = hdr_cells[i]
+                cell.text = h_txt
+                run = cell.paragraphs[0].runs[0]
+                run.bold = True
+                run.font.color.rgb = RGBColor(0xff, 0xff, 0xff)
+                run.font.size = Pt(10)
+                # Yellow background
+                tc_pr = cell._tc.get_or_add_tcPr()
+                shd = OxmlElement('w:shd')
+                shd.set(qn('w:val'), 'clear')
+                shd.set(qn('w:color'), 'auto')
+                shd.set(qn('w:fill'), 'F59E0B')
+                tc_pr.append(shd)
+                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            # Data rows
+            for row_idx, row in enumerate(data):
+                cells = tbl.add_row().cells
+                fill = 'FFFFFF' if row_idx % 2 == 0 else 'FEF9EC'
+                for i, val in enumerate(row):
+                    cells[i].text = str(val)
+                    cells[i].paragraphs[0].runs[0].font.size = Pt(9)
+                    cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    tc_pr = cells[i]._tc.get_or_add_tcPr()
+                    shd = OxmlElement('w:shd')
+                    shd.set(qn('w:val'), 'clear')
+                    shd.set(qn('w:color'), 'auto')
+                    shd.set(qn('w:fill'), fill)
+                    tc_pr.append(shd)
+
+            buf = io.BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            response = make_response(buf.read())
+            response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{datetime.now().strftime("%Y%m%d")}.docx'
+            return response
+
+        return jsonify({'error': 'Unsupported format'}), 400

@@ -615,3 +615,195 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
 .input-hint  { font-size:.75rem; color:#999; margin-top:3px; padding-left:2px; }
 .input-error { font-size:.75rem; color:#e53935; margin-top:3px; padding-left:2px; display:none; }
 .input-error.show { display:block; }
+/* ═══════════════════════════════════════════════════
+   PRODUCT AVAILABILITY BADGE
+═══════════════════════════════════════════════════ */
+.product-avail-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  z-index: 4;
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.badge-available {
+  background: rgba(16, 185, 129, 0.92);
+  color: #fff;
+}
+
+.badge-unavailable {
+  background: rgba(239, 68, 68, 0.92);
+  color: #fff;
+}
+
+/* Dim the whole card when unavailable */
+.product-unavailable {
+  opacity: 0.78;
+  filter: grayscale(0.35);
+}
+
+.product-unavailable .product-img {
+  filter: grayscale(0.2);
+}
+
+/* Sold-out / unavailable button */
+.btn-sold-out {
+  background: #e2e8f0 !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed !important;
+  border-color: transparent !important;
+}
+
+/* ═══════════════════════════════════════════════════
+   REPORT EXPORT SECTION (Admin Dashboard)
+═══════════════════════════════════════════════════ */
+.report-export-section {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px 28px 24px;
+  margin-top: 24px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  border: 1px solid #f1f5f9;
+}
+
+.report-export-header {
+  margin-bottom: 20px;
+}
+
+.report-export-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.report-export-sub {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 2px 0 0;
+}
+
+.report-export-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.report-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.report-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.09);
+  transform: translateY(-2px);
+}
+
+.report-card-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.report-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.report-card-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.report-card-sub {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.report-card-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-report {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: all 0.2s;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.btn-report i { font-size: 1rem; }
+
+.btn-report.csv {
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+.btn-report.csv:hover {
+  background: #16a34a;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.btn-report.pdf {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+.btn-report.pdf:hover {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.btn-report.docx {
+  background: #eff6ff;
+  color: #2563eb;
+  border: 1px solid #bfdbfe;
+}
+.btn-report.docx:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+@media (max-width: 600px) {
+  .report-export-grid { grid-template-columns: 1fr; }
+  .report-card { flex-wrap: wrap; }
+  .report-card-actions { width: 100%; justify-content: flex-end; }
+}

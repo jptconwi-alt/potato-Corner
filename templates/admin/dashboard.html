@@ -192,6 +192,87 @@
           </div>
         </div>
       </div>
+
+      <!-- ── Report Export Section ─────────────────── -->
+      <div class="report-export-section">
+        <div class="report-export-header">
+          <div class="report-export-title">
+            <i class="fas fa-file-export me-2"></i>Export Reports
+          </div>
+          <p class="report-export-sub">Download data as CSV, PDF, or Word document</p>
+        </div>
+        <div class="report-export-grid">
+
+          <!-- Orders -->
+          <div class="report-card">
+            <div class="report-card-icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)">
+              <i class="fas fa-clipboard-list"></i>
+            </div>
+            <div class="report-card-body">
+              <div class="report-card-title">Orders Report</div>
+              <div class="report-card-sub">All orders with status & totals</div>
+            </div>
+            <div class="report-card-actions">
+              <a href="{{ url_for('admin_export_report', type='orders', format='csv') }}" class="btn-report csv" title="Export CSV">
+                <i class="fas fa-file-csv"></i><span>CSV</span>
+              </a>
+              <a href="{{ url_for('admin_export_report', type='orders', format='pdf') }}" class="btn-report pdf" title="Export PDF">
+                <i class="fas fa-file-pdf"></i><span>PDF</span>
+              </a>
+              <a href="{{ url_for('admin_export_report', type='orders', format='docx') }}" class="btn-report docx" title="Export Word">
+                <i class="fas fa-file-word"></i><span>DOCX</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Products -->
+          <div class="report-card">
+            <div class="report-card-icon" style="background:linear-gradient(135deg,#f59e0b,#d97706)">
+              <i class="fas fa-utensils"></i>
+            </div>
+            <div class="report-card-body">
+              <div class="report-card-title">Products Report</div>
+              <div class="report-card-sub">All products with availability & pricing</div>
+            </div>
+            <div class="report-card-actions">
+              <a href="{{ url_for('admin_export_report', type='products', format='csv') }}" class="btn-report csv" title="Export CSV">
+                <i class="fas fa-file-csv"></i><span>CSV</span>
+              </a>
+              <a href="{{ url_for('admin_export_report', type='products', format='pdf') }}" class="btn-report pdf" title="Export PDF">
+                <i class="fas fa-file-pdf"></i><span>PDF</span>
+              </a>
+              <a href="{{ url_for('admin_export_report', type='products', format='docx') }}" class="btn-report docx" title="Export Word">
+                <i class="fas fa-file-word"></i><span>DOCX</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- Users -->
+          <div class="report-card">
+            <div class="report-card-icon" style="background:linear-gradient(135deg,#10b981,#059669)">
+              <i class="fas fa-users"></i>
+            </div>
+            <div class="report-card-body">
+              <div class="report-card-title">Users Report</div>
+              <div class="report-card-sub">All registered customers & admins</div>
+            </div>
+            <div class="report-card-actions">
+              <a href="{{ url_for('admin_export_report', type='users', format='csv') }}" class="btn-report csv" title="Export CSV">
+                <i class="fas fa-file-csv"></i><span>CSV</span>
+              </a>
+              <a href="{{ url_for('admin_export_report', type='users', format='pdf') }}" class="btn-report pdf" title="Export PDF">
+                <i class="fas fa-file-pdf"></i><span>PDF</span>
+              </a>
+              <a href="{{ url_for('admin_export_report', type='users', format='docx') }}" class="btn-report docx" title="Export Word">
+                <i class="fas fa-file-word"></i><span>DOCX</span>
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <!-- ── End Report Export Section ──────────── -->
+
     </div>
   </div>
 </div>
