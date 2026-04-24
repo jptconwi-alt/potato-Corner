@@ -932,10 +932,11 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
 }
 .auth-label {
   display: block;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 6px;
+  padding-left: 2px;
 }
 .auth-input-wrap {
   position: relative;
