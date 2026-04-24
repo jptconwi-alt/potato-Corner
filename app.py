@@ -1,3 +1,6 @@
+import warnings
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
+
 from flask import Flask, redirect, url_for, session, flash
 from models import db
 from views import register_routes
