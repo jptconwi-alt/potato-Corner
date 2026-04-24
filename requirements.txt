@@ -7,5 +7,6 @@ Werkzeug==2.3.7
 authlib
 python-dotenv
 requests
-libsql-experimental-e reportlab
+libsql-experimental
+reportlab
 python-docx
