@@ -171,25 +171,16 @@ def create_app():
         return User.query.get(int(user_id))
 
     with app.app_context():
-        # db.engine requires an active app context — patch here, not before.
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
         try:
             db.metadata.create_all(bind=db.engine, checkfirst=True)
             from init_db import run_migrations
             run_migrations(db.engine)
+            init_database()
         except Exception as e:
-            print(f"❌ DB schema error: {e}")
-
-        # Run init_database in background — never block the cold start
-        import threading
-        def _bg_init():
-            try:
-                with app.app_context():
-                    init_database()
-            except Exception as e:
-                print(f"⚠️  Background init_database error: {e}")
-        threading.Thread(target=_bg_init, daemon=True).start()
+            print(f"❌ DB init error: {e}")
+            import traceback; traceback.print_exc()
 
     register_routes(app)
 

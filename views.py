@@ -315,6 +315,17 @@ def register_routes(app):
     # ADMIN ROUTES
     # ─────────────────────────────────────────
 
+    # ── Emergency admin reset (visit URL to force-reset credentials) ─────────
+    @app.route('/admin/reset-credentials')
+    def admin_reset_credentials():
+        """Force-reset admin password. Remove this route after use."""
+        try:
+            from init_db import init_database
+            init_database()
+            return '<h2>✅ Admin credentials reset!</h2><p>Username: <b>admin</b> &nbsp; Password: <b>Admin@1234</b></p><a href="/admin/login">Go to Admin Login</a>'
+        except Exception as e:
+            return f'<h2>❌ Error: {e}</h2>', 500
+
     @app.route('/admin/login', methods=['GET', 'POST'])
     def admin_login():
         # Already logged in as admin — go straight to dashboard

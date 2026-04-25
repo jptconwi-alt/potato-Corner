@@ -36,7 +36,7 @@ def run_migrations(engine):
 # Seed – default admin account
 # ─────────────────────────────────────────────────────────────────────────────
 def init_database():
-    """Create the default admin account if none exists yet, and run data migrations."""
+    """Ensure the default admin account exists with the correct password."""
     from models import db, User, Product
 
     # ── Migrate SVG → PNG image URLs ────────────────────────────────────────
@@ -53,39 +53,38 @@ def init_database():
     except Exception as e:
         print(f'⚠️  Image URL migration skipped: {e}')
 
-    # Credentials – override via environment variables in Vercel dashboard
+    # Credentials — override via Vercel environment variables
     admin_username = os.environ.get("ADMIN_USERNAME", "admin")
     admin_email    = os.environ.get("ADMIN_EMAIL",    "admin@potatocorner.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@1234")
     admin_name     = os.environ.get("ADMIN_NAME",     "Admin")
 
     try:
-        # Only create if no admin exists at all
-        if User.query.filter_by(is_admin=True).first():
-            return   # an admin already exists – nothing to do
+        # Find existing admin by username or email
+        admin = (User.query.filter_by(username=admin_username).first() or
+                 User.query.filter_by(email=admin_email).first() or
+                 User.query.filter_by(is_admin=True).first())
 
-        # Also skip if username/email is already taken (non-admin account)
-        if (User.query.filter_by(username=admin_username).first() or
-                User.query.filter_by(email=admin_email).first()):
-            # Promote that user to admin instead
-            user = (User.query.filter_by(username=admin_username).first() or
-                    User.query.filter_by(email=admin_email).first())
-            user.is_admin = True
+        if admin:
+            # Always force correct password + admin flag on every startup
+            admin.is_admin = True
+            admin.profile_complete = True
+            admin.set_password(admin_password)
             db.session.commit()
-            print(f"✅ Promoted existing user '{user.username}' to admin.")
-            return
-
-        admin = User(
-            username=admin_username,
-            email=admin_email,
-            full_name=admin_name,
-            phone="",
-            is_admin=True,
-            profile_complete=True,
-        )
-        admin.set_password(admin_password)
-        db.session.add(admin)
-        db.session.commit()
-        print(f"✅ Default admin account created → username: '{admin_username}'  password: '{admin_password}'")
+            print(f"✅ Admin account verified → username: '{admin.username}'  password: '{admin_password}'")
+        else:
+            # No admin at all — create one
+            admin = User(
+                username=admin_username,
+                email=admin_email,
+                full_name=admin_name,
+                phone="",
+                is_admin=True,
+                profile_complete=True,
+            )
+            admin.set_password(admin_password)
+            db.session.add(admin)
+            db.session.commit()
+            print(f"✅ Admin account created → username: '{admin_username}'  password: '{admin_password}'")
     except Exception as e:
         print(f"⚠️  Could not seed admin account: {e}")
