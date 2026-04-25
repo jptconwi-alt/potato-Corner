@@ -121,10 +121,22 @@ def create_app():
                 # handing this connection to SQLAlchemy.  Without this, the
                 # local DB is empty and every query gets
                 # "no such table: products".
-                try:
-                    raw.sync()
-                except Exception as e:
-                    print(f"⚠️  libsql initial sync failed: {e}")
+                # Use a thread with timeout so a slow/failing Turso doesn't
+                # hang the entire Vercel cold start.
+                import threading
+                sync_done = threading.Event()
+                def _sync():
+                    try:
+                        raw.sync()
+                    except Exception as e:
+                        print(f"⚠️  libsql initial sync failed: {e}")
+                    finally:
+                        sync_done.set()
+                t = threading.Thread(target=_sync, daemon=True)
+                t.start()
+                sync_done.wait(timeout=8)   # give Turso 8 s max
+                if not sync_done.is_set():
+                    print("⚠️  libsql sync timed out – continuing with local state")
                 return _LibSQLConnection(raw)
 
             # 'sqlite+pysqlite://' selects the SQLite dialect for SQL generation.
@@ -140,9 +152,8 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = 'login'
-    login_manager.login_message = 'Please log in to access this page.'
-    login_manager.login_message_category = 'warning'
+    login_manager.login_view = None   # We handle redirects manually in decorators
+    login_manager.login_message = ''
 
     oauth = OAuth(app)
     google = None
@@ -164,18 +175,21 @@ def create_app():
         if use_libsql:
             _patch_dialect_for_libsql(db.engine)
         try:
-            # Use SQLAlchemy's MetaData.create_all directly with checkfirst=True
-            # so tables that already exist in Turso are silently skipped.
-            # db.create_all() on older vendored Flask-SQLAlchemy ignores
-            # checkfirst and always emits CREATE TABLE, which Turso rejects
-            # with "table X already exists".
             db.metadata.create_all(bind=db.engine, checkfirst=True)
             from init_db import run_migrations
             run_migrations(db.engine)
-            init_database()
         except Exception as e:
-            print(f"❌ DB error: {e}")
-            import traceback; traceback.print_exc()
+            print(f"❌ DB schema error: {e}")
+
+        # Run init_database in background — never block the cold start
+        import threading
+        def _bg_init():
+            try:
+                with app.app_context():
+                    init_database()
+            except Exception as e:
+                print(f"⚠️  Background init_database error: {e}")
+        threading.Thread(target=_bg_init, daemon=True).start()
 
     register_routes(app)
 
