@@ -36,8 +36,22 @@ def run_migrations(engine):
 # Seed – default admin account
 # ─────────────────────────────────────────────────────────────────────────────
 def init_database():
-    """Create the default admin account if none exists yet."""
-    from models import db, User
+    """Create the default admin account if none exists yet, and run data migrations."""
+    from models import db, User, Product
+
+    # ── Migrate SVG → PNG image URLs ────────────────────────────────────────
+    try:
+        products = Product.query.all()
+        updated = 0
+        for p in products:
+            if p.image_url and p.image_url.endswith('.svg'):
+                p.image_url = p.image_url[:-4] + '.png'
+                updated += 1
+        if updated:
+            db.session.commit()
+            print(f'✅ Migrated {updated} product image URLs from .svg → .png')
+    except Exception as e:
+        print(f'⚠️  Image URL migration skipped: {e}')
 
     # Credentials – override via environment variables in Vercel dashboard
     admin_username = os.environ.get("ADMIN_USERNAME", "admin")

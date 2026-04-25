@@ -8,7 +8,7 @@ from models import db, User, Product, Order, OrderItem, CartItem
 from controllers import AuthController, ProductController, CartController, OrderController
 from auth_decorator import admin_required
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 UPLOAD_FOLDER = os.path.join('static', 'images', 'uploads')
 
 
@@ -315,6 +315,26 @@ def register_routes(app):
     # ADMIN ROUTES
     # ─────────────────────────────────────────
 
+    @app.route('/admin/login', methods=['GET', 'POST'])
+    def admin_login():
+        # Already logged in as admin — go straight to dashboard
+        if current_user.is_authenticated and current_user.is_admin:
+            return redirect(url_for('admin_dashboard'))
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            success, result = AuthController.login_user(username, password, False)
+            if success and result.is_admin:
+                session['user_id'] = result.id
+                return redirect(url_for('admin_dashboard'))
+            else:
+                # Wrong credentials OR not an admin
+                if success and not result.is_admin:
+                    from flask_login import logout_user as _logout
+                    _logout()  # log them back out immediately
+                flash('Invalid admin credentials. Access denied.', 'danger')
+        return render_template('admin_login.html')
+
     @app.route('/admin')
     @admin_required
     def admin_dashboard():
@@ -422,7 +442,7 @@ def register_routes(app):
             return jsonify({'success': False, 'message': 'Invalid file type'})
 
         ext = file.filename.rsplit('.', 1)[1].lower()
-        mime = 'image/svg+xml' if ext == 'svg' else f'image/{ext}'
+        mime = f'image/{ext}'
         img_bytes = file.read()
         if len(img_bytes) > 5 * 1024 * 1024:
             return jsonify({'success': False, 'message': 'Image too large (max 5MB)'})
@@ -471,13 +491,13 @@ def register_routes(app):
         except (ValueError, TypeError):
             return jsonify({'success': False, 'message': 'Invalid price'})
 
-        image_url = 'fries/cheese.svg'
+        image_url = 'fries/cheese.png'
         image_data = None
 
         file = request.files.get('image')
         if file and file.filename and allowed_file(file.filename):
             ext = file.filename.rsplit('.', 1)[1].lower()
-            mime = 'image/svg+xml' if ext == 'svg' else f'image/{ext}'
+            mime = f'image/{ext}'
             img_bytes = file.read()
             if len(img_bytes) <= 5 * 1024 * 1024:
                 b64 = base64.b64encode(img_bytes).decode('utf-8')

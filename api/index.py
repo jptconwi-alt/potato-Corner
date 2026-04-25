@@ -1,7 +1,7 @@
 import sys
 import os
 
-# Make the project root importable
+# Add project root to path so imports work
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app

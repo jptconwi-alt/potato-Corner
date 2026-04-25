@@ -1,15 +1,16 @@
 from functools import wraps
-from flask import redirect, url_for, flash
+from flask import redirect, url_for, flash, session
 from flask_login import current_user
 
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated:
-            flash('Please log in to access this page.', 'warning')
-            return redirect(url_for('login'))
+            # Not logged in → admin login page (no flash, no noise)
+            return redirect(url_for('admin_login'))
         if not current_user.is_admin:
-            flash('Admin access required.', 'danger')
-            return redirect(url_for('index'))
+            # Logged in as regular user → admin login with message
+            flash('This area requires an admin account.', 'danger')
+            return redirect(url_for('admin_login'))
         return f(*args, **kwargs)
     return decorated
