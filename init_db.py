@@ -1,84 +1,77 @@
-from models import db, Product, User
+"""
+init_db.py – Database initialization, migrations, and seed data.
+Runs once on every cold start (safe to run multiple times – all checks
+are idempotent).
+"""
+import os
+from sqlalchemy import text
 
-FLAVOR_IMAGES = {
-    "Cheese":        "fries/cheese.svg",
-    "Sour Cream":    "fries/sour-cream.svg",
-    "BBQ":           "fries/bbq.svg",
-    "Chili BBQ":     "fries/chili-bbq.svg",
-    "Wasabi":        "fries/wasabi.svg",
-    "White Cheddar": "fries/white-cheddar.svg",
-    "Chili Powder":  "fries/chili-powder.svg",
-    "Salted Caramel":"fries/salted-caramel.svg",
-}
 
-def run_migrations(db_engine):
-    """Add new columns to existing tables without breaking existing data."""
-    import sqlalchemy as sa
-    try:
-        with db_engine.connect() as conn:
-            inspector = sa.inspect(db_engine)
-            cols = [c['name'] for c in inspector.get_columns('products')]
-            if 'image_data' not in cols:
-                conn.execute(sa.text('ALTER TABLE products ADD COLUMN image_data TEXT'))
+# ─────────────────────────────────────────────────────────────────────────────
+# Migrations – add columns that may be missing from older deployments
+# ─────────────────────────────────────────────────────────────────────────────
+def run_migrations(engine):
+    migrations = [
+        "ALTER TABLE user ADD COLUMN google_id TEXT",
+        "ALTER TABLE user ADD COLUMN profile_complete BOOLEAN DEFAULT 0",
+        "ALTER TABLE user ADD COLUMN phone TEXT DEFAULT ''",
+        "ALTER TABLE user ADD COLUMN street TEXT DEFAULT ''",
+        "ALTER TABLE user ADD COLUMN barangay TEXT DEFAULT ''",
+        "ALTER TABLE user ADD COLUMN city TEXT DEFAULT ''",
+        "ALTER TABLE user ADD COLUMN province TEXT DEFAULT ''",
+        "ALTER TABLE user ADD COLUMN zipcode TEXT DEFAULT ''",
+        "ALTER TABLE product ADD COLUMN is_available BOOLEAN DEFAULT 1",
+        "ALTER TABLE product ADD COLUMN image_data TEXT",
+    ]
+    with engine.connect() as conn:
+        for sql in migrations:
+            try:
+                conn.execute(text(sql))
                 conn.commit()
-                print("✅ Migration: added products.image_data column")
-            if 'paymongo_source_id' not in [c['name'] for c in inspector.get_columns('orders')]:
-                conn.execute(sa.text('ALTER TABLE orders ADD COLUMN paymongo_source_id TEXT'))
-                conn.commit()
-                print("✅ Migration: added orders.paymongo_source_id column")
-            if 'category' not in cols:
-                conn.execute(sa.text("ALTER TABLE products ADD COLUMN category TEXT DEFAULT 'Fries'"))
-                conn.commit()
-                print("✅ Migration: added products.category column")
-    except Exception as e:
-        print(f"⚠️ Migration skipped: {e}")
+            except Exception:
+                pass   # column already exists – safe to ignore
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Seed – default admin account
+# ─────────────────────────────────────────────────────────────────────────────
 def init_database():
-    # Always ensure a default admin account exists
-    if not User.query.filter_by(is_admin=True).first():
+    """Create the default admin account if none exists yet."""
+    from models import db, User
+
+    # Credentials – override via environment variables in Vercel dashboard
+    admin_username = os.environ.get("ADMIN_USERNAME", "admin")
+    admin_email    = os.environ.get("ADMIN_EMAIL",    "admin@potatocorner.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@1234")
+    admin_name     = os.environ.get("ADMIN_NAME",     "Admin")
+
+    try:
+        # Only create if no admin exists at all
+        if User.query.filter_by(is_admin=True).first():
+            return   # an admin already exists – nothing to do
+
+        # Also skip if username/email is already taken (non-admin account)
+        if (User.query.filter_by(username=admin_username).first() or
+                User.query.filter_by(email=admin_email).first()):
+            # Promote that user to admin instead
+            user = (User.query.filter_by(username=admin_username).first() or
+                    User.query.filter_by(email=admin_email).first())
+            user.is_admin = True
+            db.session.commit()
+            print(f"✅ Promoted existing user '{user.username}' to admin.")
+            return
+
         admin = User(
-            username='admin',
-            email='admin@potatocorner.com',
-            full_name='Admin',
+            username=admin_username,
+            email=admin_email,
+            full_name=admin_name,
+            phone="",
             is_admin=True,
-            profile_complete=True
+            profile_complete=True,
         )
-        admin.set_password('admin123')
+        admin.set_password(admin_password)
         db.session.add(admin)
         db.session.commit()
-        print("✅ Default admin created — username: admin, password: admin123")
-
-    if Product.query.first() is not None:
-        return
-
-    flavors = list(FLAVOR_IMAGES.keys())
-    sizes   = ["Small", "Medium", "Large", "Mega", "Jumbo"]
-    prices  = {"Small": 59, "Medium": 89, "Large": 119, "Mega": 179, "Jumbo": 239}
-    descs   = {
-        "Cheese":        "Classic golden fries smothered in rich, creamy cheese powder.",
-        "Sour Cream":    "Crispy fries coated in tangy sour cream seasoning.",
-        "BBQ":           "Smoky BBQ-flavored fries for the BBQ lover in you.",
-        "Chili BBQ":     "The best of both worlds — spicy chili and smoky BBQ.",
-        "Wasabi":        "A bold wasabi kick for the adventurous snacker.",
-        "White Cheddar": "Smooth white cheddar seasoning on perfectly fried potatoes.",
-        "Chili Powder":  "Fiery chili powder fries for serious heat seekers.",
-        "Salted Caramel":"Sweet and salty caramel-dusted fries — a unique treat.",
-    }
-
-    products = []
-    for flavor in flavors:
-        for size in sizes:
-            products.append(Product(
-                name=f"{flavor} Fries ({size})",
-                description=descs[flavor],
-                price=prices[size],
-                size=size,
-                flavor=flavor,
-                image_url=FLAVOR_IMAGES[flavor],
-                is_available=True
-            ))
-
-    db.session.bulk_save_objects(products)
-    db.session.commit()
-    print(f"✅ Added {len(products)} products to database")
+        print(f"✅ Default admin account created → username: '{admin_username}'  password: '{admin_password}'")
+    except Exception as e:
+        print(f"⚠️  Could not seed admin account: {e}")
