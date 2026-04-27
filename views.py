@@ -42,28 +42,7 @@ def register_routes(app):
     # AUTH ROUTES
     # ─────────────────────────────────────────
 
-    @app.route('/login', methods=['GET', 'POST'])
-    def login():
-        if current_user.is_authenticated:
-            if current_user.is_admin:
-                return redirect(url_for('admin_dashboard'))
-            return redirect(url_for('index'))
-        if request.method == 'POST':
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '')
-            remember = bool(request.form.get('remember'))
-            success, result = AuthController.login_user(username, password, remember)
-            if success:
-                session['user_id'] = result.id
-                sid = get_session_id()
-                CartController.merge_carts(sid, result.id)
-                flash(f'Welcome back, {result.full_name}! 🍟', 'success')
-                if result.is_admin:
-                    return redirect(url_for('admin_dashboard'))
-                return redirect(url_for('index'))
-            else:
-                flash(result, 'danger')
-        return render_template('login.html')
+
 
     # ── AJAX Login (used by inline auth modal) ──────────
     @app.route('/auth/ajax-login', methods=['POST'])
@@ -140,7 +119,7 @@ def register_routes(app):
                 result.profile_complete = True
                 db.session.commit()
                 flash('Account created! Please log in.', 'success')
-                return redirect(url_for('login'))
+                return redirect(url_for('index'))
             else:
                 flash(result, 'danger')
         return render_template('register.html')
@@ -151,7 +130,7 @@ def register_routes(app):
         session.pop('user_id', None)   # remove only our custom key, NOT session.clear()
         session.modified = True
         flash('You have been logged out.', 'info')
-        response = redirect(url_for('login'))
+        response = redirect(url_for('admin_login'))
         # Explicitly expire the remember_token cookie that Flask-Login sets
         response.delete_cookie('remember_token')
         return response
@@ -524,6 +503,72 @@ def register_routes(app):
         db.session.commit()
 
         return jsonify({'success': True, 'product_id': product.id})
+
+    # ── Admin: Sales Report ─────────────────
+    @app.route('/admin/sales-report')
+    @admin_required
+    def admin_sales_report():
+        from datetime import timedelta
+        period = request.args.get('period', 'today')  # today | week | month | year
+        now = datetime.utcnow()
+
+        if period == 'today':
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            label = 'Today'
+        elif period == 'week':
+            start = now - timedelta(days=now.weekday())
+            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+            label = 'This Week'
+        elif period == 'month':
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            label = 'This Month'
+        elif period == 'year':
+            start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            label = 'This Year'
+        else:
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            label = 'Today'
+
+        period_orders = Order.query.filter(Order.order_date >= start).order_by(Order.order_date.desc()).all()
+        delivered = [o for o in period_orders if o.status == 'Delivered']
+        total_income = sum(o.total_amount for o in delivered)
+        total_orders = len(period_orders)
+        total_delivered = len(delivered)
+        cancelled = sum(1 for o in period_orders if o.status == 'Cancelled')
+
+        # Build daily breakdown for chart
+        from collections import defaultdict
+        daily = defaultdict(float)
+        for o in delivered:
+            day_key = o.order_date.strftime('%Y-%m-%d')
+            daily[day_key] += o.total_amount
+        chart_labels = sorted(daily.keys())
+        chart_data = [daily[k] for k in chart_labels]
+
+        # Top products in period
+        from models import OrderItem
+        product_sales = defaultdict(lambda: {'qty': 0, 'revenue': 0.0})
+        for o in delivered:
+            for item in o.items:
+                product_sales[item.product_name]['qty'] += item.quantity
+                product_sales[item.product_name]['revenue'] += item.subtotal
+        top_products = sorted(product_sales.items(), key=lambda x: x[1]['revenue'], reverse=True)[:10]
+
+        pending_count = Order.query.filter(Order.status == 'Pending').count()
+
+        return render_template('admin/sales_report.html',
+                               period=period,
+                               label=label,
+                               period_orders=period_orders,
+                               total_income=total_income,
+                               total_orders=total_orders,
+                               total_delivered=total_delivered,
+                               cancelled=cancelled,
+                               chart_labels=chart_labels,
+                               chart_data=chart_data,
+                               top_products=top_products,
+                               pending_count=pending_count,
+                               now=now)
 
     # ── Admin: Export Reports ────────────────
 

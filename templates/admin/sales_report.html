@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Sales Report — Admin{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-header">
+      <div class="admin-logo">🍟</div>
+      <div class="admin-brand">
+        <span class="admin-brand-name">Admin Panel</span>
+        <span class="admin-brand-sub">Potato Corner</span>
+      </div>
+      <button class="sidebar-close-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
+    </div>
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-item"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
+      <a href="{{ url_for('admin_orders') }}" class="admin-nav-item"><i class="fas fa-clipboard-list"></i><span>Orders</span>
+        {% if pending_count %}<div class="nav-badge">{{ pending_count }}</div>{% endif %}
+      </a>
+      <a href="{{ url_for('admin_users') }}" class="admin-nav-item"><i class="fas fa-users"></i><span>Users</span></a>
+      <a href="{{ url_for('admin_products') }}" class="admin-nav-item"><i class="fas fa-utensils"></i><span>Products</span></a>
+      <a href="{{ url_for('admin_sales_report') }}" class="admin-nav-item active"><i class="fas fa-chart-line"></i><span>Sales Report</span></a>
+      <hr class="admin-nav-divider">
+      <a href="{{ url_for('index') }}" class="admin-nav-item"><i class="fas fa-store"></i><span>View Store</span></a>
+      <a href="{{ url_for('logout') }}" class="admin-nav-item danger"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+    </nav>
+    <div class="admin-sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div>
+          <div class="admin-user-name">{{ current_user.full_name }}</div>
+          <div class="admin-user-role"><i class="fas fa-shield-alt me-1"></i>Administrator</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- Main -->
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div class="admin-topbar-title"><i class="fas fa-chart-line me-2"></i>Sales Report</div>
+      <div class="admin-topbar-actions">
+        <span class="admin-date"><i class="fas fa-calendar me-1"></i>{{ now.strftime('%B %d, %Y') }}</span>
+      </div>
+    </div>
+
+    <div class="admin-content">
+
+      <!-- Period Filter -->
+      <div class="sales-period-bar">
+        <span class="sales-period-label"><i class="fas fa-filter me-1"></i>Filter by Income:</span>
+        <div class="sales-period-tabs">
+          <a href="{{ url_for('admin_sales_report', period='today') }}"
+             class="sales-period-tab {% if period == 'today' %}active{% endif %}">
+            <i class="fas fa-sun me-1"></i>Today
+          </a>
+          <a href="{{ url_for('admin_sales_report', period='week') }}"
+             class="sales-period-tab {% if period == 'week' %}active{% endif %}">
+            <i class="fas fa-calendar-week me-1"></i>This Week
+          </a>
+          <a href="{{ url_for('admin_sales_report', period='month') }}"
+             class="sales-period-tab {% if period == 'month' %}active{% endif %}">
+            <i class="fas fa-calendar-alt me-1"></i>This Month
+          </a>
+          <a href="{{ url_for('admin_sales_report', period='year') }}"
+             class="sales-period-tab {% if period == 'year' %}active{% endif %}">
+            <i class="fas fa-calendar me-1"></i>This Year
+          </a>
+        </div>
+      </div>
+
+      <!-- Summary Stats -->
+      <div class="admin-stats-grid" style="margin-bottom:1.5rem;">
+        <div class="stat-card stat-purple">
+          <div class="stat-card-icon"><i class="fas fa-peso-sign"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">₱{{ "%.2f"|format(total_income) }}</div>
+            <div class="stat-card-label">Income — {{ label }}</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-peso-sign"></i></div>
+        </div>
+        <div class="stat-card stat-blue">
+          <div class="stat-card-icon"><i class="fas fa-clipboard-list"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ total_orders }}</div>
+            <div class="stat-card-label">Orders — {{ label }}</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-clipboard-list"></i></div>
+        </div>
+        <div class="stat-card stat-green">
+          <div class="stat-card-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ total_delivered }}</div>
+            <div class="stat-card-label">Delivered — {{ label }}</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-check-circle"></i></div>
+        </div>
+        <div class="stat-card stat-red">
+          <div class="stat-card-icon"><i class="fas fa-times-circle"></i></div>
+          <div class="stat-card-data">
+            <div class="stat-card-val">{{ cancelled }}</div>
+            <div class="stat-card-label">Cancelled — {{ label }}</div>
+          </div>
+          <div class="stat-card-bg-icon"><i class="fas fa-times-circle"></i></div>
+        </div>
+      </div>
+
+      <!-- Chart + Top Products -->
+      <div class="admin-dashboard-grid" style="margin-bottom:1.5rem;">
+
+        <!-- Income Chart -->
+        <div class="admin-card admin-card-wide">
+          <div class="admin-card-header">
+            <h3><i class="fas fa-chart-bar me-2"></i>Income Breakdown — {{ label }}</h3>
+          </div>
+          <div class="admin-card-body" style="padding:1.25rem;">
+            {% if chart_labels %}
+            <canvas id="incomeChart" style="max-height:280px;"></canvas>
+            {% else %}
+            <div style="text-align:center;padding:3rem;color:#94a3b8;">
+              <i class="fas fa-chart-bar" style="font-size:2.5rem;margin-bottom:.75rem;display:block;"></i>
+              No delivered orders in this period yet.
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Top Products -->
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <h3><i class="fas fa-trophy me-2"></i>Top Products</h3>
+          </div>
+          <div class="admin-card-body p-0">
+            {% if top_products %}
+            <ul class="top-products-list">
+              {% for name, data in top_products %}
+              <li class="top-product-item">
+                <div class="top-product-rank">{{ loop.index }}</div>
+                <div class="top-product-info">
+                  <div class="top-product-name">{{ name }}</div>
+                  <div class="top-product-meta">{{ data.qty }} sold</div>
+                </div>
+                <div class="top-product-revenue">₱{{ "%.2f"|format(data.revenue) }}</div>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div style="text-align:center;padding:2rem;color:#94a3b8;">No sales data yet.</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Orders Table -->
+      <div class="admin-card">
+        <div class="admin-card-header">
+          <h3><i class="fas fa-list me-2"></i>Orders — {{ label }}</h3>
+          <span style="font-size:.85rem;color:#94a3b8;">{{ period_orders|length }} orders</span>
+        </div>
+        <div class="admin-card-body p-0">
+          <div class="admin-table-wrap">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Payment</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for order in period_orders %}
+                <tr>
+                  <td><span class="admin-order-num">{{ order.order_number }}</span></td>
+                  <td>{{ order.customer_name }}</td>
+                  <td><strong>₱{{ "%.2f"|format(order.total_amount) }}</strong></td>
+                  <td>
+                    <span class="admin-status-badge status-{{ order.status.lower().replace(' ', '-') }}">
+                      {{ order.status }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="admin-status-badge {% if order.payment_status == 'Paid' %}status-delivered{% else %}status-pending{% endif %}">
+                      {{ order.payment_status }}
+                    </span>
+                  </td>
+                  <td style="font-size:.82rem;color:#64748b;">{{ order.order_date.strftime('%b %d, %Y %I:%M %p') }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align:center;padding:2rem;color:#94a3b8;">No orders in this period.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /admin-content -->
+  </div><!-- /admin-main -->
+</div><!-- /admin-layout -->
+
+<style>
+/* Period filter bar */
+.sales-period-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.sales-period-label {
+  font-weight: 600;
+  color: #475569;
+  font-size: .9rem;
+  white-space: nowrap;
+}
+.sales-period-tabs {
+  display: flex;
+  gap: .4rem;
+  flex-wrap: wrap;
+}
+.sales-period-tab {
+  padding: .45rem 1.1rem;
+  border-radius: 8px;
+  font-size: .85rem;
+  font-weight: 500;
+  background: #f1f5f9;
+  color: #475569;
+  text-decoration: none;
+  border: 2px solid transparent;
+  transition: all .2s;
+}
+.sales-period-tab:hover {
+  background: #fef9ec;
+  border-color: #f59e0b;
+  color: #b45309;
+}
+.sales-period-tab.active {
+  background: #f59e0b;
+  color: #fff;
+  border-color: #d97706;
+  box-shadow: 0 2px 8px rgba(245,158,11,.35);
+}
+
+/* Top products list */
+.top-products-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.top-product-item {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .75rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background .15s;
+}
+.top-product-item:last-child { border-bottom: none; }
+.top-product-item:hover { background: #fef9ec; }
+.top-product-rank {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #fff;
+  font-weight: 700;
+  font-size: .78rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.top-product-item:nth-child(1) .top-product-rank { background: #f59e0b; }
+.top-product-item:nth-child(2) .top-product-rank { background: #94a3b8; }
+.top-product-item:nth-child(3) .top-product-rank { background: #b45309; }
+.top-product-info { flex: 1; min-width: 0; }
+.top-product-name { font-weight: 600; font-size: .88rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-product-meta { font-size: .78rem; color: #94a3b8; }
+.top-product-revenue { font-weight: 700; color: #059669; font-size: .9rem; white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+{% if chart_labels %}
+const ctx = document.getElementById('incomeChart').getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: {{ chart_labels | tojson }},
+    datasets: [{
+      label: 'Income (₱)',
+      data: {{ chart_data | tojson }},
+      backgroundColor: 'rgba(245,158,11,0.75)',
+      borderColor: '#d97706',
+      borderWidth: 2,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => '₱' + ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2})
+        }
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: val => '₱' + val.toLocaleString()
+        }
+      }
+    }
+  }
+});
+{% endif %}
+</script>
+{% endblock %}
