@@ -25,3 +25,6 @@ A complete food ordering system for Potato Corner Philippines built with Python 
 ```bash
 git clone https://github.com/yourusername/potato-corner-ordering.git
 cd potato-corner-ordering
+
+
+![alt text](image.png)
