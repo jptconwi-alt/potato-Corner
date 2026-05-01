@@ -66,7 +66,8 @@ class Product(db.Model):
         return {
             'id': self.id, 'name': self.name, 'description': self.description,
             'price': self.price, 'size': self.size, 'flavor': self.flavor,
-            'image_url': self.image_url, 'is_available': self.is_available,
+            'image_url': self.image_url, 'image_data': self.image_data,
+            'is_available': self.is_available,
             'category': self.category or 'Fries'
         }
 

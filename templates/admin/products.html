@@ -216,11 +216,12 @@
                 </div>
               </div>
             </div>
+          </div>
           <div class="form-group-custom">
             <label class="form-label-custom">Description</label>
             <div class="input-icon-wrap">
               <i class="fas fa-align-left input-icon"></i>
-              <textarea name="description" class="form-control-custom" rows="2" placeholder="Describe this product..." required></textarea>
+              <textarea name="description" class="form-control-custom" rows="3" placeholder="Describe this product..." required></textarea>
             </div>
           </div>
           <div class="form-group-custom">
@@ -624,9 +625,22 @@ function openEditProduct(productId, product) {
     document.getElementById('editSizeCustom').value = size;
   }
 
-  // Reset image preview
-  document.getElementById('editPreviewWrap').classList.add('d-none');
+  // Show current product image in preview
+  const editPreviewWrap = document.getElementById('editPreviewWrap');
+  const editImagePreview = document.getElementById('editImagePreview');
   document.getElementById('editImageInput').value = '';
+  let currentImgSrc = '';
+  if (product.image_data) {
+    currentImgSrc = product.image_data;
+  } else if (product.image_url && product.image_url !== '_data_') {
+    currentImgSrc = '/static/images/' + product.image_url;
+  }
+  if (currentImgSrc) {
+    editImagePreview.src = currentImgSrc;
+    editPreviewWrap.classList.remove('d-none');
+  } else {
+    editPreviewWrap.classList.add('d-none');
+  }
 
   const btn = document.getElementById('editProductBtn');
   btn.disabled = false;
