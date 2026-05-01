@@ -1,0 +1,369 @@
+{% extends "base.html" %}
+{% block title %}Image Manager — Admin{% endblock %}
+
+{% block content %}
+<div class="admin-layout">
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-header">
+      <div class="admin-logo">🍟</div>
+      <div class="admin-brand">
+        <span class="admin-brand-name">Admin Panel</span>
+        <span class="admin-brand-sub">Potato Corner</span>
+      </div>
+      <button class="sidebar-close-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-times"></i></button>
+    </div>
+    <nav class="admin-nav">
+      <a href="{{ url_for('admin_dashboard') }}" class="admin-nav-item"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a>
+      <a href="{{ url_for('admin_orders') }}" class="admin-nav-item"><i class="fas fa-clipboard-list"></i><span>Orders</span></a>
+      <a href="{{ url_for('admin_users') }}" class="admin-nav-item"><i class="fas fa-users"></i><span>Users</span></a>
+      <a href="{{ url_for('admin_products') }}" class="admin-nav-item"><i class="fas fa-utensils"></i><span>Products</span></a>
+      <a href="{{ url_for('admin_image_manager') }}" class="admin-nav-item active"><i class="fas fa-images"></i><span>Image Manager</span></a>
+      <a href="{{ url_for('admin_sales_report') }}" class="admin-nav-item"><i class="fas fa-chart-line"></i><span>Sales Report</span></a>
+      <hr class="admin-nav-divider">
+      <a href="{{ url_for('index') }}" class="admin-nav-item"><i class="fas fa-store"></i><span>View Store</span></a>
+      <a href="{{ url_for('logout') }}" class="admin-nav-item danger"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+    </nav>
+    <div class="admin-sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-user-avatar">{{ current_user.full_name[0].upper() }}</div>
+        <div>
+          <div class="admin-user-name">{{ current_user.full_name }}</div>
+          <div class="admin-user-role"><i class="fas fa-shield-alt me-1"></i>Administrator</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <div class="admin-main">
+    <div class="admin-topbar">
+      <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div class="admin-topbar-title"><i class="fas fa-images me-2"></i>Image Manager</div>
+    </div>
+
+    <div class="admin-content">
+
+      <!-- Info banner -->
+      <div class="img-mgr-banner">
+        <i class="fas fa-info-circle me-2"></i>
+        Upload one image per <strong>Flavor</strong> or <strong>Size</strong> — it will automatically apply to <em>all matching products</em>.
+      </div>
+
+      <!-- FLAVORS SECTION -->
+      <div class="img-mgr-section">
+        <div class="img-mgr-section-header">
+          <span><i class="fas fa-pepper-hot me-2" style="color:#f59e0b"></i>Flavor Images</span>
+          <span class="img-mgr-section-sub">One image used for all sizes of this flavor</span>
+        </div>
+        <div class="img-mgr-grid">
+          {% for item in flavors %}
+          <div class="img-mgr-card" id="flavor-card-{{ loop.index }}">
+            <div class="img-mgr-img-wrap" onclick="openUpload('flavor','{{ item.label }}', {{ loop.index }})">
+              {% if item.image %}
+                <img src="{{ item.image }}" alt="{{ item.label }}" class="img-mgr-img" id="flavor-img-{{ loop.index }}">
+              {% else %}
+                <div class="img-mgr-placeholder" id="flavor-img-{{ loop.index }}">🍟</div>
+              {% endif %}
+              <div class="img-mgr-overlay">
+                <i class="fas fa-camera"></i>
+                <span>Change Image</span>
+              </div>
+            </div>
+            <div class="img-mgr-label">{{ item.label }}</div>
+            <div class="img-mgr-sub">{{ item.count }} product{{ 's' if item.count != 1 else '' }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- SIZES SECTION -->
+      <div class="img-mgr-section">
+        <div class="img-mgr-section-header">
+          <span><i class="fas fa-ruler-combined me-2" style="color:#6366f1"></i>Size Images</span>
+          <span class="img-mgr-section-sub">One image used for all flavors of this size</span>
+        </div>
+        <div class="img-mgr-grid">
+          {% for item in sizes %}
+          <div class="img-mgr-card" id="size-card-{{ loop.index }}">
+            <div class="img-mgr-img-wrap" onclick="openUpload('size','{{ item.label }}', {{ loop.index }})">
+              {% if item.image %}
+                <img src="{{ item.image }}" alt="{{ item.label }}" class="img-mgr-img" id="size-img-{{ loop.index }}">
+              {% else %}
+                <div class="img-mgr-placeholder" id="size-img-{{ loop.index }}">🍟</div>
+              {% endif %}
+              <div class="img-mgr-overlay">
+                <i class="fas fa-camera"></i>
+                <span>Change Image</span>
+              </div>
+            </div>
+            <div class="img-mgr-label">{{ item.label }}</div>
+            <div class="img-mgr-sub">{{ item.count }} product{{ 's' if item.count != 1 else '' }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="imgMgrModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h5 class="modal-title" id="imgMgrModalTitle"><i class="fas fa-upload me-2"></i>Upload Image</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="img-mgr-modal-desc" id="imgMgrDesc"></p>
+
+        <!-- Drop zone -->
+        <div class="upload-drop-zone" id="imgMgrDropZone" onclick="document.getElementById('imgMgrFileInput').click()">
+          <div class="upload-drop-inner" id="imgMgrDropInner">
+            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+            <p>Click or drag &amp; drop image here</p>
+            <p class="upload-hint">PNG, JPG, WEBP up to 5MB</p>
+          </div>
+          <div class="upload-preview-wrap d-none" id="imgMgrPreviewWrap">
+            <img id="imgMgrPreview" src="" alt="Preview" class="upload-preview-img">
+          </div>
+        </div>
+        <input type="file" id="imgMgrFileInput" accept="image/*" class="d-none" onchange="previewMgrImage(this)">
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-secondary flex-fill" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn-auth-submit flex-fill" id="imgMgrUploadBtn" onclick="doUpload()" style="max-width:none">
+            <i class="fas fa-upload me-2"></i>Upload &amp; Apply
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+/* ── Image Manager Styles ─────────────────────────────── */
+.img-mgr-banner {
+  background: linear-gradient(135deg, rgba(245,158,11,.15), rgba(99,102,241,.15));
+  border: 1px solid rgba(245,158,11,.3);
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: .9rem;
+  color: var(--text-secondary, #ccc);
+  margin-bottom: 28px;
+}
+.img-mgr-section {
+  margin-bottom: 40px;
+}
+.img-mgr-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #fff);
+}
+.img-mgr-section-sub {
+  font-size: .8rem;
+  font-weight: 400;
+  color: var(--text-secondary, #aaa);
+}
+.img-mgr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 18px;
+}
+.img-mgr-card {
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--card-bg, #1e1e2e);
+  border: 1px solid rgba(255,255,255,.08);
+  transition: transform .2s, box-shadow .2s;
+  cursor: pointer;
+}
+.img-mgr-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.35);
+}
+.img-mgr-img-wrap {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: rgba(255,255,255,.04);
+}
+.img-mgr-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .3s;
+}
+.img-mgr-card:hover .img-mgr-img { transform: scale(1.07); }
+.img-mgr-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.8rem;
+  background: rgba(255,255,255,.04);
+}
+.img-mgr-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity .25s;
+  color: #fff;
+  font-size: .8rem;
+}
+.img-mgr-overlay i { font-size: 1.4rem; }
+.img-mgr-card:hover .img-mgr-overlay { opacity: 1; }
+.img-mgr-label {
+  padding: 10px 12px 2px;
+  font-weight: 600;
+  font-size: .88rem;
+  color: var(--text-primary, #fff);
+}
+.img-mgr-sub {
+  padding: 0 12px 10px;
+  font-size: .75rem;
+  color: var(--text-secondary, #aaa);
+}
+.img-mgr-modal-desc {
+  font-size: .88rem;
+  color: var(--text-secondary, #aaa);
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.05);
+}
+</style>
+
+<script>
+function toggleSidebar() {
+  document.getElementById('adminSidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('active');
+}
+
+let _mode = '', _target = '', _cardIndex = 0;
+
+function openUpload(mode, target, idx) {
+  _mode = mode;
+  _target = target;
+  _cardIndex = idx;
+
+  const emoji = mode === 'flavor' ? '🌶️' : '📦';
+  document.getElementById('imgMgrModalTitle').innerHTML =
+    `<i class="fas fa-upload me-2"></i>Upload Image — ${target}`;
+  document.getElementById('imgMgrDesc').innerHTML =
+    `${emoji} This image will be applied to <strong>all ${mode === 'flavor' ? 'sizes' : 'flavors'}</strong> with the <strong>${mode}</strong>: <strong>${target}</strong>.`;
+
+  // Reset
+  document.getElementById('imgMgrFileInput').value = '';
+  document.getElementById('imgMgrPreviewWrap').classList.add('d-none');
+  document.getElementById('imgMgrDropInner').classList.remove('d-none');
+  const btn = document.getElementById('imgMgrUploadBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload & Apply';
+
+  new bootstrap.Modal(document.getElementById('imgMgrModal')).show();
+}
+
+function previewMgrImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('imgMgrPreview').src = e.target.result;
+      document.getElementById('imgMgrPreviewWrap').classList.remove('d-none');
+      document.getElementById('imgMgrDropInner').classList.add('d-none');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+function doUpload() {
+  const fileInput = document.getElementById('imgMgrFileInput');
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert('Please select an image first.');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('mode',   _mode);
+  formData.append('target', _target);
+  formData.append('image',  fileInput.files[0]);
+
+  const btn = document.getElementById('imgMgrUploadBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+
+  fetch('/admin/images/upload', { method: 'POST', body: formData })
+    .then(r => { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
+    .then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload & Apply';
+      if (d.success) {
+        // Update the card preview
+        const prefix = _mode === 'flavor' ? 'flavor' : 'size';
+        const el = document.getElementById(prefix + '-img-' + _cardIndex);
+        if (el) {
+          // Replace placeholder div or update img src
+          if (el.tagName === 'IMG') {
+            el.src = d.image_url;
+          } else {
+            const img = document.createElement('img');
+            img.src = d.image_url;
+            img.alt = _target;
+            img.className = 'img-mgr-img';
+            img.id = el.id;
+            el.replaceWith(img);
+          }
+        }
+        bootstrap.Modal.getInstance(document.getElementById('imgMgrModal')).hide();
+        showToast(`✅ Image applied to ${d.updated} product${d.updated !== 1 ? 's' : ''}!`, 'success');
+      } else {
+        alert('Upload failed: ' + (d.message || 'Unknown error'));
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload & Apply';
+      alert('Error: ' + err.message);
+    });
+}
+
+// Drag & drop
+const zone = document.getElementById('imgMgrDropZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.classList.remove('drag-over');
+  const input = document.getElementById('imgMgrFileInput');
+  if (e.dataTransfer.files[0]) {
+    const dt = new DataTransfer();
+    dt.items.add(e.dataTransfer.files[0]);
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change'));
+  }
+});
+
+function showToast(msg, type) {
+  const toast = document.createElement('div');
+  toast.className = 'admin-toast admin-toast-' + type;
+  toast.innerHTML = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3500);
+}
+</script>
+{% endblock %}

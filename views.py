@@ -367,6 +367,32 @@ def register_routes(app):
         all_products = Product.query.order_by(Product.flavor, Product.size).all()
         return render_template('admin/products.html', products=all_products)
 
+    @app.route('/admin/image-manager')
+    @admin_required
+    def admin_image_manager():
+        SIZE_ORDER = ["Small", "Medium", "Large", "Mega", "Jumbo"]
+        flavors_raw = db.session.query(Product.flavor).distinct().order_by(Product.flavor).all()
+        sizes_raw   = db.session.query(Product.size).distinct().all()
+
+        def sample_img(q):
+            p = q.first()
+            if not p: return None
+            if p.image_data: return p.image_data
+            if p.image_url and p.image_url != "_data_": return "/static/images/" + p.image_url
+            return None
+
+        flavors = []
+        for (f,) in flavors_raw:
+            q = Product.query.filter(db.func.lower(Product.flavor) == f.lower())
+            flavors.append({"label": f, "image": sample_img(q), "count": q.count()})
+
+        sizes = []
+        for (s,) in sorted(sizes_raw, key=lambda x: SIZE_ORDER.index(x[0]) if x[0] in SIZE_ORDER else 99):
+            q = Product.query.filter(db.func.lower(Product.size) == s.lower())
+            sizes.append({"label": s, "image": sample_img(q), "count": q.count()})
+
+        return render_template("admin/image_manager.html", flavors=flavors, sizes=sizes)
+
     # ── Admin AJAX: Update order status ─────
 
     @app.route('/admin/order/<int:order_id>/status', methods=['POST'])
@@ -458,6 +484,77 @@ def register_routes(app):
         product.is_available = data.get('available', True)
         db.session.commit()
         return jsonify({'success': True})
+
+    # ── Admin AJAX: Bulk upload image by flavor or size ────────────────────
+    @app.route('/admin/images/upload', methods=['POST'])
+    @admin_required
+    def admin_bulk_upload_image():
+        import base64 as b64mod
+        mode   = request.form.get('mode')     # 'flavor' or 'size'
+        target = request.form.get('target')   # e.g. 'Cheese' or 'Small'
+
+        if mode not in ('flavor', 'size') or not target:
+            return jsonify({'success': False, 'message': 'Invalid mode or target'})
+
+        file = request.files.get('image')
+        if not file or not file.filename:
+            return jsonify({'success': False, 'message': 'No file uploaded'})
+        if not allowed_file(file.filename):
+            return jsonify({'success': False, 'message': 'Invalid file type'})
+
+        img_bytes = file.read()
+        if len(img_bytes) > 5 * 1024 * 1024:
+            return jsonify({'success': False, 'message': 'Image too large (max 5MB)'})
+
+        ext  = file.filename.rsplit('.', 1)[1].lower()
+        mime = f'image/{ext}'
+        data_url = f"data:{mime};base64,{b64mod.b64encode(img_bytes).decode()}"
+
+        if mode == 'flavor':
+            products = Product.query.filter(
+                db.func.lower(Product.flavor) == target.lower()
+            ).all()
+        else:  # size
+            products = Product.query.filter(
+                db.func.lower(Product.size) == target.lower()
+            ).all()
+
+        if not products:
+            return jsonify({'success': False, 'message': f'No products found for {mode}: {target}'})
+
+        for p in products:
+            p.image_data = data_url
+            p.image_url  = '_data_'
+        db.session.commit()
+
+        return jsonify({'success': True, 'image_url': data_url, 'updated': len(products)})
+
+    # ── Admin AJAX: Get distinct flavors and sizes for image manager ────────
+    @app.route('/admin/images/groups', methods=['GET'])
+    @admin_required
+    def admin_image_groups():
+        flavors = [r[0] for r in db.session.query(Product.flavor).distinct().order_by(Product.flavor).all()]
+        sizes   = [r[0] for r in db.session.query(Product.size).distinct().order_by(Product.size).all()]
+
+        def get_img(products_q):
+            p = products_q.first()
+            if not p:
+                return None
+            return p.image_data if p.image_data else (
+                f"/static/images/{p.image_url}" if p.image_url and p.image_url != '_data_' else None
+            )
+
+        flavor_data = []
+        for f in flavors:
+            q = Product.query.filter(db.func.lower(Product.flavor) == f.lower())
+            flavor_data.append({'label': f, 'image': get_img(q), 'count': q.count()})
+
+        size_data = []
+        for s in sizes:
+            q = Product.query.filter(db.func.lower(Product.size) == s.lower())
+            size_data.append({'label': s, 'image': get_img(q), 'count': q.count()})
+
+        return jsonify({'flavors': flavor_data, 'sizes': size_data})
 
     # ── Admin: Add new product ───────────────
 
