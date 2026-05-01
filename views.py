@@ -442,7 +442,11 @@ def register_routes(app):
 
         product.image_data = data_url
         product.image_url = f"_data_"   # sentinel: use image_data
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': f'Save failed: {str(e)}'})
 
         return jsonify({'success': True, 'image_url': data_url})
 
@@ -540,12 +544,17 @@ def register_routes(app):
             ext = file.filename.rsplit('.', 1)[1].lower()
             mime = f'image/{ext}'
             img_bytes = file.read()
-            if len(img_bytes) <= 5 * 1024 * 1024:
-                b64 = base64.b64encode(img_bytes).decode('utf-8')
-                product.image_data = f"data:{mime};base64,{b64}"
-                product.image_url = '_data_'
+            if len(img_bytes) > 5 * 1024 * 1024:
+                return jsonify({'success': False, 'message': 'Image must be under 5MB'})
+            b64 = base64.b64encode(img_bytes).decode('utf-8')
+            product.image_data = f"data:{mime};base64,{b64}"
+            product.image_url = '_data_'
 
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': f'Save failed: {str(e)}'})
 
         image_url = product.image_data if product.image_data else (
             f"/static/images/{product.image_url}" if product.image_url and product.image_url != '_data_' else None
@@ -559,9 +568,15 @@ def register_routes(app):
         product = Product.query.get(product_id)
         if not product:
             return jsonify({'success': False, 'message': 'Product not found'})
-        db.session.delete(product)
-        db.session.commit()
-        return jsonify({'success': True})
+        try:
+            # Remove cart items referencing this product first to avoid FK constraint
+            CartItem.query.filter_by(product_id=product_id).delete()
+            db.session.delete(product)
+            db.session.commit()
+            return jsonify({'success': True})
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': f'Delete failed: {str(e)}'})
 
     # ── Admin: Sales Report ─────────────────
     @app.route('/admin/sales-report')
