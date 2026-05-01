@@ -481,7 +481,22 @@ def register_routes(app):
         except (ValueError, TypeError):
             return jsonify({'success': False, 'message': 'Invalid price'})
 
-        image_url = 'fries/cheese.png'
+        # Auto-map flavor to existing fries image if no custom image is uploaded
+        FLAVOR_IMAGE_MAP = {
+            'cheese': 'fries/cheese.png',
+            'white cheddar': 'fries/white-cheddar.png',
+            'bbq': 'fries/bbq.png',
+            'chili bbq': 'fries/chili-bbq.png',
+            'chili-bbq': 'fries/chili-bbq.png',
+            'chili powder': 'fries/chili-powder.png',
+            'chili': 'fries/chili-powder.png',
+            'salted caramel': 'fries/salted-caramel.png',
+            'caramel': 'fries/salted-caramel.png',
+            'sour cream': 'fries/sour-cream.png',
+            'wasabi': 'fries/wasabi.png',
+        }
+        flavor_key = flavor.lower().strip()
+        image_url = FLAVOR_IMAGE_MAP.get(flavor_key, 'fries/cheese.png')
         image_data = None
 
         file = request.files.get('image')

@@ -39,17 +39,43 @@ def init_database():
     """Ensure the default admin account exists with the correct password."""
     from models import db, User, Product
 
-    # ── Migrate SVG → PNG image URLs ────────────────────────────────────────
+    # ── Flavor → image mapping ───────────────────────────────────────────────
+    FLAVOR_IMAGE_MAP = {
+        'cheese': 'fries/cheese.png',
+        'white cheddar': 'fries/white-cheddar.png',
+        'bbq': 'fries/bbq.png',
+        'chili bbq': 'fries/chili-bbq.png',
+        'chili-bbq': 'fries/chili-bbq.png',
+        'chili powder': 'fries/chili-powder.png',
+        'chili': 'fries/chili-powder.png',
+        'salted caramel': 'fries/salted-caramel.png',
+        'caramel': 'fries/salted-caramel.png',
+        'sour cream': 'fries/sour-cream.png',
+        'wasabi': 'fries/wasabi.png',
+    }
+
+    # ── Migrate SVG → PNG image URLs & fix flavor-image mismatches ──────────
     try:
         products = Product.query.all()
         updated = 0
         for p in products:
+            changed = False
+            # Fix .svg → .png
             if p.image_url and p.image_url.endswith('.svg'):
                 p.image_url = p.image_url[:-4] + '.png'
+                changed = True
+            # Auto-assign correct flavor image if still using generic default or wrong flavor image
+            if p.image_url and not p.image_data and p.image_url != '_data_':
+                flavor_key = (p.flavor or '').lower().strip()
+                correct_img = FLAVOR_IMAGE_MAP.get(flavor_key)
+                if correct_img and p.image_url != correct_img:
+                    p.image_url = correct_img
+                    changed = True
+            if changed:
                 updated += 1
         if updated:
             db.session.commit()
-            print(f'✅ Migrated {updated} product image URLs from .svg → .png')
+            print(f'✅ Updated {updated} product image URLs (SVG→PNG / flavor mapping)')
     except Exception as e:
         print(f'⚠️  Image URL migration skipped: {e}')
 
