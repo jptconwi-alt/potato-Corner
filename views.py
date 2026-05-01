@@ -616,6 +616,66 @@ def register_routes(app):
 
         return jsonify({'success': True, 'product_id': product.id})
 
+    # ── Admin: Edit product ──────────────────
+    @app.route('/admin/product/edit', methods=['POST'])
+    @admin_required
+    def admin_edit_product():
+        import base64
+        product_id  = request.form.get('product_id')
+        product     = Product.query.get(product_id)
+        if not product:
+            return jsonify({'success': False, 'message': 'Product not found'})
+
+        name        = request.form.get('name', '').strip()
+        price       = request.form.get('price')
+        flavor      = request.form.get('flavor', '').strip()
+        size        = request.form.get('size', '').strip()
+        description = request.form.get('description', '').strip()
+        category    = request.form.get('category', 'Fries').strip()
+
+        if not all([name, price, flavor, size, description]):
+            return jsonify({'success': False, 'message': 'Missing required fields'})
+
+        try:
+            price = float(price)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'Invalid price'})
+
+        product.name        = name
+        product.price       = price
+        product.flavor      = flavor
+        product.size        = size
+        product.description = description
+        product.category    = category
+
+        file = request.files.get('image')
+        if file and file.filename and allowed_file(file.filename):
+            ext      = file.filename.rsplit('.', 1)[1].lower()
+            mime     = f'image/{ext}'
+            img_bytes = file.read()
+            if len(img_bytes) <= 5 * 1024 * 1024:
+                b64 = base64.b64encode(img_bytes).decode('utf-8')
+                product.image_data = f"data:{mime};base64,{b64}"
+                product.image_url  = '_data_'
+
+        db.session.commit()
+        return jsonify({'success': True})
+
+    # ── Admin: Delete product ────────────────
+    @app.route('/admin/product/delete', methods=['POST'])
+    @admin_required
+    def admin_delete_product():
+        data       = request.get_json(force=True) or {}
+        product_id = data.get('product_id')
+        product    = Product.query.get(product_id)
+        if not product:
+            return jsonify({'success': False, 'message': 'Product not found'})
+        # Remove any cart items referencing this product first
+        CartItem.query.filter_by(product_id=product.id).delete()
+        db.session.delete(product)
+        db.session.commit()
+        return jsonify({'success': True})
+
     # ── Admin: Sales Report ─────────────────
     @app.route('/admin/sales-report')
     @admin_required

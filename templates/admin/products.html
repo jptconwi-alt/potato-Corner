@@ -104,10 +104,21 @@
             <div class="admin-product-price">₱{{ "%.0f"|format(product.price) }}</div>
             <div class="admin-product-size-chip">{{ product.size }}</div>
             <div class="admin-product-actions">
-              <button class="btn-prod-edit" onclick="openEditProduct({{ product.id }}, '{{ product.name|e }}', {{ product.price }}, '{{ product.flavor|e }}', '{{ product.size|e }}', '{{ product.category|e }}', `{{ product.description|e }}`)">
+              <button class="btn-prod-edit"
+                data-id="{{ product.id }}"
+                data-name="{{ product.name|e }}"
+                data-price="{{ product.price }}"
+                data-flavor="{{ product.flavor|e }}"
+                data-size="{{ product.size|e }}"
+                data-category="{{ product.category|e }}"
+                data-description="{{ product.description|e }}"
+                onclick="openEditProductFromBtn(this)">
                 <i class="fas fa-pen"></i> Edit
               </button>
-              <button class="btn-prod-delete" onclick="openDeleteProduct({{ product.id }}, '{{ product.name|e }}')">
+              <button class="btn-prod-delete"
+                data-id="{{ product.id }}"
+                data-name="{{ product.name|e }}"
+                onclick="openDeleteProductFromBtn(this)">
                 <i class="fas fa-trash"></i> Delete
               </button>
             </div>
@@ -635,6 +646,22 @@ function showToast(msg, type) {
 });
 
 // ── Edit Product ──────────────────────────────────────────
+function openEditProductFromBtn(btn) {
+  openEditProduct(
+    btn.dataset.id,
+    btn.dataset.name,
+    btn.dataset.price,
+    btn.dataset.flavor,
+    btn.dataset.size,
+    btn.dataset.category,
+    btn.dataset.description
+  );
+}
+
+function openDeleteProductFromBtn(btn) {
+  openDeleteProduct(btn.dataset.id, btn.dataset.name);
+}
+
 function onEditCategoryChange() {
   const cat = document.getElementById('editCategory').value;
   const isCustom = (cat === 'Drinks' || cat === 'Snacks' || cat === 'Others');
