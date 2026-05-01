@@ -361,14 +361,24 @@
 </div>
 
 {% endblock %}
-
 {% block extra_js %}
 <script>
+/* ─────────────────────────────────────────────
+   Bootstrap modal helpers – always get/create
+   a single instance to avoid double-init bugs
+───────────────────────────────────────────── */
+function getModal(id) {
+  const el = document.getElementById(id);
+  return bootstrap.Modal.getOrCreateInstance(el);
+}
+
+/* ── Sidebar ── */
 function toggleSidebar() {
   document.getElementById('adminSidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('active');
 }
 
+/* ── Search ── */
 function filterProducts() {
   const q = document.getElementById('productSearch').value.toLowerCase();
   document.querySelectorAll('.admin-product-card').forEach(card => {
@@ -376,6 +386,7 @@ function filterProducts() {
   });
 }
 
+/* ── Toggle availability ── */
 function toggleAvailability(productId, checkbox) {
   fetch('/admin/product/' + productId + '/toggle', {
     method: 'POST',
@@ -389,19 +400,21 @@ function toggleAvailability(productId, checkbox) {
   });
 }
 
-let currentUploadProductId = null;
+/* ══════════════════════════════════════════
+   UPLOAD / CHANGE PHOTO
+══════════════════════════════════════════ */
+let _uploadProductId = null;
 
 function openUploadImage(productId, productName) {
-  currentUploadProductId = productId;
+  _uploadProductId = productId;
   document.getElementById('uploadProductId').value = productId;
   document.getElementById('uploadProductName').textContent = 'Changing photo for: ' + productName;
   document.getElementById('previewWrap').classList.add('d-none');
-  const inp = document.getElementById('imageInput');
-  inp.value = '';
+  document.getElementById('imageInput').value = '';
   const btn = document.getElementById('uploadBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
-  new bootstrap.Modal(document.getElementById('uploadModal')).show();
+  getModal('uploadModal').show();
 }
 
 function previewImage(input) {
@@ -415,21 +428,10 @@ function previewImage(input) {
   }
 }
 
-function previewAddImage(input) {
-  if (input.files && input.files[0]) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      document.getElementById('addImagePreview').src = e.target.result;
-      document.getElementById('addPreviewWrap').classList.remove('d-none');
-    };
-    reader.readAsDataURL(input.files[0]);
-  }
-}
-
 function uploadImage() {
   const fileInput = document.getElementById('imageInput');
   if (!fileInput.files || !fileInput.files[0]) {
-    alert('Please select an image file first by clicking the upload area.');
+    alert('Please select an image file first.');
     return;
   }
   const productId = document.getElementById('uploadProductId').value;
@@ -443,46 +445,54 @@ function uploadImage() {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
 
-  fetch('/admin/product/upload-image', {
-    method: 'POST',
-    body: formData
-  })
-  .then(r => {
-    if (!r.ok) throw new Error('Server error: ' + r.status);
-    return r.json();
-  })
-  .then(d => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
-    if (d.success) {
-      const card = document.getElementById('prod-' + currentUploadProductId);
-      if (card) {
-        let img = card.querySelector('.admin-product-img');
-        if (img) {
-          img.src = d.image_url;
-        } else {
-          const ph = card.querySelector('.admin-product-img-placeholder');
-          if (ph) ph.outerHTML = '<img src="' + d.image_url + '" class="admin-product-img" alt="Product">';
+  fetch('/admin/product/upload-image', { method: 'POST', body: formData })
+    .then(r => { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
+    .then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+      if (d.success) {
+        const card = document.getElementById('prod-' + _uploadProductId);
+        if (card) {
+          let img = card.querySelector('.admin-product-img');
+          if (img) {
+            img.src = d.image_url;
+          } else {
+            const ph = card.querySelector('.admin-product-img-placeholder');
+            if (ph) ph.outerHTML = '<img src="' + d.image_url + '" class="admin-product-img" alt="Product">';
+          }
         }
+        getModal('uploadModal').hide();
+        showToast('Image updated!', 'success');
+      } else {
+        alert('Upload failed: ' + (d.message || 'Unknown error'));
       }
-      bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
-      showToast('Image updated!', 'success');
-    } else {
-      alert('Upload failed: ' + (d.message || 'Unknown error'));
-    }
-  })
-  .catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
-    alert('Error: ' + err.message);
-  });
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
+      alert('Error: ' + err.message);
+    });
 }
 
+/* ══════════════════════════════════════════
+   ADD PRODUCT
+══════════════════════════════════════════ */
 function onCategoryChange() {
   const cat = document.getElementById('addCategory').value;
-  const isCustomSize = (cat === 'Drinks' || cat === 'Snacks' || cat === 'Others');
-  document.getElementById('sizeSelectDiv').classList.toggle('d-none', isCustomSize);
-  document.getElementById('sizeCustomDiv').classList.toggle('d-none', !isCustomSize);
+  const isCustom = (cat !== 'Fries');
+  document.getElementById('sizeSelectDiv').classList.toggle('d-none', isCustom);
+  document.getElementById('sizeCustomDiv').classList.toggle('d-none', !isCustom);
+}
+
+function previewAddImage(input) {
+  if (input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('addImagePreview').src = e.target.result;
+      document.getElementById('addPreviewWrap').classList.remove('d-none');
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
 }
 
 function openAddProduct() {
@@ -492,27 +502,23 @@ function openAddProduct() {
   const btn = document.getElementById('addProductBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
-  new bootstrap.Modal(document.getElementById('addProductModal')).show();
+  getModal('addProductModal').show();
 }
 
 function addProduct() {
-  const name = document.querySelector('#addProductForm [name="name"]').value.trim();
-  const price = document.querySelector('#addProductForm [name="price"]').value.trim();
-  const flavor = document.querySelector('#addProductForm [name="flavor"]').value.trim();
+  const name        = document.querySelector('#addProductForm [name="name"]').value.trim();
+  const price       = document.querySelector('#addProductForm [name="price"]').value.trim();
+  const flavor      = document.querySelector('#addProductForm [name="flavor"]').value.trim();
   const description = document.querySelector('#addProductForm [name="description"]').value.trim();
-  const cat = document.getElementById('addCategory').value;
+  const cat         = document.getElementById('addCategory').value;
+  let size = cat === 'Fries'
+    ? document.getElementById('sizeSelect').value
+    : document.getElementById('sizeCustomInput').value.trim();
 
-  let size = '';
-  if (cat === 'Drinks' || cat === 'Snacks' || cat === 'Others') {
-    size = document.getElementById('sizeCustomInput').value.trim();
-  } else {
-    size = document.getElementById('sizeSelect').value;
-  }
-
-  if (!name) { alert('Please enter a product name.'); return; }
+  if (!name)        { alert('Please enter a product name.'); return; }
   if (!price || isNaN(parseFloat(price))) { alert('Please enter a valid price.'); return; }
-  if (!flavor) { alert('Please enter a flavor/variant.'); return; }
-  if (!size) { alert('Please select or enter a size.'); return; }
+  if (!flavor)      { alert('Please enter a flavor/variant.'); return; }
+  if (!size)        { alert('Please select or enter a size.'); return; }
   if (!description) { alert('Please enter a description.'); return; }
 
   const formData = new FormData();
@@ -522,101 +528,36 @@ function addProduct() {
   formData.append('size', size);
   formData.append('description', description);
   formData.append('category', cat);
-
   const imgInput = document.getElementById('addImageInput');
-  if (imgInput.files && imgInput.files[0]) {
-    formData.append('image', imgInput.files[0]);
-  }
+  if (imgInput.files && imgInput.files[0]) formData.append('image', imgInput.files[0]);
 
   const btn = document.getElementById('addProductBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Adding...';
 
-  fetch('/admin/product/add', {
-    method: 'POST',
-    body: formData
-  })
-  .then(r => {
-    if (!r.ok) throw new Error('Server error: ' + r.status);
-    return r.json();
-  })
-  .then(d => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
-    if (d.success) {
-      bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
-      showToast('Product added successfully!', 'success');
-      setTimeout(() => location.reload(), 900);
-    } else {
-      alert('Failed: ' + (d.message || 'Unknown error'));
-    }
-  })
-  .catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
-    alert('Error: ' + err.message);
-  });
+  fetch('/admin/product/add', { method: 'POST', body: formData })
+    .then(r => { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
+    .then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
+      if (d.success) {
+        getModal('addProductModal').hide();
+        showToast('Product added!', 'success');
+        setTimeout(() => location.reload(), 900);
+      } else {
+        alert('Failed: ' + (d.message || 'Unknown error'));
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
+      alert('Error: ' + err.message);
+    });
 }
 
-function showToast(msg, type) {
-  const toast = document.createElement('div');
-  toast.className = 'admin-toast admin-toast-' + type;
-  toast.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + msg;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.classList.add('show'), 10);
-  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
-}
-
-// Drag & drop for both zones
-['dropZone', 'addDropZone'].forEach(id => {
-  const zone = document.getElementById(id);
-  if (!zone) return;
-  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-  zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const inputId = id === 'dropZone' ? 'imageInput' : 'addImageInput';
-    const input = document.getElementById(inputId);
-    if (e.dataTransfer.files[0]) {
-      const dt = new DataTransfer();
-      dt.items.add(e.dataTransfer.files[0]);
-      input.files = dt.files;
-      input.dispatchEvent(new Event('change'));
-    }
-  });
-});
-// ── Edit Product ─────────────────────────────
-function openEditProduct(productId, product) {
-  document.getElementById('editProductId').value = productId;
-  document.getElementById('editName').value = product.name || '';
-  document.getElementById('editPrice').value = product.price || '';
-  document.getElementById('editFlavor').value = product.flavor || '';
-  document.getElementById('editDescription').value = product.description || '';
-
-  const cat = product.category || 'Fries';
-  document.getElementById('editCategory').value = cat;
-  onEditCategoryChange();
-
-  const size = product.size || '';
-  const stdSizes = ['Small','Medium','Large','Mega','Jumbo'];
-  if (cat === 'Fries' && stdSizes.includes(size)) {
-    document.getElementById('editSizeSelect').value = size;
-  } else {
-    document.getElementById('editSizeCustom').value = size;
-  }
-
-  // Reset image preview
-  document.getElementById('editPreviewWrap').classList.add('d-none');
-  document.getElementById('editImageInput').value = '';
-
-  const btn = document.getElementById('editProductBtn');
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
-
-  new bootstrap.Modal(document.getElementById('editProductModal')).show();
-}
-
+/* ══════════════════════════════════════════
+   EDIT PRODUCT
+══════════════════════════════════════════ */
 function onEditCategoryChange() {
   const cat = document.getElementById('editCategory').value;
   const isCustom = (cat !== 'Fries');
@@ -635,25 +576,50 @@ function previewEditImage(input) {
   }
 }
 
-function saveEditProduct() {
-  const productId = document.getElementById('editProductId').value;
-  const name = document.getElementById('editName').value.trim();
-  const price = document.getElementById('editPrice').value.trim();
-  const flavor = document.getElementById('editFlavor').value.trim();
-  const description = document.getElementById('editDescription').value.trim();
-  const cat = document.getElementById('editCategory').value;
+function openEditProduct(productId, product) {
+  document.getElementById('editProductId').value = productId;
+  document.getElementById('editName').value        = product.name        || '';
+  document.getElementById('editPrice').value       = product.price       || '';
+  document.getElementById('editFlavor').value      = product.flavor      || '';
+  document.getElementById('editDescription').value = product.description || '';
 
-  let size = '';
-  if (cat === 'Fries') {
-    size = document.getElementById('editSizeSelect').value;
+  const cat = product.category || 'Fries';
+  document.getElementById('editCategory').value = cat;
+  onEditCategoryChange();
+
+  const size = product.size || '';
+  const stdSizes = ['Small','Medium','Large','Mega','Jumbo'];
+  if (cat === 'Fries' && stdSizes.includes(size)) {
+    document.getElementById('editSizeSelect').value = size;
   } else {
-    size = document.getElementById('editSizeCustom').value.trim();
+    document.getElementById('editSizeCustom').value = size;
   }
 
-  if (!name) { alert('Please enter a product name.'); return; }
+  document.getElementById('editPreviewWrap').classList.add('d-none');
+  document.getElementById('editImageInput').value = '';
+
+  const btn = document.getElementById('editProductBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
+
+  getModal('editProductModal').show();
+}
+
+function saveEditProduct() {
+  const productId  = document.getElementById('editProductId').value;
+  const name       = document.getElementById('editName').value.trim();
+  const price      = document.getElementById('editPrice').value.trim();
+  const flavor     = document.getElementById('editFlavor').value.trim();
+  const description= document.getElementById('editDescription').value.trim();
+  const cat        = document.getElementById('editCategory').value;
+  let size = cat === 'Fries'
+    ? document.getElementById('editSizeSelect').value
+    : document.getElementById('editSizeCustom').value.trim();
+
+  if (!name)        { alert('Please enter a product name.'); return; }
   if (!price || isNaN(parseFloat(price))) { alert('Please enter a valid price.'); return; }
-  if (!flavor) { alert('Please enter a flavor/variant.'); return; }
-  if (!size) { alert('Please select or enter a size.'); return; }
+  if (!flavor)      { alert('Please enter a flavor/variant.'); return; }
+  if (!size)        { alert('Please select or enter a size.'); return; }
   if (!description) { alert('Please enter a description.'); return; }
 
   const formData = new FormData();
@@ -663,91 +629,104 @@ function saveEditProduct() {
   formData.append('size', size);
   formData.append('description', description);
   formData.append('category', cat);
-
   const imgInput = document.getElementById('editImageInput');
-  if (imgInput.files && imgInput.files[0]) {
-    formData.append('image', imgInput.files[0]);
-  }
+  if (imgInput.files && imgInput.files[0]) formData.append('image', imgInput.files[0]);
 
   const btn = document.getElementById('editProductBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
 
-  fetch('/admin/product/' + productId + '/edit', {
-    method: 'POST',
-    body: formData
-  })
-  .then(r => { if (!r.ok) throw new Error('Server error: ' + r.status); return r.json(); })
-  .then(d => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
-    if (d.success) {
-      bootstrap.Modal.getInstance(document.getElementById('editProductModal')).hide();
-      showToast('Product updated!', 'success');
-      setTimeout(() => location.reload(), 900);
-    } else {
-      alert('Failed: ' + (d.message || 'Unknown error'));
-    }
-  })
-  .catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
-    alert('Error: ' + err.message);
-  });
+  fetch('/admin/product/' + productId + '/edit', { method: 'POST', body: formData })
+    .then(r => { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
+    .then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
+      if (d.success) {
+        getModal('editProductModal').hide();
+        showToast('Product updated!', 'success');
+        setTimeout(() => location.reload(), 900);
+      } else {
+        alert('Failed: ' + (d.message || 'Unknown error'));
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
+      alert('Error: ' + err.message);
+    });
 }
 
-// ── Delete Product ────────────────────────────
+/* ══════════════════════════════════════════
+   DELETE PRODUCT
+══════════════════════════════════════════ */
+let _deleteProductId = null;
+
 function confirmDeleteProduct(productId, productName) {
+  _deleteProductId = productId;
   document.getElementById('deleteProductId').value = productId;
   document.getElementById('deleteProductMsg').textContent =
     'Are you sure you want to delete "' + productName + '"?';
   const btn = document.getElementById('deleteConfirmBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
-  new bootstrap.Modal(document.getElementById('deleteProductModal')).show();
+  getModal('deleteProductModal').show();
 }
 
 function executeDeleteProduct() {
-  const productId = document.getElementById('deleteProductId').value;
+  const productId = _deleteProductId || document.getElementById('deleteProductId').value;
+  if (!productId) return;
+
   const btn = document.getElementById('deleteConfirmBtn');
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
 
   fetch('/admin/product/' + productId + '/delete', { method: 'POST' })
-  .then(r => { if (!r.ok) throw new Error('Server error: ' + r.status); return r.json(); })
-  .then(d => {
-    if (d.success) {
-      bootstrap.Modal.getInstance(document.getElementById('deleteProductModal')).hide();
-      const card = document.getElementById('prod-' + productId);
-      if (card) {
-        card.style.transition = 'opacity .4s, transform .4s';
-        card.style.opacity = '0';
-        card.style.transform = 'scale(.9)';
-        setTimeout(() => card.remove(), 400);
+    .then(r => { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
+    .then(d => {
+      if (d.success) {
+        getModal('deleteProductModal').hide();
+        const card = document.getElementById('prod-' + productId);
+        if (card) {
+          card.style.transition = 'opacity .4s, transform .4s';
+          card.style.opacity    = '0';
+          card.style.transform  = 'scale(.9)';
+          setTimeout(() => card.remove(), 400);
+        }
+        showToast('Product deleted!', 'success');
+        _deleteProductId = null;
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
+        alert('Failed: ' + (d.message || 'Unknown error'));
       }
-      showToast('Product deleted!', 'success');
-    } else {
+    })
+    .catch(err => {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
-      alert('Failed: ' + (d.message || 'Unknown error'));
-    }
-  })
-  .catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
-    alert('Error: ' + err.message);
-  });
+      alert('Error: ' + err.message);
+    });
 }
 
-// Drag & drop for edit zone
-const editZone = document.getElementById('editDropZone');
-if (editZone) {
-  editZone.addEventListener('dragover', e => { e.preventDefault(); editZone.classList.add('drag-over'); });
-  editZone.addEventListener('dragleave', () => editZone.classList.remove('drag-over'));
-  editZone.addEventListener('drop', e => {
+/* ── Toast ── */
+function showToast(msg, type) {
+  const toast = document.createElement('div');
+  toast.className = 'admin-toast admin-toast-' + type;
+  toast.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+/* ── Drag & drop for all upload zones ── */
+[['dropZone','imageInput'], ['addDropZone','addImageInput'], ['editDropZone','editImageInput']].forEach(([zoneId, inputId]) => {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return;
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
     e.preventDefault();
-    editZone.classList.remove('drag-over');
-    const input = document.getElementById('editImageInput');
+    zone.classList.remove('drag-over');
+    const input = document.getElementById(inputId);
     if (e.dataTransfer.files[0]) {
       const dt = new DataTransfer();
       dt.items.add(e.dataTransfer.files[0]);
@@ -755,7 +734,6 @@ if (editZone) {
       input.dispatchEvent(new Event('change'));
     }
   });
-}
-
+});
 </script>
 {% endblock %}
