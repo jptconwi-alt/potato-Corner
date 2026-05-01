@@ -375,15 +375,62 @@
 
 {% block extra_js %}
 <script>
+// ── Bootstrap Modal helper — always fresh instance, cleans up backdrop ───────
+// On Vercel (serverless) the modal backdrop can get "stuck" if Bootstrap
+// reuses a broken instance. We destroy and recreate every time to be safe.
+function openModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  // Dispose any stale instance first
+  const existing = bootstrap.Modal.getInstance(el);
+  if (existing) { existing.dispose(); }
+  const m = new bootstrap.Modal(el, { backdrop: true, keyboard: true });
+  // On hide, forcibly remove any lingering backdrop and restore scroll
+  el.addEventListener('hidden.bs.modal', function cleanup() {
+    el.removeEventListener('hidden.bs.modal', cleanup);
+    // Remove any stuck backdrop elements
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  }, { once: true });
+  m.show();
+  return m;
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const m = bootstrap.Modal.getInstance(el);
+  if (m) {
+    m.hide();
+  } else {
+    // Force-close if no instance found
+    el.classList.remove('show');
+    el.style.display = 'none';
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+  }
+}
+
 // ── Global fetch helper ──────────────────────────────────────────────────────
-// Handles 401 session-expired redirects so modals never freeze.
-function handleFetchResponse(r) {
+// Handles 401 session-expired redirects and non-JSON error bodies safely.
+async function handleFetchResponse(r) {
   if (r.status === 401) {
     window.location.href = '/admin/login';
-    return null; // signal callers to bail out
+    return null;
   }
-  if (!r.ok) throw new Error('Server error: ' + r.status);
-  return r.json();
+  // Always try to parse JSON; fall back to a plain error object
+  try {
+    const data = await r.json();
+    if (!r.ok && data.message === undefined) {
+      return { success: false, message: 'Server error: ' + r.status };
+    }
+    return data;
+  } catch (e) {
+    return { success: false, message: 'Server error: ' + r.status };
+  }
 }
 
 function toggleSidebar() {
@@ -424,7 +471,7 @@ function openUploadImage(productId, productName) {
   const btn = document.getElementById('uploadBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('uploadModal')).show();
+  openModal('uploadModal');
 }
 
 function previewImage(input) {
@@ -486,7 +533,7 @@ function uploadImage() {
           if (ph) ph.outerHTML = '<img src="' + d.image_url + '" class="admin-product-img" alt="Product">';
         }
       }
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('uploadModal')).hide();
+      closeModal('uploadModal');
       showToast('Image updated!', 'success');
     } else {
       alert('Upload failed: ' + (d.message || 'Unknown error'));
@@ -513,7 +560,7 @@ function openAddProduct() {
   const btn = document.getElementById('addProductBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('addProductModal')).show();
+  openModal('addProductModal');
 }
 
 function addProduct() {
@@ -563,7 +610,7 @@ function addProduct() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
     if (d.success) {
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('addProductModal')).hide();
+      closeModal('addProductModal');
       showToast('Product added successfully!', 'success');
       setTimeout(() => location.reload(), 900);
     } else {
@@ -646,7 +693,7 @@ function openEditProduct(productId, product) {
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
 
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('editProductModal')).show();
+  openModal('editProductModal');
 }
 
 function onEditCategoryChange() {
@@ -715,7 +762,7 @@ function saveEditProduct() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
     if (d.success) {
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('editProductModal')).hide();
+      closeModal('editProductModal');
       showToast('Product updated!', 'success');
       setTimeout(() => location.reload(), 900);
     } else {
@@ -737,7 +784,7 @@ function confirmDeleteProduct(productId, productName) {
   const btn = document.getElementById('deleteConfirmBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteProductModal')).show();
+  openModal('deleteProductModal');
 }
 
 function executeDeleteProduct() {
@@ -751,7 +798,7 @@ function executeDeleteProduct() {
   .then(d => {
     if (!d) return;
     if (d.success) {
-      bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteProductModal')).hide();
+      closeModal('deleteProductModal');
       const card = document.getElementById('prod-' + productId);
       if (card) {
         card.style.transition = 'opacity .4s, transform .4s';
@@ -772,6 +819,19 @@ function executeDeleteProduct() {
     alert('Error: ' + err.message);
   });
 }
+
+// ── Global safety net: if any modal fires hidden.bs.modal, clean up backdrop ─
+document.addEventListener('hidden.bs.modal', function() {
+  // Short delay to let Bootstrap finish its own cleanup first
+  setTimeout(function() {
+    if (!document.querySelector('.modal.show')) {
+      document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+  }, 50);
+});
 
 // Drag & drop for edit zone
 const editZone = document.getElementById('editDropZone');
