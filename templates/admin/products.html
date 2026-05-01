@@ -74,14 +74,18 @@
               <div class="admin-product-img-placeholder">🍟</div>
             {% endif %}
             <div class="admin-product-overlay">
-              <button class="btn-upload-img" onclick="openUploadImage({{ product.id }}, '{{ product.name }}')">
+              <button class="btn-upload-img"
+                data-product-id="{{ product.id }}"
+                data-product-name="{{ product.name | e }}"
+                onclick="openUploadImage(this.dataset.productId, this.dataset.productName)">
                 <i class="fas fa-camera me-1"></i>Change Photo
               </button>
             </div>
             <div class="admin-avail-toggle">
               <label class="toggle-switch" title="{{ 'Available' if product.is_available else 'Unavailable' }}">
                 <input type="checkbox" {% if product.is_available %}checked{% endif %}
-                       onchange="toggleAvailability({{ product.id }}, this)">
+                  data-product-id="{{ product.id }}"
+                  onchange="toggleAvailability(this.dataset.productId, this)">
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -92,10 +96,16 @@
             <div class="admin-product-price">₱{{ "%.0f"|format(product.price) }}</div>
             <div class="admin-product-size-chip">{{ product.size }}</div>
             <div class="admin-product-actions">
-              <button class="btn-product-edit" onclick='openEditProduct({{ product.id }}, {{ product.to_dict()|tojson }})'>
+              <button class="btn-product-edit"
+                data-product-id="{{ product.id }}"
+                data-product="{{ product.to_dict()|tojson|e }}"
+                onclick="openEditProduct(this.dataset.productId, JSON.parse(this.dataset.product))">
                 <i class="fas fa-pen"></i> Edit
               </button>
-              <button class="btn-product-delete" onclick="confirmDeleteProduct({{ product.id }}, '{{ product.name }}')">
+              <button class="btn-product-delete"
+                data-product-id="{{ product.id }}"
+                data-product-name="{{ product.name | e }}"
+                onclick="confirmDeleteProduct(this.dataset.productId, this.dataset.productName)">
                 <i class="fas fa-trash"></i> Delete
               </button>
             </div>
