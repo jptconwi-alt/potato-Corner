@@ -1084,3 +1084,15 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
 .btn-product-edit:hover{background:#2e7d32;color:#fff;transform:translateY(-1px);box-shadow:0 3px 10px rgba(46,125,50,.3)}
 .btn-product-delete{background:#fce4e4;color:#c62828}
 .btn-product-delete:hover{background:#c62828;color:#fff;transform:translateY(-1px);box-shadow:0 3px 10px rgba(198,40,40,.3)}
+/* ── Modal Fix: restore Bootstrap modal stacking ── */
+.modal{
+  position:fixed !important;
+  z-index:1055 !important;
+}
+.modal-backdrop{
+  z-index:1050 !important;
+}
+.modal-dialog{
+  position:relative;
+  z-index:1060 !important;
+}
