@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Potato Corner{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&family=Fredoka+One&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<!-- Animated background particles -->
+<div class="bg-particles" aria-hidden="true">
+  {% for i in range(12) %}
+  <div class="particle particle-{{ i % 4 }}"></div>
+  {% endfor %}
+</div>
+
+<!-- NAVBAR (hidden on auth pages) -->
+{% if not (request.endpoint in ['login', 'register', 'complete_profile']) %}
+<nav class="navbar navbar-expand-lg">
+  <div class="container">
+    <a class="navbar-brand" href="{{ url_for('index') }}">
+      <div class="brand-icon">🍟</div>
+      <div class="brand-text">
+        <span class="brand-main">Potato</span>
+        <span class="brand-sub">Corner</span>
+      </div>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+        {# ── Admin pages: show only Admin label + user dropdown ── #}
+        {% if request.endpoint and request.endpoint.startswith('admin') %}
+          <li class="nav-item">
+            <a class="nav-link admin-link active" href="{{ url_for('admin_dashboard') }}">
+              <i class="fas fa-shield-alt me-1"></i>Admin Panel
+            </a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle user-nav" href="#" data-bs-toggle="dropdown">
+              <div class="user-avatar">{{ current_user.full_name[0].upper() }}</div>
+              <span class="d-none d-lg-inline">{{ current_user.full_name.split()[0] }}</span>
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+            </ul>
+          </li>
+
+        {# ── Auth pages: show only brand, no nav items ── #}
+        {% elif request.endpoint in ['login', 'register', 'complete_profile'] %}
+          {# intentionally empty #}
+
+        {# ── Regular customer pages ── #}
+        {% else %}
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
+              <i class="fas fa-home me-1"></i>Menu
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'cart' %}active{% endif %}" href="{{ url_for('cart') }}">
+              <i class="fas fa-shopping-cart me-1"></i>Cart
+              <span class="cart-badge" id="cartCount">0</span>
+            </a>
+          </li>
+          {% if current_user.is_authenticated %}
+            {% if current_user.is_admin %}
+            <li class="nav-item">
+              <a class="nav-link admin-link" href="{{ url_for('admin_dashboard') }}">
+                <i class="fas fa-shield-alt me-1"></i>Admin
+              </a>
+            </li>
+            {% endif %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle user-nav" href="#" data-bs-toggle="dropdown">
+                <div class="user-avatar">{{ current_user.full_name[0].upper() }}</div>
+                <span class="d-none d-lg-inline">{{ current_user.full_name.split()[0] }}</span>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="{{ url_for('profile') }}"><i class="fas fa-user me-2"></i>My Profile</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('orders') }}"><i class="fas fa-box me-2"></i>My Orders</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+              </ul>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a class="nav-link" href="#" onclick="openGlobalAuth('login');return false;"><i class="fas fa-sign-in-alt me-1"></i>Login</a>
+            </li>
+            <li class="nav-item">
+              <a class="btn btn-nav-cta" href="#" onclick="openGlobalAuth('register');return false;">Get Started</a>
+            </li>
+          {% endif %}
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+{% endif %}
+
+<!-- Flash Messages -->
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="flash-container">
+    <div class="container">
+      {% for category, message in messages %}
+      <div class="alert alert-{{ 'success' if category == 'success' else 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show flash-alert" role="alert">
+        <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'danger' else 'exclamation-triangle' if category == 'warning' else 'info-circle' }} me-2"></i>
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+{% endwith %}
+
+<!-- Main Content -->
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <span class="footer-logo">🍟 Potato Corner</span>
+        <p>Delivering happiness, one fries at a time.</p>
+      </div>
+      <div class="footer-links">
+        {% if not (request.endpoint and (request.endpoint.startswith('admin') or request.endpoint in ['login','register','complete_profile'])) %}
+        <a href="{{ url_for('index') }}">Menu</a>
+        <a href="{{ url_for('cart') }}">Cart</a>
+        {% if current_user.is_authenticated and not current_user.is_admin %}
+          <a href="{{ url_for('orders') }}">Orders</a>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 Potato Corner Philippines. All rights reserved.</p>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Update cart badge
+  function updateCartBadge() {
+    fetch('/api/cart/count')
+      .then(r => r.json())
+      .then(d => {
+        const badge = document.getElementById('cartCount');
+        if (badge) {
+          badge.textContent = d.count || 0;
+          badge.style.display = d.count > 0 ? 'flex' : 'none';
+        }
+      }).catch(() => {});
+  }
+  updateCartBadge();
+
+  // Auto-dismiss flash messages
+  setTimeout(() => {
+    document.querySelectorAll('.flash-alert').forEach(el => {
+      const bsAlert = bootstrap.Alert.getOrCreateInstance(el);
+      bsAlert.close();
+    });
+  }, 4000);
+</script>
+{% block extra_js %}{% endblock %}
+
+{% if not current_user.is_authenticated %}
+<!-- ═══════════════════════════════════════════════════════════
+     GLOBAL AUTH OVERLAY — Login / Register + Google Sign-In
+     Available on every page for unauthenticated users
+═══════════════════════════════════════════════════════════ -->
+<div id="globalAuthOverlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(15,23,42,0.7);backdrop-filter:blur(5px);align-items:center;justify-content:center;padding:16px;">
+  <div style="width:100%;max-width:440px;max-height:95vh;overflow-y:auto;border-radius:20px;background:#fff;box-shadow:0 24px 60px rgba(0,0,0,0.25);position:relative;">
+
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#1e293b,#0f172a);padding:22px 24px;display:flex;align-items:center;gap:14px;border-radius:20px 20px 0 0;">
+      <span style="font-size:2rem;">🍟</span>
+      <div style="flex:1;">
+        <div style="color:#f59e0b;font-size:1.1rem;font-weight:800;">Potato Corner</div>
+        <div style="color:#94a3b8;font-size:0.8rem;margin-top:2px;">Sign in to start ordering!</div>
+      </div>
+      <button onclick="closeGlobalAuth()" style="background:rgba(255,255,255,0.1);border:none;color:#94a3b8;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;transition:all .2s;" onmouseover="this.style.background='rgba(255,255,255,0.2)';this.style.color='#fff'" onmouseout="this.style.background='rgba(255,255,255,0.1)';this.style.color='#94a3b8'">✕</button>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid #e2e8f0;">
+      <button id="gTab-login" onclick="switchGlobalTab('login')" style="flex:1;border:none;background:#fff;padding:13px 0;font-size:0.92rem;font-weight:700;color:#f59e0b;border-bottom:3px solid #f59e0b;cursor:pointer;transition:all .2s;">
+        <i class="fas fa-sign-in-alt" style="margin-right:6px;"></i>Login
+      </button>
+      <button id="gTab-register" onclick="switchGlobalTab('register')" style="flex:1;border:none;background:#f8fafc;padding:13px 0;font-size:0.92rem;font-weight:700;color:#94a3b8;border-bottom:3px solid transparent;cursor:pointer;transition:all .2s;">
+        <i class="fas fa-user-plus" style="margin-right:6px;"></i>Register
+      </button>
+    </div>
+
+    <!-- Alert -->
+    <div id="gAuthAlert" style="display:none;margin:12px 24px 0;padding:10px 14px;border-radius:10px;font-size:0.85rem;font-weight:500;align-items:center;gap:8px;"></div>
+
+    <!-- LOGIN PANEL -->
+    <div id="gLoginPanel" style="padding:20px 24px 18px;">
+      <!-- Google -->
+      <a href="/login/google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;font-size:0.92rem;font-weight:600;color:#1e293b;text-decoration:none;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:4px;" onmouseover="this.style.borderColor='#4285F4';this.style.boxShadow='0 2px 10px rgba(66,133,244,.15)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+        Continue with Google
+      </a>
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px;color:#94a3b8;font-size:0.78rem;font-weight:500;"><div style="flex:1;height:1px;background:#e2e8f0;"></div>or sign in with username<div style="flex:1;height:1px;background:#e2e8f0;"></div></div>
+      <!-- Fields -->
+      <div style="margin-bottom:14px;">
+        <label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Username</label>
+        <div style="position:relative;">
+          <i class="fas fa-user" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i>
+          <input id="gLoginUser" type="text" autocomplete="username" placeholder="Enter your username" style="width:100%;padding:10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(245,158,11,.12)'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc';this.style.boxShadow='none'">
+        </div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Password</label>
+        <div style="position:relative;">
+          <i class="fas fa-lock" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i>
+          <input id="gLoginPass" type="password" autocomplete="current-password" placeholder="Enter your password" style="width:100%;padding:10px 40px 10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff';this.style.boxShadow='0 0 0 3px rgba(245,158,11,.12)'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc';this.style.boxShadow='none'">
+          <button type="button" onclick="gTogglePw('gLoginPass',this)" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:3px 5px;"><i class="fas fa-eye"></i></button>
+        </div>
+      </div>
+      <button id="gLoginBtn" onclick="gDoLogin()" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,.3);transition:all .2s;" onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 6px 18px rgba(245,158,11,.4)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 12px rgba(245,158,11,.3)'">
+        <span id="gLoginBtnText"><i class="fas fa-sign-in-alt" style="margin-right:8px;"></i>Sign In</span>
+        <span id="gLoginBtnSpin" style="display:none;"><i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Signing in…</span>
+      </button>
+      <p style="text-align:center;font-size:0.82rem;color:#94a3b8;margin:12px 0 0;">Don't have an account? <button onclick="switchGlobalTab('register')" style="background:none;border:none;color:#f59e0b;font-weight:700;cursor:pointer;padding:0;font-size:inherit;">Register here</button></p>
+    </div>
+
+    <!-- REGISTER PANEL -->
+    <div id="gRegisterPanel" style="display:none;padding:20px 24px 18px;">
+      <!-- Google -->
+      <a href="/login/google" style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:11px 16px;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;font-size:0.92rem;font-weight:600;color:#1e293b;text-decoration:none;transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:4px;" onmouseover="this.style.borderColor='#4285F4';this.style.boxShadow='0 2px 10px rgba(66,133,244,.15)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='0 1px 4px rgba(0,0,0,.06)'">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M17.64 9.205c0-.639-.057-1.252-.164-1.841H9v3.481h4.844a4.14 4.14 0 01-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/><path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z" fill="#34A853"/><path d="M3.964 10.71A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/><path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/></svg>
+        Sign up with Google
+      </a>
+      <div style="display:flex;align-items:center;gap:10px;margin:14px 0 12px;color:#94a3b8;font-size:0.78rem;font-weight:500;"><div style="flex:1;height:1px;background:#e2e8f0;"></div>or create an account<div style="flex:1;height:1px;background:#e2e8f0;"></div></div>
+      <!-- Two col name -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">First Name</label>
+          <div style="position:relative;"><i class="fas fa-user" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.8rem;pointer-events:none;"></i><input id="gRegFirst" type="text" placeholder="First name" style="width:100%;padding:10px 10px 10px 32px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.88rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"></div>
+        </div>
+        <div>
+          <label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Last Name</label>
+          <div style="position:relative;"><i class="fas fa-user" style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.8rem;pointer-events:none;"></i><input id="gRegLast" type="text" placeholder="Last name" style="width:100%;padding:10px 10px 10px 32px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.88rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"></div>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;"><label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Username</label><div style="position:relative;"><i class="fas fa-at" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i><input id="gRegUser" type="text" autocomplete="username" placeholder="Choose a username" style="width:100%;padding:10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"></div></div>
+      <div style="margin-bottom:14px;"><label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Email</label><div style="position:relative;"><i class="fas fa-envelope" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i><input id="gRegEmail" type="email" autocomplete="email" placeholder="your@email.com" style="width:100%;padding:10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"></div></div>
+      <div style="margin-bottom:14px;"><label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Phone</label><div style="position:relative;"><i class="fas fa-phone" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i><input id="gRegPhone" type="tel" placeholder="09XX-XXX-XXXX" style="width:100%;padding:10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"></div></div>
+      <div style="margin-bottom:14px;"><label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Password</label><div style="position:relative;"><i class="fas fa-lock" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i><input id="gRegPass" type="password" autocomplete="new-password" placeholder="At least 6 characters" style="width:100%;padding:10px 40px 10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"><button type="button" onclick="gTogglePw('gRegPass',this)" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:3px 5px;"><i class="fas fa-eye"></i></button></div></div>
+      <div style="margin-bottom:16px;"><label style="display:block;font-size:0.82rem;font-weight:700;color:#334155;margin-bottom:6px;">Confirm Password</label><div style="position:relative;"><i class="fas fa-lock" style="position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:0.85rem;pointer-events:none;"></i><input id="gRegConfirm" type="password" autocomplete="new-password" placeholder="Repeat your password" style="width:100%;padding:10px 40px 10px 36px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;color:#1e293b;background:#f8fafc;outline:none;box-sizing:border-box;transition:all .2s;" onfocus="this.style.borderColor='#f59e0b';this.style.background='#fff'" onblur="this.style.borderColor='#e2e8f0';this.style.background='#f8fafc'"><button type="button" onclick="gTogglePw('gRegConfirm',this)" style="position:absolute;right:11px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;cursor:pointer;padding:3px 5px;"><i class="fas fa-eye"></i></button></div></div>
+      <button id="gRegBtn" onclick="gDoRegister()" style="width:100%;padding:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(245,158,11,.3);transition:all .2s;" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">
+        <span id="gRegBtnText"><i class="fas fa-user-plus" style="margin-right:8px;"></i>Create Account</span>
+        <span id="gRegBtnSpin" style="display:none;"><i class="fas fa-spinner fa-spin" style="margin-right:8px;"></i>Creating…</span>
+      </button>
+      <p style="text-align:center;font-size:0.82rem;color:#94a3b8;margin:12px 0 0;">Already have an account? <button onclick="switchGlobalTab('login')" style="background:none;border:none;color:#f59e0b;font-weight:700;cursor:pointer;padding:0;font-size:inherit;">Login here</button></p>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ── Global Auth Overlay ── */
+let _gPendingCb = null;
+
+function openGlobalAuth(tab, pendingCb) {
+  _gPendingCb = pendingCb || null;
+  switchGlobalTab(tab || 'login');
+  gClearAlert();
+  gSetBtnLoading('gLoginBtn','gLoginBtnText','gLoginBtnSpin', false);
+  gSetBtnLoading('gRegBtn','gRegBtnText','gRegBtnSpin', false);
+  const ov = document.getElementById('globalAuthOverlay');
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  setTimeout(() => {
+    const first = ov.querySelector('input');
+    if (first) first.focus();
+  }, 80);
+}
+
+function closeGlobalAuth() {
+  document.getElementById('globalAuthOverlay').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+document.getElementById('globalAuthOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeGlobalAuth();
+});
+
+document.addEventListener('keydown', function(e) {
+  const ov = document.getElementById('globalAuthOverlay');
+  if (!ov || ov.style.display !== 'flex') return;
+  if (e.key === 'Escape') { closeGlobalAuth(); return; }
+  if (e.key === 'Enter') {
+    if (document.getElementById('gLoginPanel').style.display !== 'none') gDoLogin();
+    else gDoRegister();
+  }
+});
+
+function switchGlobalTab(tab) {
+  const isLogin = tab === 'login';
+  document.getElementById('gLoginPanel').style.display    = isLogin ? '' : 'none';
+  document.getElementById('gRegisterPanel').style.display = isLogin ? 'none' : '';
+  const tl = document.getElementById('gTab-login');
+  const tr = document.getElementById('gTab-register');
+  tl.style.color = isLogin ? '#f59e0b' : '#94a3b8';
+  tl.style.borderBottom = isLogin ? '3px solid #f59e0b' : '3px solid transparent';
+  tl.style.background = isLogin ? '#fff' : '#f8fafc';
+  tr.style.color = isLogin ? '#94a3b8' : '#f59e0b';
+  tr.style.borderBottom = isLogin ? '3px solid transparent' : '3px solid #f59e0b';
+  tr.style.background = isLogin ? '#f8fafc' : '#fff';
+  gClearAlert();
+}
+
+function gTogglePw(id, btn) {
+  const inp = document.getElementById(id);
+  const ic  = btn.querySelector('i');
+  if (inp.type === 'password') { inp.type = 'text'; ic.className = 'fas fa-eye-slash'; }
+  else { inp.type = 'password'; ic.className = 'fas fa-eye'; }
+}
+
+function gShowAlert(msg, type) {
+  const el = document.getElementById('gAuthAlert');
+  const ok = type === 'success';
+  el.style.cssText = `display:flex;margin:12px 24px 0;padding:10px 14px;border-radius:10px;font-size:.85rem;font-weight:500;align-items:center;gap:8px;background:${ok?'#f0fdf4':'#fef2f2'};color:${ok?'#16a34a':'#dc2626'};border:1px solid ${ok?'#bbf7d0':'#fecaca'};`;
+  el.innerHTML = `<i class="fas fa-${ok?'check-circle':'exclamation-circle'}"></i>${msg}`;
+}
+
+function gClearAlert() {
+  const el = document.getElementById('gAuthAlert');
+  if (el) el.style.display = 'none';
+}
+
+function gSetBtnLoading(btnId, textId, spinId, loading) {
+  const btn = document.getElementById(btnId);
+  const txt = document.getElementById(textId);
+  const spn = document.getElementById(spinId);
+  if (btn) btn.disabled = loading;
+  if (txt) txt.style.display = loading ? 'none' : '';
+  if (spn) spn.style.display = loading ? '' : 'none';
+}
+
+async function gDoLogin() {
+  const username = document.getElementById('gLoginUser').value.trim();
+  const password = document.getElementById('gLoginPass').value;
+  if (!username || !password) { gShowAlert('Please fill in all fields.'); return; }
+  gSetBtnLoading('gLoginBtn','gLoginBtnText','gLoginBtnSpin', true);
+  gClearAlert();
+  try {
+    const res  = await fetch('/auth/ajax-login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password}) });
+    const data = await res.json();
+    if (data.success) {
+      gShowAlert(`Welcome back, ${data.full_name || username}! 🍟`, 'success');
+      setTimeout(() => {
+        closeGlobalAuth();
+        if (_gPendingCb) { setTimeout(_gPendingCb, 150); }
+        else { location.reload(); }
+      }, 800);
+    } else {
+      gShowAlert(data.message || 'Invalid username or password.');
+      gSetBtnLoading('gLoginBtn','gLoginBtnText','gLoginBtnSpin', false);
+    }
+  } catch(e) {
+    gShowAlert('Network error. Please try again.');
+    gSetBtnLoading('gLoginBtn','gLoginBtnText','gLoginBtnSpin', false);
+  }
+}
+
+async function gDoRegister() {
+  const firstname = document.getElementById('gRegFirst').value.trim();
+  const lastname  = document.getElementById('gRegLast').value.trim();
+  const username  = document.getElementById('gRegUser').value.trim();
+  const email     = document.getElementById('gRegEmail').value.trim();
+  const phone     = document.getElementById('gRegPhone').value.trim();
+  const password  = document.getElementById('gRegPass').value;
+  const confirm   = document.getElementById('gRegConfirm').value;
+  if (!firstname||!lastname||!username||!email||!password||!confirm) { gShowAlert('Please fill in all fields.'); return; }
+  if (password !== confirm) { gShowAlert('Passwords do not match.'); return; }
+  if (password.length < 6)  { gShowAlert('Password must be at least 6 characters.'); return; }
+  gSetBtnLoading('gRegBtn','gRegBtnText','gRegBtnSpin', true);
+  gClearAlert();
+  try {
+    const res  = await fetch('/auth/ajax-register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({firstname,lastname,username,email,phone,password}) });
+    const data = await res.json();
+    if (data.success) {
+      gShowAlert('Account created! Welcome to Potato Corner 🍟', 'success');
+      setTimeout(() => {
+        closeGlobalAuth();
+        if (_gPendingCb) { setTimeout(_gPendingCb, 150); }
+        else { location.reload(); }
+      }, 800);
+    } else {
+      gShowAlert(data.message || 'Registration failed. Please try again.');
+      gSetBtnLoading('gRegBtn','gRegBtnText','gRegBtnSpin', false);
+    }
+  } catch(e) {
+    gShowAlert('Network error. Please try again.');
+    gSetBtnLoading('gRegBtn','gRegBtnText','gRegBtnSpin', false);
+  }
+}
+</script>
+{% endif %}
+</body>
+</html>
