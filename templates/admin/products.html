@@ -413,7 +413,7 @@ function openUploadImage(productId, productName) {
   const btn = document.getElementById('uploadBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
-  new bootstrap.Modal(document.getElementById('uploadModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('uploadModal')).show();
 }
 
 function previewImage(input) {
@@ -475,7 +475,7 @@ function uploadImage() {
           if (ph) ph.outerHTML = '<img src="' + d.image_url + '" class="admin-product-img" alt="Product">';
         }
       }
-      bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('uploadModal')).hide();
       showToast('Image updated!', 'success');
     } else {
       alert('Upload failed: ' + (d.message || 'Unknown error'));
@@ -502,7 +502,7 @@ function openAddProduct() {
   const btn = document.getElementById('addProductBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
-  new bootstrap.Modal(document.getElementById('addProductModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('addProductModal')).show();
 }
 
 function addProduct() {
@@ -552,7 +552,7 @@ function addProduct() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
     if (d.success) {
-      bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('addProductModal')).hide();
       showToast('Product added successfully!', 'success');
       setTimeout(() => location.reload(), 900);
     } else {
@@ -622,7 +622,7 @@ function openEditProduct(productId, product) {
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
 
-  new bootstrap.Modal(document.getElementById('editProductModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('editProductModal')).show();
 }
 
 function onEditCategoryChange() {
@@ -691,7 +691,7 @@ function saveEditProduct() {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
     if (d.success) {
-      bootstrap.Modal.getInstance(document.getElementById('editProductModal')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('editProductModal')).hide();
       showToast('Product updated!', 'success');
       setTimeout(() => location.reload(), 900);
     } else {
@@ -713,7 +713,7 @@ function confirmDeleteProduct(productId, productName) {
   const btn = document.getElementById('deleteConfirmBtn');
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
-  new bootstrap.Modal(document.getElementById('deleteProductModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteProductModal')).show();
 }
 
 function executeDeleteProduct() {
@@ -727,7 +727,7 @@ function executeDeleteProduct() {
   .then(d => {
     if (!d) return;
     if (d.success) {
-      bootstrap.Modal.getInstance(document.getElementById('deleteProductModal')).hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteProductModal')).hide();
       const card = document.getElementById('prod-' + productId);
       if (card) {
         card.style.transition = 'opacity .4s, transform .4s';
