@@ -1076,3 +1076,11 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
   height: 1px;
   background: #e2e8f0;
 }
+
+/* ── Admin Product Action Buttons ─────────────── */
+.admin-product-actions{display:flex;gap:.4rem;margin-top:.5rem}
+.btn-product-edit,.btn-product-delete{flex:1;border:none;border-radius:8px;font-size:.72rem;font-weight:600;padding:.35rem .5rem;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:.3rem}
+.btn-product-edit{background:#e8f5e9;color:#2e7d32}
+.btn-product-edit:hover{background:#2e7d32;color:#fff;transform:translateY(-1px);box-shadow:0 3px 10px rgba(46,125,50,.3)}
+.btn-product-delete{background:#fce4e4;color:#c62828}
+.btn-product-delete:hover{background:#c62828;color:#fff;transform:translateY(-1px);box-shadow:0 3px 10px rgba(198,40,40,.3)}
