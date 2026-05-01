@@ -364,6 +364,17 @@
 
 {% block extra_js %}
 <script>
+// ── Global fetch helper ──────────────────────────────────────────────────────
+// Handles 401 session-expired redirects so modals never freeze.
+function handleFetchResponse(r) {
+  if (r.status === 401) {
+    window.location.href = '/admin/login';
+    return null; // signal callers to bail out
+  }
+  if (!r.ok) throw new Error('Server error: ' + r.status);
+  return r.json();
+}
+
 function toggleSidebar() {
   document.getElementById('adminSidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('active');
@@ -381,7 +392,8 @@ function toggleAvailability(productId, checkbox) {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({available: checkbox.checked})
-  }).then(r => r.json()).then(d => {
+  }).then(r => handleFetchResponse(r)).then(d => {
+    if (!d) return;
     if (!d.success) {
       checkbox.checked = !checkbox.checked;
       alert('Failed to update availability');
@@ -447,11 +459,9 @@ function uploadImage() {
     method: 'POST',
     body: formData
   })
-  .then(r => {
-    if (!r.ok) throw new Error('Server error: ' + r.status);
-    return r.json();
-  })
+  .then(r => handleFetchResponse(r))
   .then(d => {
+    if (!d) return;
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-upload me-2"></i>Upload';
     if (d.success) {
@@ -536,11 +546,9 @@ function addProduct() {
     method: 'POST',
     body: formData
   })
-  .then(r => {
-    if (!r.ok) throw new Error('Server error: ' + r.status);
-    return r.json();
-  })
+  .then(r => handleFetchResponse(r))
   .then(d => {
+    if (!d) return;
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-plus me-2"></i>Add Product';
     if (d.success) {
@@ -596,22 +604,12 @@ function openEditProduct(productId, product) {
 
   const cat = product.category || 'Fries';
   document.getElementById('editCategory').value = cat;
-
-  // Toggle size fields FIRST so the right one is visible
   onEditCategoryChange();
 
-  // Then populate size into whichever field is now visible
   const size = product.size || '';
   const stdSizes = ['Small','Medium','Large','Mega','Jumbo'];
-  const sizeSelectDiv = document.getElementById('editSizeSelectDiv');
-  const selectVisible = !sizeSelectDiv.classList.contains('d-none');
-  if (selectVisible && stdSizes.includes(size)) {
+  if (cat === 'Fries' && stdSizes.includes(size)) {
     document.getElementById('editSizeSelect').value = size;
-  } else if (selectVisible) {
-    // Non-standard size for Fries — switch to custom input
-    document.getElementById('editSizeSelectDiv').classList.add('d-none');
-    document.getElementById('editSizeCustomDiv').classList.remove('d-none');
-    document.getElementById('editSizeCustom').value = size;
   } else {
     document.getElementById('editSizeCustom').value = size;
   }
@@ -654,14 +652,9 @@ function saveEditProduct() {
   const cat = document.getElementById('editCategory').value;
 
   let size = '';
-  const sizeSelectDiv = document.getElementById('editSizeSelectDiv');
-  const sizeCustomDiv = document.getElementById('editSizeCustomDiv');
-  const sizeSelectHidden = sizeSelectDiv && sizeSelectDiv.classList.contains('d-none');
-  if (!sizeSelectHidden) {
-    // Dropdown visible (Fries)
+  if (cat === 'Fries') {
     size = document.getElementById('editSizeSelect').value;
   } else {
-    // Custom text input visible (Drinks/Snacks/Others)
     size = document.getElementById('editSizeCustom').value.trim();
   }
 
@@ -692,8 +685,9 @@ function saveEditProduct() {
     method: 'POST',
     body: formData
   })
-  .then(r => { if (!r.ok) throw new Error('Server error: ' + r.status); return r.json(); })
+  .then(r => handleFetchResponse(r))
   .then(d => {
+    if (!d) return;
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-save me-2"></i>Save Changes';
     if (d.success) {
@@ -729,8 +723,9 @@ function executeDeleteProduct() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
 
   fetch('/admin/product/' + productId + '/delete', { method: 'POST' })
-  .then(r => { if (!r.ok) throw new Error('Server error: ' + r.status); return r.json(); })
+  .then(r => handleFetchResponse(r))
   .then(d => {
+    if (!d) return;
     if (d.success) {
       bootstrap.Modal.getInstance(document.getElementById('deleteProductModal')).hide();
       const card = document.getElementById('prod-' + productId);
