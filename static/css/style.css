@@ -46,7 +46,9 @@ a:hover{color:var(--green-dark)}
 .particle-2{width:120px;height:120px;background:var(--green-light);top:80%;left:20%;animation-duration:26s;animation-delay:-12s}
 .particle-3{width:40px;height:40px;background:var(--gold-dark);top:30%;left:70%;animation-duration:20s;animation-delay:-8s}
 @keyframes floatParticle{0%{transform:translateY(0) rotate(0)}50%{transform:translateY(-30px) rotate(180deg)}100%{transform:translateY(0) rotate(360deg)}}
-nav,main,footer,.admin-layout{position:relative;z-index:1}
+nav,footer{position:relative;z-index:1}
+main{position:relative;}
+.admin-layout{position:relative;}
 
 /* NAVBAR */
 .navbar{background:linear-gradient(135deg,var(--green-dark) 0%,var(--green-mid) 100%) !important;box-shadow:0 4px 24px rgba(0,0,0,.22);padding:.7rem 0;position:sticky;top:0;z-index:1040}

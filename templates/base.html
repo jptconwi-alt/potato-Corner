@@ -273,6 +273,13 @@
 </div>
 
 <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.modal').forEach(function(m) {
+      if (m.parentElement !== document.body) {
+        document.body.appendChild(m);
+      }
+    });
+  });
 /* ── Global Auth Overlay ── */
 let _gPendingCb = null;
 
