@@ -154,6 +154,17 @@ def register_routes(app):
 
     @app.route('/logout')
     def logout():
+        # Re-attach the user's cart items to the session so they survive logout
+        if current_user.is_authenticated:
+            sid = get_session_id()
+            from models import CartItem
+            user_items = CartItem.query.filter_by(user_id=current_user.id).all()
+            for item in user_items:
+                item.session_id = sid
+                item.user_id = None
+            from models import db
+            db.session.commit()
+
         logout_user()          # Flask-Login: clears user, queues remember cookie deletion
         session.pop('user_id', None)   # remove only our custom key, NOT session.clear()
         session.modified = True
