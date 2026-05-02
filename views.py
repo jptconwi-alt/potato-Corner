@@ -644,7 +644,9 @@ def register_routes(app):
     @admin_required
     def admin_sales_report():
         from datetime import timedelta
-        period = request.args.get('period', 'today')  # today | week | month | year
+        from collections import defaultdict
+        import calendar as cal_mod
+        period = request.args.get('period', 'month')
         now = datetime.utcnow()
 
         if period == 'today':
@@ -661,8 +663,8 @@ def register_routes(app):
             start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
             label = 'This Year'
         else:
-            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            label = 'Today'
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            label = 'This Month'
 
         period_orders = Order.query.filter(Order.order_date >= start).order_by(Order.order_date.desc()).all()
         delivered = [o for o in period_orders if o.status == 'Delivered']
@@ -671,17 +673,60 @@ def register_routes(app):
         total_delivered = len(delivered)
         cancelled = sum(1 for o in period_orders if o.status == 'Cancelled')
 
-        # Build daily breakdown for chart
-        from collections import defaultdict
-        daily = defaultdict(float)
-        for o in delivered:
-            day_key = o.order_date.strftime('%Y-%m-%d')
-            daily[day_key] += o.total_amount
-        chart_labels = sorted(daily.keys())
-        chart_data = [daily[k] for k in chart_labels]
+        # Auto-summary snapshots (always computed regardless of period filter)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        year_start  = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        all_delivered = Order.query.filter(Order.status == 'Delivered').all()
+        auto_today = sum(o.total_amount for o in all_delivered if o.order_date >= today_start)
+        auto_month = sum(o.total_amount for o in all_delivered if o.order_date >= month_start)
+        auto_year  = sum(o.total_amount for o in all_delivered if o.order_date >= year_start)
+        auto_total = sum(o.total_amount for o in all_delivered)
+
+        # Chart data based on selected period
+        if period == 'today':
+            income_by  = defaultdict(float)
+            orders_by  = defaultdict(int)
+            for o in delivered:
+                income_by[o.order_date.hour] += o.total_amount
+            for o in period_orders:
+                orders_by[o.order_date.hour] += 1
+            chart_labels      = [f'{h:02d}:00' for h in range(24)]
+            chart_data        = [income_by.get(h, 0) for h in range(24)]
+            orders_chart_data = [orders_by.get(h, 0) for h in range(24)]
+        elif period == 'week':
+            income_by  = defaultdict(float)
+            orders_by  = defaultdict(int)
+            for o in delivered:
+                income_by[o.order_date.weekday()] += o.total_amount
+            for o in period_orders:
+                orders_by[o.order_date.weekday()] += 1
+            chart_labels      = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+            chart_data        = [income_by.get(i, 0) for i in range(7)]
+            orders_chart_data = [orders_by.get(i, 0) for i in range(7)]
+        elif period == 'month':
+            days_in = cal_mod.monthrange(now.year, now.month)[1]
+            income_by  = defaultdict(float)
+            orders_by  = defaultdict(int)
+            for o in delivered:
+                income_by[o.order_date.day] += o.total_amount
+            for o in period_orders:
+                orders_by[o.order_date.day] += 1
+            chart_labels      = [str(d) for d in range(1, days_in + 1)]
+            chart_data        = [income_by.get(d, 0) for d in range(1, days_in + 1)]
+            orders_chart_data = [orders_by.get(d, 0) for d in range(1, days_in + 1)]
+        else:  # year
+            income_by  = defaultdict(float)
+            orders_by  = defaultdict(int)
+            for o in delivered:
+                income_by[o.order_date.month] += o.total_amount
+            for o in period_orders:
+                orders_by[o.order_date.month] += 1
+            chart_labels      = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+            chart_data        = [income_by.get(m, 0) for m in range(1, 13)]
+            orders_chart_data = [orders_by.get(m, 0) for m in range(1, 13)]
 
         # Top products in period
-        from models import OrderItem
         product_sales = defaultdict(lambda: {'qty': 0, 'revenue': 0.0})
         for o in delivered:
             for item in o.items:
@@ -692,8 +737,7 @@ def register_routes(app):
         pending_count = Order.query.filter(Order.status == 'Pending').count()
 
         return render_template('admin/sales_report.html',
-                               period=period,
-                               label=label,
+                               period=period, label=label,
                                period_orders=period_orders,
                                total_income=total_income,
                                total_orders=total_orders,
@@ -701,8 +745,13 @@ def register_routes(app):
                                cancelled=cancelled,
                                chart_labels=chart_labels,
                                chart_data=chart_data,
+                               orders_chart_data=orders_chart_data,
                                top_products=top_products,
                                pending_count=pending_count,
+                               auto_today=auto_today,
+                               auto_month=auto_month,
+                               auto_year=auto_year,
+                               auto_total=auto_total,
                                now=now)
 
     # ── Admin: Export Reports ────────────────

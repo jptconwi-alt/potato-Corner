@@ -3,11 +3,89 @@
 
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+/* Auto-Summary Strip */
+.auto-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 1.5rem;
+}
+@media (max-width: 768px) { .auto-summary-strip { grid-template-columns: repeat(2, 1fr); } }
+.asum-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  border: 1.5px solid #e2e8f0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0,0,0,.05);
+  transition: transform .18s, box-shadow .18s;
+}
+.asum-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
+.asum-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 14px 14px 0 0;
+}
+.asum-today::after  { background: #3b82f6; }
+.asum-month::after  { background: #10b981; }
+.asum-year::after   { background: #f59e0b; }
+.asum-total::after  { background: #8b5cf6; }
+.asum-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  margin-bottom: .6rem;
+}
+.asum-today  .asum-icon { background: #eff6ff; color: #3b82f6; }
+.asum-month  .asum-icon { background: #ecfdf5; color: #10b981; }
+.asum-year   .asum-icon { background: #fffbeb; color: #f59e0b; }
+.asum-total  .asum-icon { background: #f5f3ff; color: #8b5cf6; }
+.asum-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; margin-bottom: 2px; }
+.asum-value { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1.1; }
+.asum-sub   { font-size: .72rem; color: #94a3b8; margin-top: 3px; }
+
+/* Period Filter */
+.sales-period-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+.sales-period-label { font-weight: 600; color: #475569; font-size: .9rem; white-space: nowrap; }
+.sales-period-tabs { display: flex; gap: .4rem; flex-wrap: wrap; }
+.sales-period-tab {
+  padding: .45rem 1.1rem; border-radius: 8px; font-size: .85rem; font-weight: 500;
+  background: #f1f5f9; color: #475569; text-decoration: none; border: 2px solid transparent; transition: all .2s;
+}
+.sales-period-tab:hover { background: #fef9ec; border-color: #f59e0b; color: #b45309; }
+.sales-period-tab.active { background: #f59e0b; color: #fff; border-color: #d97706; box-shadow: 0 2px 8px rgba(245,158,11,.35); }
+
+/* Period Stats */
+.period-stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1.5rem; }
+@media (max-width:768px) { .period-stats-row { grid-template-columns: repeat(2,1fr); } }
+
+/* Chart legend */
+.chart-legend { display: flex; gap: 1.5rem; margin-bottom: .75rem; font-size: .8rem; font-weight: 600; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+
+/* Top Products */
+.top-products-list { list-style:none; margin:0; padding:0; }
+.top-product-item { display:flex; align-items:center; gap:.75rem; padding:.75rem 1.25rem; border-bottom:1px solid #f1f5f9; transition:background .15s; }
+.top-product-item:last-child { border-bottom:none; }
+.top-product-item:hover { background:#fef9ec; }
+.top-product-rank { width:26px; height:26px; border-radius:50%; background:#f59e0b; color:#fff; font-weight:700; font-size:.78rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.top-product-item:nth-child(1) .top-product-rank { background:#f59e0b; }
+.top-product-item:nth-child(2) .top-product-rank { background:#94a3b8; }
+.top-product-item:nth-child(3) .top-product-rank { background:#b45309; }
+.top-product-info { flex:1; min-width:0; }
+.top-product-name { font-weight:600; font-size:.88rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.top-product-meta { font-size:.78rem; color:#94a3b8; }
+.top-product-revenue { font-weight:700; color:#059669; font-size:.9rem; white-space:nowrap; }
+</style>
 {% endblock %}
 
 {% block content %}
 <div class="admin-layout">
-  <!-- Sidebar -->
   <aside class="admin-sidebar" id="adminSidebar">
     <div class="admin-sidebar-header">
       <div class="admin-logo">🍟</div>
@@ -41,21 +119,54 @@
   </aside>
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-  <!-- Main -->
   <div class="admin-main">
     <div class="admin-topbar">
       <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div class="admin-topbar-title"><i class="fas fa-chart-line me-2"></i>Sales Report</div>
-      <div class="admin-topbar-actions">
+      <div class="admin-topbar-actions" style="display:flex;gap:8px;align-items:center;">
         <span class="admin-date"><i class="fas fa-calendar me-1"></i>{{ now.strftime('%B %d, %Y') }}</span>
+        <a href="{{ url_for('admin_export_report', type='orders', format='csv') }}" class="btn-report csv" title="Export CSV" style="padding:7px 12px;border-radius:8px;">
+          <i class="fas fa-file-csv"></i><span>CSV</span>
+        </a>
+        <a href="{{ url_for('admin_export_report', type='orders', format='pdf') }}" class="btn-report pdf" title="Export PDF" style="padding:7px 12px;border-radius:8px;">
+          <i class="fas fa-file-pdf"></i><span>PDF</span>
+        </a>
       </div>
     </div>
 
     <div class="admin-content">
 
+      <!-- Auto-Recorded Summary Strip -->
+      <div class="auto-summary-strip">
+        <div class="asum-card asum-today">
+          <div class="asum-icon"><i class="fas fa-sun"></i></div>
+          <div class="asum-label">Today's Income</div>
+          <div class="asum-value">₱{{ "%.2f"|format(auto_today) }}</div>
+          <div class="asum-sub">Auto-recorded live</div>
+        </div>
+        <div class="asum-card asum-month">
+          <div class="asum-icon"><i class="fas fa-calendar-alt"></i></div>
+          <div class="asum-label">This Month</div>
+          <div class="asum-value">₱{{ "%.2f"|format(auto_month) }}</div>
+          <div class="asum-sub">{{ now.strftime('%B %Y') }}</div>
+        </div>
+        <div class="asum-card asum-year">
+          <div class="asum-icon"><i class="fas fa-calendar"></i></div>
+          <div class="asum-label">This Year</div>
+          <div class="asum-value">₱{{ "%.2f"|format(auto_year) }}</div>
+          <div class="asum-sub">{{ now.strftime('%Y') }}</div>
+        </div>
+        <div class="asum-card asum-total">
+          <div class="asum-icon"><i class="fas fa-coins"></i></div>
+          <div class="asum-label">All-Time Revenue</div>
+          <div class="asum-value">₱{{ "%.2f"|format(auto_total) }}</div>
+          <div class="asum-sub">All delivered orders</div>
+        </div>
+      </div>
+
       <!-- Period Filter -->
       <div class="sales-period-bar">
-        <span class="sales-period-label"><i class="fas fa-filter me-1"></i>Filter by Income:</span>
+        <span class="sales-period-label"><i class="fas fa-filter me-1"></i>View Detail:</span>
         <div class="sales-period-tabs">
           <a href="{{ url_for('admin_sales_report', period='today') }}"
              class="sales-period-tab {% if period == 'today' %}active{% endif %}">
@@ -76,8 +187,8 @@
         </div>
       </div>
 
-      <!-- Summary Stats -->
-      <div class="admin-stats-grid" style="margin-bottom:1.5rem;">
+      <!-- Period Stats -->
+      <div class="period-stats-row">
         <div class="stat-card stat-purple">
           <div class="stat-card-icon"><i class="fas fa-peso-sign"></i></div>
           <div class="stat-card-data">
@@ -115,17 +226,21 @@
       <!-- Chart + Top Products -->
       <div class="admin-dashboard-grid" style="margin-bottom:1.5rem;">
 
-        <!-- Income Chart -->
+        <!-- Income + Orders Chart -->
         <div class="admin-card admin-card-wide">
           <div class="admin-card-header">
-            <h3><i class="fas fa-chart-bar me-2"></i>Income Breakdown — {{ label }}</h3>
+            <h3><i class="fas fa-chart-line me-2"></i>Income & Orders — {{ label }}</h3>
           </div>
           <div class="admin-card-body" style="padding:1.25rem;">
             {% if chart_labels %}
-            <canvas id="incomeChart" style="max-height:280px;"></canvas>
+            <div class="chart-legend">
+              <span><span class="legend-dot" style="background:#10b981;"></span>Income (₱)</span>
+              <span><span class="legend-dot" style="background:#3b82f6;"></span>Orders</span>
+            </div>
+            <canvas id="incomeChart" style="max-height:300px;"></canvas>
             {% else %}
             <div style="text-align:center;padding:3rem;color:#94a3b8;">
-              <i class="fas fa-chart-bar" style="font-size:2.5rem;margin-bottom:.75rem;display:block;"></i>
+              <i class="fas fa-chart-line" style="font-size:2.5rem;margin-bottom:.75rem;display:block;"></i>
               No delivered orders in this period yet.
             </div>
             {% endif %}
@@ -135,7 +250,7 @@
         <!-- Top Products -->
         <div class="admin-card">
           <div class="admin-card-header">
-            <h3><i class="fas fa-trophy me-2"></i>Top Products</h3>
+            <h3><i class="fas fa-trophy me-2"></i>Top Products — {{ label }}</h3>
           </div>
           <div class="admin-card-body p-0">
             {% if top_products %}
@@ -204,90 +319,9 @@
         </div>
       </div>
 
-    </div><!-- /admin-content -->
-  </div><!-- /admin-main -->
-</div><!-- /admin-layout -->
-
-<style>
-/* Period filter bar */
-.sales-period-bar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-}
-.sales-period-label {
-  font-weight: 600;
-  color: #475569;
-  font-size: .9rem;
-  white-space: nowrap;
-}
-.sales-period-tabs {
-  display: flex;
-  gap: .4rem;
-  flex-wrap: wrap;
-}
-.sales-period-tab {
-  padding: .45rem 1.1rem;
-  border-radius: 8px;
-  font-size: .85rem;
-  font-weight: 500;
-  background: #f1f5f9;
-  color: #475569;
-  text-decoration: none;
-  border: 2px solid transparent;
-  transition: all .2s;
-}
-.sales-period-tab:hover {
-  background: #fef9ec;
-  border-color: #f59e0b;
-  color: #b45309;
-}
-.sales-period-tab.active {
-  background: #f59e0b;
-  color: #fff;
-  border-color: #d97706;
-  box-shadow: 0 2px 8px rgba(245,158,11,.35);
-}
-
-/* Top products list */
-.top-products-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.top-product-item {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  padding: .75rem 1.25rem;
-  border-bottom: 1px solid #f1f5f9;
-  transition: background .15s;
-}
-.top-product-item:last-child { border-bottom: none; }
-.top-product-item:hover { background: #fef9ec; }
-.top-product-rank {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #f59e0b;
-  color: #fff;
-  font-weight: 700;
-  font-size: .78rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.top-product-item:nth-child(1) .top-product-rank { background: #f59e0b; }
-.top-product-item:nth-child(2) .top-product-rank { background: #94a3b8; }
-.top-product-item:nth-child(3) .top-product-rank { background: #b45309; }
-.top-product-info { flex: 1; min-width: 0; }
-.top-product-name { font-weight: 600; font-size: .88rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.top-product-meta { font-size: .78rem; color: #94a3b8; }
-.top-product-revenue { font-weight: 700; color: #059669; font-size: .9rem; white-space: nowrap; }
-</style>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -303,31 +337,70 @@ new Chart(ctx, {
   type: 'bar',
   data: {
     labels: {{ chart_labels | tojson }},
-    datasets: [{
-      label: 'Income (₱)',
-      data: {{ chart_data | tojson }},
-      backgroundColor: 'rgba(245,158,11,0.75)',
-      borderColor: '#d97706',
-      borderWidth: 2,
-      borderRadius: 6,
-    }]
+    datasets: [
+      {
+        label: 'Income (₱)',
+        data: {{ chart_data | tojson }},
+        backgroundColor: 'rgba(16,185,129,0.7)',
+        borderColor: '#059669',
+        borderWidth: 2,
+        borderRadius: 6,
+        yAxisID: 'yIncome',
+        order: 2,
+      },
+      {
+        label: 'Orders',
+        data: {{ orders_chart_data | tojson }},
+        type: 'line',
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#3b82f6',
+        pointRadius: 4,
+        fill: true,
+        tension: 0.4,
+        yAxisID: 'yOrders',
+        order: 1,
+      }
+    ]
   },
   options: {
     responsive: true,
+    interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
       tooltip: {
         callbacks: {
-          label: ctx => '₱' + ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2})
+          label: ctx => {
+            if (ctx.dataset.label === 'Income (₱)')
+              return '  ₱' + ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2});
+            return '  ' + ctx.parsed.y + ' orders';
+          }
         }
       }
     },
     scales: {
-      y: {
+      yIncome: {
+        type: 'linear',
+        position: 'left',
         beginAtZero: true,
         ticks: {
-          callback: val => '₱' + val.toLocaleString()
-        }
+          callback: val => '₱' + val.toLocaleString(),
+          color: '#059669',
+          font: { weight: '600' }
+        },
+        grid: { color: 'rgba(0,0,0,.06)' }
+      },
+      yOrders: {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1,
+          color: '#3b82f6',
+          font: { weight: '600' }
+        },
+        grid: { drawOnChartArea: false }
       }
     }
   }
