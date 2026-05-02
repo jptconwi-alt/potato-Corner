@@ -153,9 +153,149 @@
   gap: 2rem;
   align-items: start;
 }
-@media (max-width: 768px) {
-  .cart-layout-grid { grid-template-columns: 1fr; }
+
+/* ═══════════════════════════════════════════════
+   MOBILE CART — ≤ 767px
+   ═══════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  .cart-layout-grid { grid-template-columns: 1fr; gap: 1rem; }
   .cart-summary-panel { position: static; }
+
+  /* Cart section padding */
+  .cart-section { padding: 1rem 0 1.5rem; }
+
+  /* ── Item card: keep everything on ONE row ── */
+  .cart-item-card {
+    gap: 0.5rem;
+    padding: 0.65rem 0.75rem !important;
+    align-items: center;
+  }
+
+  /* Checkbox */
+  .item-checkbox { width: 17px; height: 17px; }
+
+  /* Product image */
+  .cart-item-img {
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px;
+    border-radius: 8px;
+  }
+  .cart-item-img img {
+    width: 56px !important;
+    height: 56px !important;
+    object-fit: contain;
+    border-radius: 8px;
+    padding: 4px;
+  }
+  .cart-img-placeholder { font-size: 1.5rem; }
+
+  /* Info block — shrinks to fill space */
+  .cart-item-info {
+    flex: 1;
+    min-width: 0;
+  }
+  .cart-item-name {
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.15rem;
+  }
+  .cart-item-meta { gap: 0.25rem; margin-bottom: 0.15rem; }
+  .flavor-tag, .size-tag {
+    font-size: 0.6rem;
+    padding: 0.08rem 0.38rem;
+  }
+  .cart-item-price { font-size: 0.7rem; }
+
+  /* Actions block — stacked vertically, right-aligned */
+  .cart-item-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.3rem;
+    flex-shrink: 0;
+  }
+
+  /* Top row inside actions: subtotal + delete */
+  .cart-item-actions-top {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  /* Qty control */
+  .cart-qty-control { gap: 4px; }
+  .cart-qty-btn {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 0.85rem !important;
+  }
+  .cart-qty-val { font-size: 0.78rem !important; min-width: 16px; }
+
+  /* Subtotal */
+  .cart-item-subtotal {
+    font-size: 0.82rem !important;
+    font-weight: 800;
+    min-width: 48px;
+    text-align: right;
+  }
+
+  /* Delete button */
+  .cart-remove-btn {
+    font-size: 0.72rem !important;
+    padding: 2px 5px;
+    color: #d1d5db;
+  }
+
+  /* Select-all bar */
+  .select-all-bar {
+    font-size: 0.78rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    border-radius: 8px;
+  }
+  .select-all-bar input[type=checkbox] { width: 16px; height: 16px; }
+
+  /* Continue shopping link */
+  .btn-continue-shopping {
+    font-size: 0.8rem !important;
+    padding: 0.45rem 0.75rem;
+  }
+
+  /* Summary panel */
+  .cart-summary-panel {
+    padding: 1rem;
+    border-radius: 12px;
+    margin-top: 0;
+  }
+  .summary-title {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+  .summary-row { font-size: 0.8rem; margin-bottom: 0.4rem; }
+  .summary-total-row { font-size: 0.95rem; margin-bottom: 0.85rem; }
+  .delivery-note { font-size: 0.7rem; }
+  .btn-proceed {
+    padding: 0.72rem 1rem;
+    font-size: 0.88rem;
+    border-radius: 10px;
+  }
+  .selected-count-note { font-size: 0.7rem; margin-top: 0.45rem; }
+  .free-tag { font-size: 0.68rem; padding: 1px 7px; }
+}
+
+/* ── Extra small phones ≤ 390px ── */
+@media (max-width: 390px) {
+  .cart-item-card { padding: 0.55rem 0.6rem !important; }
+  .cart-item-img { width: 48px !important; height: 48px !important; min-width: 48px; }
+  .cart-item-img img { width: 48px !important; height: 48px !important; }
+  .cart-item-name { font-size: 0.75rem; }
+  .cart-qty-btn { width: 20px !important; height: 20px !important; font-size: 0.8rem !important; }
+  .cart-item-subtotal { font-size: 0.78rem !important; min-width: 42px; }
 }
 </style>
 {% endblock %}
@@ -214,15 +354,17 @@
           </div>
 
           <div class="cart-item-actions">
+            <div class="cart-item-actions-top">
+              <div class="cart-item-subtotal" id="subtotal-{{ item.id }}">₱{{ "%.0f"|format(item.product.price * item.quantity) }}</div>
+              <button class="cart-remove-btn" onclick="removeItem({{ item.id }})">
+                <i class="fas fa-trash-alt"></i>
+              </button>
+            </div>
             <div class="cart-qty-control">
               <button class="cart-qty-btn" onclick="changeQty({{ item.id }}, -1)">−</button>
               <span class="cart-qty-val" id="qty-display-{{ item.id }}">{{ item.quantity }}</span>
               <button class="cart-qty-btn" onclick="changeQty({{ item.id }}, +1)">+</button>
             </div>
-            <div class="cart-item-subtotal" id="subtotal-{{ item.id }}">₱{{ "%.0f"|format(item.product.price * item.quantity) }}</div>
-            <button class="cart-remove-btn" onclick="removeItem({{ item.id }})">
-              <i class="fas fa-trash-alt"></i>
-            </button>
           </div>
         </div>
         {% endfor %}
