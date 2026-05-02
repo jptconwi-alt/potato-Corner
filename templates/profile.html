@@ -1,6 +1,199 @@
 {% extends "base.html" %}
 {% block title %}Profile — Potato Corner{% endblock %}
 
+{% block extra_css %}
+<style>
+/* ══════════════════════════════════════════
+   Profile page — mobile-first, iOS-safe
+══════════════════════════════════════════ */
+
+/* Page wrapper */
+.profile-section {
+  padding: 1.5rem 0 3rem;
+}
+
+/* Two-column layout (desktop) */
+.profile-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+/* ── Sidebar card ── */
+.profile-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 2rem 1.5rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  border: 1.5px solid #f3f4f6;
+  position: sticky;
+  top: 90px;
+}
+.profile-avatar-big {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-family: 'Fredoka One', cursive;
+  font-size: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.85rem;
+}
+.profile-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.25rem;
+  word-break: break-word;
+}
+.profile-email {
+  font-size: 0.82rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+  word-break: break-all;
+}
+.admin-badge-profile {
+  display: inline-flex;
+  align-items: center;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 12px;
+  border-radius: 99px;
+  margin-bottom: 0.85rem;
+}
+.profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 1.25rem;
+}
+.profile-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.profile-stat strong {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.4rem;
+  color: #f59e0b;
+  line-height: 1.2;
+}
+.profile-stat span {
+  font-size: 0.7rem;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Logout button ── */
+.btn-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  background: #fff1f2;
+  color: #e11d48;
+  font-weight: 700;
+  font-size: 0.92rem;
+  border: 1.5px solid #fecdd3;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: all 0.2s;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-logout:hover,
+.btn-logout:active {
+  background: #e11d48;
+  color: #fff;
+  border-color: #e11d48;
+  text-decoration: none;
+}
+
+/* ── Edit form card ── */
+.profile-form-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 1.75rem;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  border: 1.5px solid #f3f4f6;
+}
+.profile-form-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #1e293b;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px dashed #f3f4f6;
+}
+
+/* ── Responsive: tablet ── */
+@media (max-width: 900px) {
+  .profile-layout {
+    grid-template-columns: 1fr;
+  }
+  .profile-card {
+    position: static;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+}
+
+/* ── Responsive: mobile ── */
+@media (max-width: 600px) {
+  .profile-section {
+    padding: 1rem 0 2rem;
+  }
+  .profile-form-card {
+    padding: 1.25rem 1rem;
+    border-radius: 14px;
+  }
+  .profile-card {
+    padding: 1.5rem 1rem 1.25rem;
+    border-radius: 14px;
+    max-width: 100%;
+  }
+  /* Stack 2-col form rows to single column */
+  .profile-form-card .form-row-2 {
+    grid-template-columns: 1fr !important;
+  }
+  /* Bigger tap targets for iOS */
+  .form-control-custom {
+    font-size: 16px !important; /* prevents iOS zoom on focus */
+    min-height: 48px;
+  }
+  .btn-logout,
+  .btn-auth-submit {
+    min-height: 48px;
+    font-size: 1rem;
+  }
+  .profile-stats {
+    gap: 1.25rem;
+  }
+}
+
+/* iOS rubber-band / overscroll safety */
+.profile-section * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+input, textarea, select {
+  /* Prevent iOS zoom on focus for inputs < 16px */
+  font-size: max(16px, 1em);
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header-section">
   <div class="container">
@@ -13,79 +206,132 @@
 <section class="profile-section">
   <div class="container">
     <div class="profile-layout">
-      <!-- Profile Card -->
+
+      <!-- ── Sidebar: avatar + stats + logout ── -->
       <div class="profile-side">
         <div class="profile-card">
-          <div class="profile-avatar-big">{{ current_user.full_name[0].upper() }}</div>
+          <div class="profile-avatar-big">
+            {{ current_user.full_name[0].upper() if current_user.full_name else '?' }}
+          </div>
           <h3 class="profile-name">{{ current_user.full_name }}</h3>
           <p class="profile-email">{{ current_user.email }}</p>
+
           {% if current_user.is_admin %}
-          <div class="admin-badge-profile"><i class="fas fa-shield-alt me-1"></i>Admin</div>
-          {% endif %}
-          <div class="profile-stats">
-            <div class="profile-stat"><strong>{{ orders|length }}</strong><span>Orders</span></div>
-            <div class="profile-stat"><strong>{{ current_user.created_at.strftime('%Y') }}</strong><span>Member Since</span></div>
+          <div class="admin-badge-profile">
+            <i class="fas fa-shield-alt me-1"></i>Admin
           </div>
+          {% endif %}
+
+          <div class="profile-stats">
+            <div class="profile-stat">
+              <strong>{{ orders|length }}</strong>
+              <span>Orders</span>
+            </div>
+            <div class="profile-stat">
+              <strong>{{ current_user.created_at.strftime('%Y') }}</strong>
+              <span>Member</span>
+            </div>
+          </div>
+
+          <!-- Logout button -->
+          <a href="{{ url_for('logout') }}" class="btn-logout"
+             onclick="return confirm('Are you sure you want to log out?')">
+            <i class="fas fa-sign-out-alt"></i> Log Out
+          </a>
         </div>
       </div>
 
-      <!-- Edit Form -->
+      <!-- ── Main: edit form ── -->
       <div class="profile-main">
-        <div class="checkout-card">
-          <h3 class="checkout-card-title"><i class="fas fa-edit me-2"></i>Edit Profile</h3>
-          <form method="POST" action="{{ url_for('profile') }}" class="auth-form">
+        <div class="profile-form-card">
+          <h3 class="profile-form-title">
+            <i class="fas fa-edit me-2"></i>Edit Profile
+          </h3>
+
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+              {% for cat, msg in messages %}
+              <div class="alert alert-{{ 'success' if cat == 'success' else 'danger' }} alert-dismissible"
+                   style="border-radius:10px; font-size:0.9rem; padding:0.75rem 1rem; margin-bottom:1rem;">
+                {{ msg }}
+                <button type="button" onclick="this.parentElement.remove()"
+                        style="background:none;border:none;float:right;font-size:1.1rem;cursor:pointer;line-height:1;">✕</button>
+              </div>
+              {% endfor %}
+            {% endif %}
+          {% endwith %}
+
+          <form method="POST" action="{{ url_for('profile') }}" class="auth-form"
+                autocomplete="on" novalidate>
+
             <div class="form-row-2">
               <div class="form-group-custom">
                 <label class="form-label-custom">Full Name</label>
                 <div class="input-icon-wrap">
                   <i class="fas fa-user input-icon"></i>
-                  <input type="text" name="full_name" class="form-control-custom" value="{{ current_user.full_name }}" required>
+                  <input type="text" name="full_name" class="form-control-custom"
+                         value="{{ current_user.full_name }}"
+                         autocomplete="name" required>
                 </div>
               </div>
               <div class="form-group-custom">
                 <label class="form-label-custom">Phone</label>
                 <div class="input-icon-wrap">
                   <i class="fas fa-phone input-icon"></i>
-                  <input type="text" name="phone" class="form-control-custom" value="{{ current_user.phone or '' }}">
+                  <input type="tel" name="phone" class="form-control-custom"
+                         value="{{ current_user.phone or '' }}"
+                         autocomplete="tel" inputmode="tel">
                 </div>
               </div>
             </div>
+
             <div class="form-group-custom">
               <label class="form-label-custom">Email</label>
               <div class="input-icon-wrap">
                 <i class="fas fa-envelope input-icon"></i>
-                <input type="email" name="email" class="form-control-custom" value="{{ current_user.email }}" required>
+                <input type="email" name="email" class="form-control-custom"
+                       value="{{ current_user.email }}"
+                       autocomplete="email" inputmode="email" required>
               </div>
             </div>
+
             <div class="form-group-custom">
               <label class="form-label-custom">Street / House No.</label>
               <div class="input-icon-wrap">
                 <i class="fas fa-home input-icon"></i>
-                <input type="text" name="street" class="form-control-custom" value="{{ current_user.street or '' }}">
+                <input type="text" name="street" class="form-control-custom"
+                       value="{{ current_user.street or '' }}"
+                       autocomplete="address-line1">
               </div>
             </div>
+
             <div class="form-row-2">
               <div class="form-group-custom">
                 <label class="form-label-custom">Barangay</label>
                 <div class="input-icon-wrap">
                   <i class="fas fa-map-pin input-icon"></i>
-                  <input type="text" name="barangay" class="form-control-custom" value="{{ current_user.barangay or '' }}">
+                  <input type="text" name="barangay" class="form-control-custom"
+                         value="{{ current_user.barangay or '' }}">
                 </div>
               </div>
               <div class="form-group-custom">
                 <label class="form-label-custom">City</label>
                 <div class="input-icon-wrap">
                   <i class="fas fa-city input-icon"></i>
-                  <input type="text" name="city" class="form-control-custom" value="{{ current_user.city or '' }}">
+                  <input type="text" name="city" class="form-control-custom"
+                         value="{{ current_user.city or '' }}"
+                         autocomplete="address-level2">
                 </div>
               </div>
             </div>
-            <button type="submit" class="btn-auth-submit">
+
+            <button type="submit" class="btn-auth-submit" style="margin-top:0.5rem;">
               <i class="fas fa-save me-2"></i>Save Changes
             </button>
           </form>
         </div>
       </div>
+
     </div>
   </div>
 </section>
