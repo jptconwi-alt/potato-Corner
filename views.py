@@ -569,18 +569,11 @@ def register_routes(app):
         if not product:
             return jsonify({'success': False, 'message': 'Product not found'})
         try:
-            from sqlalchemy import text
-            # Use a raw connection so the PRAGMA applies to the exact same
-            # connection that runs the DELETE (PRAGMA foreign_keys is per-connection).
-            with db.engine.connect() as conn:
-                conn.execute(text("PRAGMA foreign_keys = OFF"))
-                conn.execute(text("DELETE FROM order_items WHERE product_id = :pid"), {"pid": product_id})
-                conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": product_id})
-                conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": product_id})
-                conn.execute(text("PRAGMA foreign_keys = ON"))
-                conn.commit()
-            # Keep the ORM session in sync
-            db.session.expire_all()
+            from models import OrderItem, CartItem
+            OrderItem.query.filter_by(product_id=product_id).delete()
+            CartItem.query.filter_by(product_id=product_id).delete()
+            db.session.delete(product)
+            db.session.commit()
             return jsonify({'success': True})
         except Exception as e:
             db.session.rollback()
@@ -595,25 +588,24 @@ def register_routes(app):
         if not ids:
             return jsonify({'success': False, 'message': 'No product IDs provided'})
         try:
-            from sqlalchemy import text
+            from models import OrderItem, CartItem
             deleted = 0
-            with db.engine.connect() as conn:
-                conn.execute(text("PRAGMA foreign_keys = OFF"))
-                for pid in ids:
-                    try:
-                        pid = int(pid)
-                    except (ValueError, TypeError):
-                        continue
-                    # Preserve order history — null out FK before deleting
-                    conn.execute(text("DELETE FROM order_items WHERE product_id = :pid"), {"pid": pid})
-                    conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": pid})
-                    conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": pid})
-                    deleted += 1
-                conn.execute(text("PRAGMA foreign_keys = ON"))
-                conn.commit()
-            db.session.expire_all()
+            for pid in ids:
+                try:
+                    pid = int(pid)
+                except (ValueError, TypeError):
+                    continue
+                product = Product.query.get(pid)
+                if not product:
+                    continue
+                OrderItem.query.filter_by(product_id=pid).delete()
+                CartItem.query.filter_by(product_id=pid).delete()
+                db.session.delete(product)
+                deleted += 1
+            db.session.commit()
             return jsonify({'success': True, 'deleted': deleted})
         except Exception as e:
+            db.session.rollback()
             return jsonify({'success': False, 'message': f'Bulk delete failed: {str(e)}'})
 
     # ── Admin: Sales Report ─────────────────
