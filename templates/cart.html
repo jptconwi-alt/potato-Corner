@@ -370,7 +370,7 @@ function updateCart(itemId, newQty) {
   fetch('/cart/update', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({cart_item_id: itemId, quantity: newQty})
+    body: JSON.stringify({item_id: itemId, quantity: newQty})
   }).then(r => r.json()).then(d => {
     if (d.success) {
       const qtyEl = document.getElementById('qty-display-' + itemId);
@@ -388,7 +388,11 @@ function updateCart(itemId, newQty) {
 
 function removeItem(itemId) {
   if (!confirm('Remove this item from your cart?')) return;
-  fetch('/cart/remove/' + itemId, { method: 'POST' })
+  fetch('/cart/remove', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({item_id: itemId})
+  })
   .then(r => r.json()).then(d => {
     if (d.success) {
       const card = document.getElementById('cart-item-' + itemId);
