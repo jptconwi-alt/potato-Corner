@@ -228,6 +228,232 @@
 }
 .btn-use-my-location:hover { background: #0d47a1; transform: translateY(-1px); }
 .btn-use-my-location:disabled { background: #90a4ae; cursor: not-allowed; }
+
+/* ════════════════════════════════════════════
+   CHECKOUT — Mobile / iOS  (≤ 767px)
+════════════════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* Stack the two columns */
+  .checkout-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.85rem !important;
+  }
+
+  /* Cards */
+  .checkout-card {
+    padding: 0.85rem 0.9rem !important;
+    border-radius: 12px !important;
+    margin-bottom: 0.75rem !important;
+  }
+  .checkout-card-title {
+    font-size: 0.82rem !important;
+    margin-bottom: 0.7rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+
+  /* Security badge */
+  .security-badge {
+    font-size: 0.72rem !important;
+    padding: 0.45rem 0.7rem !important;
+    margin-bottom: 0.75rem !important;
+    border-radius: 8px !important;
+  }
+
+  /* Address badges */
+  .address-complete-badge,
+  .address-incomplete-badge {
+    font-size: 0.7rem !important;
+    padding: 0.25rem 0.6rem !important;
+    margin-bottom: 0.55rem !important;
+  }
+
+  /* Form rows — always single column on mobile */
+  .checkout-form .form-row-2 {
+    grid-template-columns: 1fr !important;
+    gap: 0 !important;
+  }
+
+  /* Form groups */
+  .form-group-custom {
+    margin-bottom: 0.6rem !important;
+  }
+  .form-label-custom {
+    font-size: 0.68rem !important;
+    margin-bottom: 0.15rem !important;
+  }
+
+  /* Inputs */
+  .form-control-custom {
+    font-size: 16px !important;   /* prevents iOS zoom */
+    padding: 0.5rem 0.65rem 0.5rem 2rem !important;
+    border-radius: 8px !important;
+    min-height: 42px !important;
+  }
+  textarea.form-control-custom {
+    padding-top: 0.5rem !important;
+    min-height: 60px !important;
+    rows: 2 !important;
+  }
+  .input-icon {
+    font-size: 0.75rem !important;
+    left: 9px !important;
+  }
+  .input-hint,
+  .input-error {
+    font-size: 0.68rem !important;
+    margin-top: 2px !important;
+  }
+
+  /* Map */
+  .map-section {
+    padding: 0.75rem !important;
+    border-radius: 10px !important;
+    margin-top: 0.65rem !important;
+  }
+  .map-section-title {
+    font-size: 0.8rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+  .map-hint {
+    font-size: 0.68rem !important;
+    padding: 0.35rem 0.6rem !important;
+    margin-bottom: 0.5rem !important;
+    border-radius: 6px !important;
+  }
+  #deliveryMap {
+    height: 200px !important;
+    border-radius: 8px !important;
+  }
+  .btn-use-my-location {
+    font-size: 0.72rem !important;
+    padding: 0.38rem 0.7rem !important;
+    border-radius: 6px !important;
+    margin-top: 0.45rem !important;
+  }
+  .map-pin-set-indicator {
+    font-size: 0.7rem !important;
+    padding: 0.3rem 0.6rem !important;
+  }
+  .map-coords-display {
+    font-size: 0.68rem !important;
+    margin-top: 0.4rem !important;
+  }
+  .coord-badge {
+    font-size: 0.65rem !important;
+    padding: 1px 5px !important;
+  }
+
+  /* Payment options */
+  .payment-options {
+    gap: 0.5rem !important;
+  }
+  .payment-option {
+    border-radius: 9px !important;
+    padding: 0 !important;
+  }
+  .payment-option-inner {
+    padding: 0.6rem 0.75rem !important;
+    gap: 0.55rem !important;
+  }
+  .payment-icon {
+    font-size: 1.1rem !important;
+  }
+  .payment-name {
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+  }
+  .payment-desc {
+    font-size: 0.68rem !important;
+  }
+  .payment-secure-tag {
+    font-size: 0.6rem !important;
+    padding: 1px 5px !important;
+  }
+  #ewalletNotice {
+    font-size: 0.75rem !important;
+    padding: 0.6rem 0.75rem !important;
+    margin-top: 0.6rem !important;
+    border-radius: 8px !important;
+  }
+
+  /* Place order button */
+  .btn-place-order {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.9rem !important;
+    border-radius: 10px !important;
+  }
+  .rate-notice {
+    font-size: 0.68rem !important;
+    margin-top: 0.5rem !important;
+  }
+
+  /* Order summary (right panel → moves below form) */
+  .checkout-summary-col {
+    order: -1;  /* show summary ABOVE form on mobile */
+  }
+  .order-summary-card,
+  .sticky-summary {
+    position: static !important;
+    padding: 0.85rem 0.9rem !important;
+    border-radius: 12px !important;
+  }
+  .summary-title {
+    font-size: 0.88rem !important;
+    margin-bottom: 0.65rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  .summary-item {
+    font-size: 0.78rem !important;
+    padding: 0.3rem 0 !important;
+  }
+  .summary-item-name { font-size: 0.75rem !important; }
+  .summary-item-price { font-size: 0.78rem !important; font-weight: 700 !important; }
+  .summary-row {
+    font-size: 0.78rem !important;
+    padding: 0.3rem 0 !important;
+  }
+  .total-row {
+    font-size: 0.95rem !important;
+    margin-top: 0.35rem !important;
+    padding-top: 0.35rem !important;
+  }
+  .total-price {
+    font-size: 1rem !important;
+  }
+
+  /* Profile warning banner */
+  .profile-warning-banner {
+    padding: 0.75rem 0.9rem !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.75rem !important;
+    gap: 0.6rem !important;
+  }
+  .profile-warning-banner .pw-icon { font-size: 1.4rem !important; }
+  .profile-warning-banner .pw-text h5 { font-size: 0.82rem !important; }
+  .profile-warning-banner .pw-text p  { font-size: 0.72rem !important; }
+  .profile-warning-banner .pw-btn {
+    font-size: 0.72rem !important;
+    padding: 0.35rem 0.7rem !important;
+  }
+
+  /* Page header */
+  .page-title { font-size: 1rem !important; }
+  .page-sub   { font-size: 0.72rem !important; }
+  .page-header-section { padding: 0.6rem 0 !important; }
+
+  /* Overlay */
+  .placing-spinner { width: 44px !important; height: 44px !important; }
+  .placing-text { font-size: 0.9rem !important; }
+}
+
+@media (max-width: 390px) {
+  .checkout-card { padding: 0.7rem 0.75rem !important; }
+  .form-control-custom { min-height: 40px !important; }
+  #deliveryMap { height: 170px !important; }
+  .payment-option-inner { padding: 0.5rem 0.65rem !important; }
+}
 </style>
 {% endblock %}
 
