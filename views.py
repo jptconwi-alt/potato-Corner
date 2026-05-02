@@ -34,6 +34,8 @@ def register_routes(app):
 
     @app.route('/')
     def index():
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
         products = Product.query.order_by(Product.flavor, Product.size).all()
         flavors = ProductController.get_flavors()
         return render_template('index.html', products=products, flavors=flavors)
@@ -84,45 +86,68 @@ def register_routes(app):
             return jsonify({'success': True, 'full_name': full_name})
         return jsonify({'success': False, 'message': str(result)})
 
-    # @app.route('/register', methods=['GET', 'POST'])
-    # def register():
-    #     if current_user.is_authenticated:
-    #         return redirect(url_for('index'))
-    #     if request.method == 'POST':
-    #         username = request.form.get('username', '').strip()
-    #         email = request.form.get('email', '').strip()
-    #         password = request.form.get('password', '')
-    #         confirm = request.form.get('confirm_password', '')
-    #         full_name = request.form.get('full_name', '').strip()
-    #         phone = request.form.get('phone', '').strip()
-    #         street = request.form.get('street', '').strip()
-    #         barangay = request.form.get('barangay', '').strip()
-    #         city = request.form.get('city', '').strip()
-    #         province = request.form.get('province', '').strip()
-    #         zipcode = request.form.get('zipcode', '').strip()
+    # ── Login page ───────────────────────────────────────
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        if current_user.is_authenticated:
+            return redirect(url_for('index'))
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '')
+            remember = bool(request.form.get('remember'))
+            if not username or not password:
+                flash('Username and password are required.', 'danger')
+                return render_template('login.html')
+            success, result = AuthController.login_user(username, password, remember)
+            if success:
+                session['user_id'] = result.id
+                sid = get_session_id()
+                CartController.merge_carts(sid, result.id)
+                return redirect(url_for('index'))
+            flash(str(result), 'danger')
+        return render_template('login.html')
 
-    #         if password != confirm:
-    #             flash('Passwords do not match', 'danger')
-    #             return render_template('register.html')
-    #         if len(password) < 6:
-    #             flash('Password must be at least 6 characters', 'danger')
-    #             return render_template('register.html')
-
-    #         success, result = AuthController.register_user(username, email, password, full_name, phone)
-    #         if success:
-    #             # Save address fields
-    #             result.street = street
-    #             result.barangay = barangay
-    #             result.city = city
-    #             result.province = province
-    #             result.zipcode = zipcode
-    #             result.profile_complete = True
-    #             db.session.commit()
-    #             flash('Account created! Please log in.', 'success')
-    #             return redirect(url_for('index'))
-    #         else:
-    #             flash(result, 'danger')
-    #     return render_template('register.html')
+    # ── Register page ────────────────────────────────────
+    @app.route('/register', methods=['GET', 'POST'])
+    def register():
+        if current_user.is_authenticated:
+            return redirect(url_for('index'))
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            confirm = request.form.get('confirm_password', '')
+            full_name = request.form.get('full_name', '').strip()
+            phone = request.form.get('phone', '').strip()
+            street = request.form.get('street', '').strip()
+            barangay = request.form.get('barangay', '').strip()
+            city = request.form.get('city', '').strip()
+            province = request.form.get('province', '').strip()
+            zipcode = request.form.get('zipcode', '').strip()
+            if password != confirm:
+                flash('Passwords do not match.', 'danger')
+                return render_template('register.html')
+            if len(password) < 6:
+                flash('Password must be at least 6 characters.', 'danger')
+                return render_template('register.html')
+            success, result = AuthController.register_user(username, email, password, full_name, phone)
+            if success:
+                result.street = street
+                result.barangay = barangay
+                result.city = city
+                result.province = province
+                result.zipcode = zipcode
+                result.profile_complete = True
+                db.session.commit()
+                success2, result2 = AuthController.login_user(username, password, False)
+                if success2:
+                    session['user_id'] = result2.id
+                    sid = get_session_id()
+                    CartController.merge_carts(sid, result2.id)
+                flash('Account created! Welcome to Potato Corner 🍟', 'success')
+                return redirect(url_for('index'))
+            flash(str(result), 'danger')
+        return render_template('register.html')
 
     @app.route('/logout')
     def logout():
@@ -130,7 +155,7 @@ def register_routes(app):
         session.pop('user_id', None)   # remove only our custom key, NOT session.clear()
         session.modified = True
         flash('You have been logged out.', 'info')
-        response = redirect(url_for('admin_login'))
+        response = redirect(url_for('login'))
         # Explicitly expire the remember_token cookie that Flask-Login sets
         response.delete_cookie('remember_token')
         return response
