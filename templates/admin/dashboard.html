@@ -293,6 +293,7 @@ function markDelivered(orderId, btn) {
   btn.disabled = true;
   fetch('/admin/order/' + orderId + '/status', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status: 'Delivered'})
   }).then(r => r.json()).then(d => {

@@ -333,6 +333,7 @@ function updateStatus(orderId, sel) {
   const original = sel.dataset.original;
   fetch('/admin/order/' + orderId + '/status', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status: newStatus})
   }).then(r => r.json()).then(d => {
@@ -353,6 +354,7 @@ function quickDeliver(orderId, btn) {
   btn.disabled = true;
   fetch('/admin/order/' + orderId + '/status', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status: 'Delivered'})
   }).then(r => r.json()).then(d => {
@@ -372,6 +374,7 @@ function togglePayment(orderId, btn) {
   btn.disabled = true;
   fetch('/admin/order/' + orderId + '/payment', {
     method: 'POST',
+    credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({payment_status: newStatus})
   }).then(r => r.json()).then(d => {
