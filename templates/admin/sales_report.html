@@ -4,88 +4,127 @@
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-/* Auto-Summary Strip */
-.auto-summary-strip {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  margin-bottom: 1.5rem;
-}
-@media (max-width: 768px) { .auto-summary-strip { grid-template-columns: repeat(2, 1fr); } }
-.asum-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 1rem 1.25rem;
-  border: 1.5px solid #e2e8f0;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 1px 6px rgba(0,0,0,.05);
-  transition: transform .18s, box-shadow .18s;
-}
-.asum-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.1); }
-.asum-card::after {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  border-radius: 14px 14px 0 0;
-}
-.asum-today::after  { background: #3b82f6; }
-.asum-month::after  { background: #10b981; }
-.asum-year::after   { background: #f59e0b; }
-.asum-total::after  { background: #8b5cf6; }
-.asum-icon {
-  width: 36px; height: 36px;
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1rem;
-  margin-bottom: .6rem;
-}
-.asum-today  .asum-icon { background: #eff6ff; color: #3b82f6; }
-.asum-month  .asum-icon { background: #ecfdf5; color: #10b981; }
-.asum-year   .asum-icon { background: #fffbeb; color: #f59e0b; }
-.asum-total  .asum-icon { background: #f5f3ff; color: #8b5cf6; }
-.asum-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; margin-bottom: 2px; }
-.asum-value { font-size: 1.35rem; font-weight: 800; color: #1e293b; line-height: 1.1; }
-.asum-sub   { font-size: .72rem; color: #94a3b8; margin-top: 3px; }
+/* ══════════════════════════════════════
+   SALES REPORT — Fixed & Elevated Design
+   ══════════════════════════════════════ */
 
-/* Period Filter */
-.sales-period-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-.sales-period-label { font-weight: 600; color: #475569; font-size: .9rem; white-space: nowrap; }
-.sales-period-tabs { display: flex; gap: .4rem; flex-wrap: wrap; }
-.sales-period-tab {
-  padding: .45rem 1.1rem; border-radius: 8px; font-size: .85rem; font-weight: 500;
-  background: #f1f5f9; color: #475569; text-decoration: none; border: 2px solid transparent; transition: all .2s;
-}
-.sales-period-tab:hover { background: #fef9ec; border-color: #f59e0b; color: #b45309; }
-.sales-period-tab.active { background: #f59e0b; color: #fff; border-color: #d97706; box-shadow: 0 2px 8px rgba(245,158,11,.35); }
+.sr-page { padding: 1.75rem; display: flex; flex-direction: column; gap: 1.5rem; }
+.sr-section-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin-bottom: .85rem; }
 
-/* Period Stats */
-.period-stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1.5rem; }
-@media (max-width:768px) { .period-stats-row { grid-template-columns: repeat(2,1fr); } }
+/* KPI strip */
+.sr-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 1100px) { .sr-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px)  { .sr-kpi-grid { grid-template-columns: 1fr; } }
 
-/* Chart legend */
-.chart-legend { display: flex; gap: 1.5rem; margin-bottom: .75rem; font-size: .8rem; font-weight: 600; }
-.legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.sr-kpi { background: #fff; border-radius: 14px; padding: 1.15rem 1.3rem 1rem; border: 1.5px solid #e8edf3; box-shadow: 0 2px 8px rgba(0,0,0,.04); position: relative; overflow: hidden; transition: transform .18s, box-shadow .18s; }
+.sr-kpi:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.09); }
+.sr-kpi::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; border-radius: 14px 0 0 14px; }
+.sr-kpi-today::before  { background: linear-gradient(180deg,#3b82f6,#6366f1); }
+.sr-kpi-month::before  { background: linear-gradient(180deg,#10b981,#059669); }
+.sr-kpi-year::before   { background: linear-gradient(180deg,#f59e0b,#d97706); }
+.sr-kpi-total::before  { background: linear-gradient(180deg,#8b5cf6,#7c3aed); }
+.sr-kpi-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .65rem; }
+.sr-kpi-label { font-size: .73rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
+.sr-kpi-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: .95rem; }
+.sr-kpi-today .sr-kpi-icon  { background: #eff6ff; color: #3b82f6; }
+.sr-kpi-month .sr-kpi-icon  { background: #ecfdf5; color: #10b981; }
+.sr-kpi-year  .sr-kpi-icon  { background: #fffbeb; color: #f59e0b; }
+.sr-kpi-total .sr-kpi-icon  { background: #f5f3ff; color: #8b5cf6; }
+.sr-kpi-value { font-size: 1.55rem; font-weight: 800; color: #0f172a; line-height: 1.1; letter-spacing: -.02em; }
+.sr-kpi-sub   { font-size: .72rem; color: #94a3b8; margin-top: 4px; }
 
-/* Top Products */
-.top-products-list { list-style:none; margin:0; padding:0; }
-.top-product-item { display:flex; align-items:center; gap:.75rem; padding:.75rem 1.25rem; border-bottom:1px solid #f1f5f9; transition:background .15s; }
-.top-product-item:last-child { border-bottom:none; }
-.top-product-item:hover { background:#fef9ec; }
-.top-product-rank { width:26px; height:26px; border-radius:50%; background:#f59e0b; color:#fff; font-weight:700; font-size:.78rem; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-.top-product-item:nth-child(1) .top-product-rank { background:#f59e0b; }
-.top-product-item:nth-child(2) .top-product-rank { background:#94a3b8; }
-.top-product-item:nth-child(3) .top-product-rank { background:#b45309; }
-.top-product-info { flex:1; min-width:0; }
-.top-product-name { font-weight:600; font-size:.88rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.top-product-meta { font-size:.78rem; color:#94a3b8; }
-.top-product-revenue { font-weight:700; color:#059669; font-size:.9rem; white-space:nowrap; }
+/* period filter bar */
+.sr-period-bar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; background: #fff; border: 1.5px solid #e8edf3; border-radius: 12px; padding: .85rem 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.03); }
+.sr-period-label { font-size: .82rem; font-weight: 600; color: #475569; white-space: nowrap; }
+.sr-period-tabs { display: flex; gap: .4rem; flex-wrap: wrap; }
+.sr-period-tab { padding: .42rem 1.05rem; border-radius: 8px; font-size: .83rem; font-weight: 500; background: #f1f5f9; color: #64748b; text-decoration: none; border: 2px solid transparent; transition: all .2s; }
+.sr-period-tab:hover { background: #fef9ec; border-color: #f59e0b; color: #b45309; }
+.sr-period-tab.active { background: #16a34a; color: #fff; border-color: #15803d; box-shadow: 0 2px 8px rgba(22,163,74,.3); }
+
+/* period stat cards */
+.sr-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+@media (max-width: 1100px) { .sr-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px)  { .sr-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.sr-stat { background: #fff; border: 1.5px solid #e8edf3; border-radius: 14px; padding: 1.1rem 1.2rem; display: flex; align-items: center; gap: .9rem; position: relative; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.04); transition: transform .18s, box-shadow .18s; }
+.sr-stat:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.09); }
+.sr-stat-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.15rem; flex-shrink: 0; }
+.sr-stat-data { flex: 1; min-width: 0; }
+.sr-stat-val { font-size: 1.5rem; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; }
+.sr-stat-lbl { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-stat-bg  { position: absolute; right: -8px; bottom: -8px; font-size: 3.5rem; opacity: .07; }
+.sr-stat-purple .sr-stat-icon { background: #ede9fe; color: #7c3aed; } .sr-stat-purple .sr-stat-val { color: #7c3aed; }
+.sr-stat-blue   .sr-stat-icon { background: #dbeafe; color: #1d4ed8; } .sr-stat-blue   .sr-stat-val { color: #1d4ed8; }
+.sr-stat-green  .sr-stat-icon { background: #d1fae5; color: #16a34a; } .sr-stat-green  .sr-stat-val { color: #16a34a; }
+.sr-stat-red    .sr-stat-icon { background: #fee2e2; color: #dc2626; } .sr-stat-red    .sr-stat-val { color: #dc2626; }
+
+/* chart + top products grid */
+.sr-main-grid { display: grid; grid-template-columns: 1fr 310px; gap: 1.25rem; }
+@media (max-width: 900px) { .sr-main-grid { grid-template-columns: 1fr; } }
+
+/* shared card */
+.sr-card { background: #fff; border: 1.5px solid #e8edf3; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.04); overflow: hidden; }
+.sr-card-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1.5px solid #f1f5f9; }
+.sr-card-header h3 { font-weight: 700; font-size: .95rem; color: #1e293b; display: flex; align-items: center; gap: .5rem; }
+.sr-card-header h3 i { color: #16a34a; }
+.sr-card-count { font-size: .8rem; color: #94a3b8; font-weight: 500; }
+.sr-card-body   { padding: 1.25rem; }
+.sr-card-body.p-0 { padding: 0; }
+
+.sr-chart-legend { display: flex; gap: 1.5rem; margin-bottom: .85rem; font-size: .8rem; font-weight: 600; color: #475569; }
+.sr-legend-dot   { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+.sr-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3.5rem 1rem; color: #94a3b8; gap: .75rem; }
+.sr-empty i { font-size: 2.5rem; }
+.sr-empty p { font-size: .88rem; }
+
+/* top products */
+.sr-products-list { list-style: none; margin: 0; padding: 0; }
+.sr-product-item { display: flex; align-items: center; gap: .75rem; padding: .8rem 1.25rem; border-bottom: 1px solid #f1f5f9; transition: background .15s; }
+.sr-product-item:last-child { border-bottom: none; }
+.sr-product-item:hover { background: #fafffe; }
+.sr-product-rank { width: 26px; height: 26px; border-radius: 50%; font-weight: 700; font-size: .76rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
+.sr-product-item:nth-child(1) .sr-product-rank { background: #f59e0b; }
+.sr-product-item:nth-child(2) .sr-product-rank { background: #94a3b8; }
+.sr-product-item:nth-child(3) .sr-product-rank { background: #b45309; }
+.sr-product-item:nth-child(n+4) .sr-product-rank { background: #cbd5e1; }
+.sr-product-info { flex: 1; min-width: 0; }
+.sr-product-name { font-weight: 600; font-size: .87rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-product-meta { font-size: .75rem; color: #94a3b8; margin-top: 1px; }
+.sr-product-rev  { font-weight: 700; color: #16a34a; font-size: .88rem; white-space: nowrap; }
+
+/* orders table */
+.sr-table-wrap { overflow-x: auto; }
+.sr-table { width: 100%; border-collapse: collapse; min-width: 600px; font-size: .875rem; }
+.sr-table thead th { background: #f8fafc; padding: .75rem 1.1rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: #64748b; font-weight: 700; border-bottom: 2px solid #e8edf3; white-space: nowrap; text-align: left; }
+.sr-table tbody td { padding: .9rem 1.1rem; color: #334155; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.sr-table tbody tr:last-child td { border-bottom: none; }
+.sr-table tbody tr:hover td { background: #f8fafc; }
+.sr-order-num { font-weight: 700; font-size: .85rem; color: #15803d; background: #dcfce7; padding: .18rem .6rem; border-radius: 6px; font-family: 'Fredoka One', cursive; }
+.sr-no-orders { text-align: center; padding: 3rem 1rem; color: #94a3b8; font-size: .88rem; }
+
+/* export buttons */
+.btn-report { display: inline-flex; align-items: center; gap: 6px; padding: .45rem 1rem; border-radius: 8px; font-size: .82rem; font-weight: 600; text-decoration: none; transition: all .18s; }
+.btn-report.csv { background: #ecfdf5; color: #15803d; border: 1.5px solid #86efac; }
+.btn-report.csv:hover { background: #15803d; color: #fff; }
+.btn-report.pdf { background: #fef2f2; color: #b91c1c; border: 1.5px solid #fca5a5; }
+.btn-report.pdf:hover { background: #b91c1c; color: #fff; }
+
+/* status badges */
+.sr-badge { padding: .25rem .65rem; border-radius: 50px; font-size: .74rem; font-weight: 700; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.sr-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; }
+.sr-badge-pending            { background: #fef3c7; color: #92400e; } .sr-badge-pending::before            { background: #f59e0b; }
+.sr-badge-preparing          { background: #fed7aa; color: #9a3412; } .sr-badge-preparing::before          { background: #ea580c; }
+.sr-badge-out-for-delivery   { background: #dbeafe; color: #1e40af; } .sr-badge-out-for-delivery::before   { background: #3b82f6; }
+.sr-badge-delivered          { background: #d1fae5; color: #065f46; } .sr-badge-delivered::before          { background: #10b981; }
+.sr-badge-cancelled          { background: #fee2e2; color: #991b1b; } .sr-badge-cancelled::before          { background: #ef4444; }
+.sr-badge-paid               { background: #d1fae5; color: #065f46; } .sr-badge-paid::before               { background: #10b981; }
+.sr-badge-unpaid             { background: #fef3c7; color: #92400e; } .sr-badge-unpaid::before             { background: #f59e0b; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="admin-layout">
+
   <aside class="admin-sidebar" id="adminSidebar">
     <div class="admin-sidebar-header">
       <div class="admin-logo">🍟</div>
@@ -120,198 +159,144 @@
   <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
   <div class="admin-main">
+
     <div class="admin-topbar">
       <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-      <div class="admin-topbar-title"><i class="fas fa-chart-line me-2"></i>Sales Report</div>
+      <div class="admin-topbar-title"><i class="fas fa-chart-line me-2" style="color:#16a34a;"></i>Sales Report</div>
       <div class="admin-topbar-actions" style="display:flex;gap:8px;align-items:center;">
         <span class="admin-date"><i class="fas fa-calendar me-1"></i>{{ now.strftime('%B %d, %Y') }}</span>
-        <a href="{{ url_for('admin_export_report', type='orders', format='csv') }}" class="btn-report csv" title="Export CSV" style="padding:7px 12px;border-radius:8px;">
-          <i class="fas fa-file-csv"></i><span>CSV</span>
-        </a>
-        <a href="{{ url_for('admin_export_report', type='orders', format='pdf') }}" class="btn-report pdf" title="Export PDF" style="padding:7px 12px;border-radius:8px;">
-          <i class="fas fa-file-pdf"></i><span>PDF</span>
-        </a>
+        <a href="{{ url_for('admin_export_report', type='orders', format='csv') }}" class="btn-report csv"><i class="fas fa-file-csv"></i> CSV</a>
+        <a href="{{ url_for('admin_export_report', type='orders', format='pdf') }}" class="btn-report pdf"><i class="fas fa-file-pdf"></i> PDF</a>
       </div>
     </div>
 
-    <div class="admin-content">
+    <div class="sr-page">
 
-      <!-- Auto-Recorded Summary Strip -->
-      <div class="auto-summary-strip">
-        <div class="asum-card asum-today">
-          <div class="asum-icon"><i class="fas fa-sun"></i></div>
-          <div class="asum-label">Today's Income</div>
-          <div class="asum-value">₱{{ "%.2f"|format(auto_today) }}</div>
-          <div class="asum-sub">Auto-recorded live</div>
-        </div>
-        <div class="asum-card asum-month">
-          <div class="asum-icon"><i class="fas fa-calendar-alt"></i></div>
-          <div class="asum-label">This Month</div>
-          <div class="asum-value">₱{{ "%.2f"|format(auto_month) }}</div>
-          <div class="asum-sub">{{ now.strftime('%B %Y') }}</div>
-        </div>
-        <div class="asum-card asum-year">
-          <div class="asum-icon"><i class="fas fa-calendar"></i></div>
-          <div class="asum-label">This Year</div>
-          <div class="asum-value">₱{{ "%.2f"|format(auto_year) }}</div>
-          <div class="asum-sub">{{ now.strftime('%Y') }}</div>
-        </div>
-        <div class="asum-card asum-total">
-          <div class="asum-icon"><i class="fas fa-coins"></i></div>
-          <div class="asum-label">All-Time Revenue</div>
-          <div class="asum-value">₱{{ "%.2f"|format(auto_total) }}</div>
-          <div class="asum-sub">All delivered orders</div>
+      <!-- 1. KPI Strip -->
+      <div>
+        <p class="sr-section-title"><i class="fas fa-bolt me-1"></i>Auto-Recorded Summary</p>
+        <div class="sr-kpi-grid">
+          <div class="sr-kpi sr-kpi-today">
+            <div class="sr-kpi-header"><span class="sr-kpi-label">Today's Income</span><div class="sr-kpi-icon"><i class="fas fa-sun"></i></div></div>
+            <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_today) }}</div>
+            <div class="sr-kpi-sub">Auto-recorded live</div>
+          </div>
+          <div class="sr-kpi sr-kpi-month">
+            <div class="sr-kpi-header"><span class="sr-kpi-label">This Month</span><div class="sr-kpi-icon"><i class="fas fa-calendar-alt"></i></div></div>
+            <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_month) }}</div>
+            <div class="sr-kpi-sub">{{ now.strftime('%B %Y') }}</div>
+          </div>
+          <div class="sr-kpi sr-kpi-year">
+            <div class="sr-kpi-header"><span class="sr-kpi-label">This Year</span><div class="sr-kpi-icon"><i class="fas fa-calendar"></i></div></div>
+            <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_year) }}</div>
+            <div class="sr-kpi-sub">{{ now.strftime('%Y') }}</div>
+          </div>
+          <div class="sr-kpi sr-kpi-total">
+            <div class="sr-kpi-header"><span class="sr-kpi-label">All-Time Revenue</span><div class="sr-kpi-icon"><i class="fas fa-coins"></i></div></div>
+            <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_total) }}</div>
+            <div class="sr-kpi-sub">All delivered orders</div>
+          </div>
         </div>
       </div>
 
-      <!-- Period Filter -->
-      <div class="sales-period-bar">
-        <span class="sales-period-label"><i class="fas fa-filter me-1"></i>View Detail:</span>
-        <div class="sales-period-tabs">
-          <a href="{{ url_for('admin_sales_report', period='today') }}"
-             class="sales-period-tab {% if period == 'today' %}active{% endif %}">
-            <i class="fas fa-sun me-1"></i>Today
-          </a>
-          <a href="{{ url_for('admin_sales_report', period='week') }}"
-             class="sales-period-tab {% if period == 'week' %}active{% endif %}">
-            <i class="fas fa-calendar-week me-1"></i>This Week
-          </a>
-          <a href="{{ url_for('admin_sales_report', period='month') }}"
-             class="sales-period-tab {% if period == 'month' %}active{% endif %}">
-            <i class="fas fa-calendar-alt me-1"></i>This Month
-          </a>
-          <a href="{{ url_for('admin_sales_report', period='year') }}"
-             class="sales-period-tab {% if period == 'year' %}active{% endif %}">
-            <i class="fas fa-calendar me-1"></i>This Year
-          </a>
+      <!-- 2. Period filter -->
+      <div class="sr-period-bar">
+        <span class="sr-period-label"><i class="fas fa-filter me-1"></i>View Detail:</span>
+        <div class="sr-period-tabs">
+          <a href="{{ url_for('admin_sales_report', period='today') }}" class="sr-period-tab {% if period == 'today' %}active{% endif %}"><i class="fas fa-sun me-1"></i>Today</a>
+          <a href="{{ url_for('admin_sales_report', period='week') }}" class="sr-period-tab {% if period == 'week' %}active{% endif %}"><i class="fas fa-calendar-week me-1"></i>This Week</a>
+          <a href="{{ url_for('admin_sales_report', period='month') }}" class="sr-period-tab {% if period == 'month' %}active{% endif %}"><i class="fas fa-calendar-alt me-1"></i>This Month</a>
+          <a href="{{ url_for('admin_sales_report', period='year') }}" class="sr-period-tab {% if period == 'year' %}active{% endif %}"><i class="fas fa-calendar me-1"></i>This Year</a>
         </div>
       </div>
 
-      <!-- Period Stats -->
-      <div class="period-stats-row">
-        <div class="stat-card stat-purple">
-          <div class="stat-card-icon"><i class="fas fa-peso-sign"></i></div>
-          <div class="stat-card-data">
-            <div class="stat-card-val">₱{{ "%.2f"|format(total_income) }}</div>
-            <div class="stat-card-label">Income — {{ label }}</div>
-          </div>
-          <div class="stat-card-bg-icon"><i class="fas fa-peso-sign"></i></div>
+      <!-- 3. Period stat cards -->
+      <div class="sr-stats-grid">
+        <div class="sr-stat sr-stat-purple">
+          <div class="sr-stat-icon"><i class="fas fa-peso-sign"></i></div>
+          <div class="sr-stat-data"><div class="sr-stat-val">₱{{ "%.2f"|format(total_income) }}</div><div class="sr-stat-lbl">Income — {{ label }}</div></div>
+          <div class="sr-stat-bg"><i class="fas fa-peso-sign"></i></div>
         </div>
-        <div class="stat-card stat-blue">
-          <div class="stat-card-icon"><i class="fas fa-clipboard-list"></i></div>
-          <div class="stat-card-data">
-            <div class="stat-card-val">{{ total_orders }}</div>
-            <div class="stat-card-label">Orders — {{ label }}</div>
-          </div>
-          <div class="stat-card-bg-icon"><i class="fas fa-clipboard-list"></i></div>
+        <div class="sr-stat sr-stat-blue">
+          <div class="sr-stat-icon"><i class="fas fa-clipboard-list"></i></div>
+          <div class="sr-stat-data"><div class="sr-stat-val">{{ total_orders }}</div><div class="sr-stat-lbl">Orders — {{ label }}</div></div>
+          <div class="sr-stat-bg"><i class="fas fa-clipboard-list"></i></div>
         </div>
-        <div class="stat-card stat-green">
-          <div class="stat-card-icon"><i class="fas fa-check-circle"></i></div>
-          <div class="stat-card-data">
-            <div class="stat-card-val">{{ total_delivered }}</div>
-            <div class="stat-card-label">Delivered — {{ label }}</div>
-          </div>
-          <div class="stat-card-bg-icon"><i class="fas fa-check-circle"></i></div>
+        <div class="sr-stat sr-stat-green">
+          <div class="sr-stat-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="sr-stat-data"><div class="sr-stat-val">{{ total_delivered }}</div><div class="sr-stat-lbl">Delivered — {{ label }}</div></div>
+          <div class="sr-stat-bg"><i class="fas fa-check-circle"></i></div>
         </div>
-        <div class="stat-card stat-red">
-          <div class="stat-card-icon"><i class="fas fa-times-circle"></i></div>
-          <div class="stat-card-data">
-            <div class="stat-card-val">{{ cancelled }}</div>
-            <div class="stat-card-label">Cancelled — {{ label }}</div>
-          </div>
-          <div class="stat-card-bg-icon"><i class="fas fa-times-circle"></i></div>
+        <div class="sr-stat sr-stat-red">
+          <div class="sr-stat-icon"><i class="fas fa-times-circle"></i></div>
+          <div class="sr-stat-data"><div class="sr-stat-val">{{ cancelled }}</div><div class="sr-stat-lbl">Cancelled — {{ label }}</div></div>
+          <div class="sr-stat-bg"><i class="fas fa-times-circle"></i></div>
         </div>
       </div>
 
-      <!-- Chart + Top Products -->
-      <div class="admin-dashboard-grid" style="margin-bottom:1.5rem;">
-
-        <!-- Income + Orders Chart -->
-        <div class="admin-card admin-card-wide">
-          <div class="admin-card-header">
-            <h3><i class="fas fa-chart-line me-2"></i>Income & Orders — {{ label }}</h3>
-          </div>
-          <div class="admin-card-body" style="padding:1.25rem;">
+      <!-- 4. Chart + Top Products -->
+      <div class="sr-main-grid">
+        <div class="sr-card">
+          <div class="sr-card-header"><h3><i class="fas fa-chart-bar"></i>Income & Orders — {{ label }}</h3></div>
+          <div class="sr-card-body">
             {% if chart_labels %}
-            <div class="chart-legend">
-              <span><span class="legend-dot" style="background:#10b981;"></span>Income (₱)</span>
-              <span><span class="legend-dot" style="background:#3b82f6;"></span>Orders</span>
+            <div class="sr-chart-legend">
+              <span><span class="sr-legend-dot" style="background:#10b981;"></span>Income (₱)</span>
+              <span><span class="sr-legend-dot" style="background:#3b82f6;"></span>Orders</span>
             </div>
             <canvas id="incomeChart" style="max-height:300px;"></canvas>
             {% else %}
-            <div style="text-align:center;padding:3rem;color:#94a3b8;">
-              <i class="fas fa-chart-line" style="font-size:2.5rem;margin-bottom:.75rem;display:block;"></i>
-              No delivered orders in this period yet.
-            </div>
+            <div class="sr-empty"><i class="fas fa-chart-bar"></i><p>No delivered orders in this period yet.</p></div>
             {% endif %}
           </div>
         </div>
-
-        <!-- Top Products -->
-        <div class="admin-card">
-          <div class="admin-card-header">
-            <h3><i class="fas fa-trophy me-2"></i>Top Products — {{ label }}</h3>
-          </div>
-          <div class="admin-card-body p-0">
+        <div class="sr-card">
+          <div class="sr-card-header"><h3><i class="fas fa-trophy"></i>Top Products — {{ label }}</h3></div>
+          <div class="sr-card-body p-0">
             {% if top_products %}
-            <ul class="top-products-list">
+            <ul class="sr-products-list">
               {% for name, data in top_products %}
-              <li class="top-product-item">
-                <div class="top-product-rank">{{ loop.index }}</div>
-                <div class="top-product-info">
-                  <div class="top-product-name">{{ name }}</div>
-                  <div class="top-product-meta">{{ data.qty }} sold</div>
+              <li class="sr-product-item">
+                <div class="sr-product-rank">{{ loop.index }}</div>
+                <div class="sr-product-info">
+                  <div class="sr-product-name">{{ name }}</div>
+                  <div class="sr-product-meta">{{ data.qty }} sold</div>
                 </div>
-                <div class="top-product-revenue">₱{{ "%.2f"|format(data.revenue) }}</div>
+                <div class="sr-product-rev">₱{{ "%.2f"|format(data.revenue) }}</div>
               </li>
               {% endfor %}
             </ul>
             {% else %}
-            <div style="text-align:center;padding:2rem;color:#94a3b8;">No sales data yet.</div>
+            <div class="sr-empty"><i class="fas fa-trophy"></i><p>No sales data yet.</p></div>
             {% endif %}
           </div>
         </div>
       </div>
 
-      <!-- Orders Table -->
-      <div class="admin-card">
-        <div class="admin-card-header">
-          <h3><i class="fas fa-list me-2"></i>Orders — {{ label }}</h3>
-          <span style="font-size:.85rem;color:#94a3b8;">{{ period_orders|length }} orders</span>
+      <!-- 5. Orders table -->
+      <div class="sr-card">
+        <div class="sr-card-header">
+          <h3><i class="fas fa-list"></i>Orders — {{ label }}</h3>
+          <span class="sr-card-count">{{ period_orders|length }} order{{ 's' if period_orders|length != 1 }}</span>
         </div>
-        <div class="admin-card-body p-0">
-          <div class="admin-table-wrap">
-            <table class="admin-table">
+        <div class="sr-card-body p-0">
+          <div class="sr-table-wrap">
+            <table class="sr-table">
               <thead>
-                <tr>
-                  <th>Order #</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Payment</th>
-                  <th>Date</th>
-                </tr>
+                <tr><th>Order #</th><th>Customer</th><th>Amount</th><th>Status</th><th>Payment</th><th>Date</th></tr>
               </thead>
               <tbody>
                 {% for order in period_orders %}
                 <tr>
-                  <td><span class="admin-order-num">{{ order.order_number }}</span></td>
+                  <td><span class="sr-order-num">{{ order.order_number }}</span></td>
                   <td>{{ order.customer_name }}</td>
                   <td><strong>₱{{ "%.2f"|format(order.total_amount) }}</strong></td>
-                  <td>
-                    <span class="admin-status-badge status-{{ order.status.lower().replace(' ', '-') }}">
-                      {{ order.status }}
-                    </span>
-                  </td>
-                  <td>
-                    <span class="admin-status-badge {% if order.payment_status == 'Paid' %}status-delivered{% else %}status-pending{% endif %}">
-                      {{ order.payment_status }}
-                    </span>
-                  </td>
-                  <td style="font-size:.82rem;color:#64748b;">{{ order.order_date.strftime('%b %d, %Y %I:%M %p') }}</td>
+                  <td><span class="sr-badge sr-badge-{{ order.status.lower().replace(' ', '-') }}">{{ order.status }}</span></td>
+                  <td><span class="sr-badge {% if order.payment_status == 'Paid' %}sr-badge-paid{% else %}sr-badge-unpaid{% endif %}">{{ order.payment_status }}</span></td>
+                  <td style="font-size:.8rem;color:#64748b;white-space:nowrap;">{{ order.order_date.strftime('%b %d, %Y %I:%M %p') }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="6" style="text-align:center;padding:2rem;color:#94a3b8;">No orders in this period.</td></tr>
+                <tr><td colspan="6"><div class="sr-no-orders"><i class="fas fa-inbox" style="font-size:2rem;display:block;margin-bottom:.5rem;color:#cbd5e1;"></i>No orders in this period.</div></td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -330,7 +315,6 @@ function toggleSidebar() {
   document.getElementById('adminSidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('active');
 }
-
 {% if chart_labels %}
 const ctx = document.getElementById('incomeChart').getContext('2d');
 new Chart(ctx, {
@@ -338,30 +322,8 @@ new Chart(ctx, {
   data: {
     labels: {{ chart_labels | tojson }},
     datasets: [
-      {
-        label: 'Income (₱)',
-        data: {{ chart_data | tojson }},
-        backgroundColor: 'rgba(16,185,129,0.7)',
-        borderColor: '#059669',
-        borderWidth: 2,
-        borderRadius: 6,
-        yAxisID: 'yIncome',
-        order: 2,
-      },
-      {
-        label: 'Orders',
-        data: {{ orders_chart_data | tojson }},
-        type: 'line',
-        borderColor: '#3b82f6',
-        backgroundColor: 'rgba(59,130,246,0.1)',
-        borderWidth: 2.5,
-        pointBackgroundColor: '#3b82f6',
-        pointRadius: 4,
-        fill: true,
-        tension: 0.4,
-        yAxisID: 'yOrders',
-        order: 1,
-      }
+      { label: 'Income (₱)', data: {{ chart_data | tojson }}, backgroundColor: 'rgba(16,185,129,0.75)', borderColor: '#059669', borderWidth: 2, borderRadius: 6, yAxisID: 'yIncome', order: 2 },
+      { label: 'Orders', data: {{ orders_chart_data | tojson }}, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, pointBackgroundColor: '#3b82f6', pointRadius: 4, fill: true, tension: 0.4, yAxisID: 'yOrders', order: 1 }
     ]
   },
   options: {
@@ -369,39 +331,13 @@ new Chart(ctx, {
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: ctx => {
-            if (ctx.dataset.label === 'Income (₱)')
-              return '  ₱' + ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2});
-            return '  ' + ctx.parsed.y + ' orders';
-          }
-        }
+      tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#cbd5e1', padding: 10, cornerRadius: 8,
+        callbacks: { label: ctx => ctx.dataset.label === 'Income (₱)' ? '  ₱' + ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2}) : '  ' + ctx.parsed.y + ' orders' }
       }
     },
     scales: {
-      yIncome: {
-        type: 'linear',
-        position: 'left',
-        beginAtZero: true,
-        ticks: {
-          callback: val => '₱' + val.toLocaleString(),
-          color: '#059669',
-          font: { weight: '600' }
-        },
-        grid: { color: 'rgba(0,0,0,.06)' }
-      },
-      yOrders: {
-        type: 'linear',
-        position: 'right',
-        beginAtZero: true,
-        ticks: {
-          stepSize: 1,
-          color: '#3b82f6',
-          font: { weight: '600' }
-        },
-        grid: { drawOnChartArea: false }
-      }
+      yIncome: { type: 'linear', position: 'left', beginAtZero: true, ticks: { callback: val => '₱' + val.toLocaleString(), color: '#059669', font: { weight: '600', size: 11 } }, grid: { color: 'rgba(0,0,0,.05)' } },
+      yOrders: { type: 'linear', position: 'right', beginAtZero: true, ticks: { stepSize: 1, color: '#3b82f6', font: { weight: '600', size: 11 } }, grid: { drawOnChartArea: false } }
     }
   }
 });
