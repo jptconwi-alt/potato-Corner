@@ -838,44 +838,45 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-  // ── Skeleton → Real transition ──────────────────────────
-  const skeleton = document.getElementById('checkoutSkeleton');
-  const real     = document.getElementById('checkoutReal');
+  var skeleton = document.getElementById('checkoutSkeleton');
+  var real     = document.getElementById('checkoutReal');
+
+  // ── Show real form immediately, no skeleton on mobile ──
+  var isMobile = window.innerWidth < 768;
 
   function showCheckout() {
-    skeleton.style.display = 'none';
-    real.style.display     = 'flex';
-    initMap();
+    if (skeleton) skeleton.style.display = 'none';
+    if (real)     real.style.display = 'flex';
   }
 
-  // Show skeleton immediately
-  skeleton.style.display = 'flex';
-
-  // iOS Safari sometimes fires 'load' before scripts finish or not at all
-  // Use DOMContentLoaded with a short timer, fallback to load event
-  let checkoutShown = false;
-  function safeShow() {
-    if (checkoutShown) return;
-    checkoutShown = true;
-    setTimeout(showCheckout, 300);
-  }
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    safeShow();
+  if (isMobile) {
+    // On mobile: skip skeleton entirely, show form right away
+    showCheckout();
   } else {
-    document.addEventListener('DOMContentLoaded', safeShow);
-    window.addEventListener('load', safeShow);
+    // Desktop: show skeleton briefly, then real
+    if (skeleton) skeleton.style.display = 'flex';
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      setTimeout(showCheckout, 400);
+    } else {
+      document.addEventListener('DOMContentLoaded', function() { setTimeout(showCheckout, 400); });
+    }
+    // Hard fallback
+    setTimeout(showCheckout, 1500);
   }
-  // Absolute fallback — never leave user on skeleton forever
-  setTimeout(safeShow, 2500);
 
   // ── Leaflet Map Setup ─────────────────────────────────────
-  let map, marker, deliveryLat = null, deliveryLng = null;
+  var map, marker, deliveryLat = null, deliveryLng = null;
 
   function initMap() {
-    // Default center: Tandag, Surigao del Sur (adjust to your area)
-    const defaultLat = 9.0779;
-    const defaultLng = 126.0110;
+    // Guard: if Leaflet didn't load, hide the map section gracefully
+    if (typeof L === 'undefined') {
+      var ms = document.querySelector('.map-section');
+      if (ms) ms.style.display = 'none';
+      return;
+    }
+
+    var defaultLat = 9.0779;
+    var defaultLng = 126.0110;
 
     map = L.map('deliveryMap').setView([defaultLat, defaultLng], 14);
 
@@ -1097,6 +1098,31 @@
     const el = document.getElementById(id);
     if (el) el.addEventListener('blur', validateAll);
   });
+
+  // ── Init map after everything is ready ───────────────────
+  // Defer so the map container is visible/sized before Leaflet init
+  function tryInitMap() {
+    if (typeof L !== 'undefined') {
+      try { initMap(); } catch(e) {
+        var ms = document.querySelector('.map-section');
+        if (ms) ms.style.display = 'none';
+      }
+    } else {
+      // Leaflet not loaded yet — retry once after 1s
+      setTimeout(function() {
+        if (typeof L !== 'undefined') {
+          try { initMap(); } catch(e) {
+            var ms = document.querySelector('.map-section');
+            if (ms) ms.style.display = 'none';
+          }
+        } else {
+          var ms = document.querySelector('.map-section');
+          if (ms) ms.style.display = 'none';
+        }
+      }, 1000);
+    }
+  }
+  setTimeout(tryInitMap, 100);
 })();
 </script>
 {% endblock %}
