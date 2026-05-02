@@ -1025,7 +1025,7 @@ function updateBulkBar() {
 function getSelectedIds() {
   return Array.from(document.querySelectorAll('.product-checkbox:checked')).map(cb => cb.value);
 }
-}
+
 
 function confirmBulkDelete() {
   const ids = getSelectedIds();
