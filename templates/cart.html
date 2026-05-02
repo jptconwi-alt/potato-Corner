@@ -3,10 +3,159 @@
 
 {% block extra_css %}
 <style>
-/* ── Per-item card ────────────────────────────── */
+/* ── Cart item card ───────────────────────────── */
 .cart-item-card {
   position: relative;
+  transition: all 0.25s;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.cart-item-card.deselected {
+  opacity: 0.42;
+}
+
+/* ── Checkbox ─────────────────────────────────── */
+.item-checkbox-wrap {
+  flex-shrink: 0;
+}
+.item-checkbox {
+  width: 20px;
+  height: 20px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+/* ── Select-all bar ───────────────────────────── */
+.select-all-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: #fef9ec;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: #92400e;
+  cursor: pointer;
+  user-select: none;
+}
+.select-all-bar input[type=checkbox] {
+  width: 18px;
+  height: 18px;
+  accent-color: #f59e0b;
+  cursor: pointer;
+}
+
+/* ── Order Summary panel ──────────────────────── */
+.cart-summary-panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 1.5rem;
+  position: sticky;
+  top: 90px;
+}
+.summary-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #f3f4f6;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  color: #64748b;
+  margin-bottom: 0.65rem;
+}
+.free-tag {
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 99px;
+}
+.fee-tag {
+  color: #ef4444;
+  font-weight: 700;
+}
+.summary-divider {
+  border: none;
+  border-top: 1px dashed #e5e7eb;
+  margin: 0.75rem 0;
+}
+.summary-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 1.25rem;
+}
+.summary-total-amount { color: #f59e0b; }
+.delivery-note {
+  font-size: 0.8rem;
+  text-align: center;
+  margin-bottom: 0.5rem;
+  min-height: 1.2em;
+}
+
+/* ── Proceed button ───────────────────────────── */
+.btn-proceed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.9rem 1.5rem;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
   transition: all 0.2s;
+}
+.btn-proceed:hover {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(245,158,11,0.35);
+  color: #fff;
+  text-decoration: none;
+}
+.btn-proceed.disabled {
+  background: #e5e7eb !important;
+  color: #9ca3af !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+.selected-count-note {
+  text-align: center;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  margin-top: 0.6rem;
+}
+
+/* ── Cart layout ──────────────────────────────── */
+.cart-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 2rem;
+  align-items: start;
+}
+@media (max-width: 768px) {
+  .cart-layout-grid { grid-template-columns: 1fr; }
+  .cart-summary-panel { position: static; }
 }
 </style>
 {% endblock %}
@@ -24,14 +173,27 @@
 <section class="cart-section">
   <div class="container">
     {% if cart_items %}
-    <div class="cart-layout">
-      <!-- Cart Items -->
-      <div class="cart-items-col">
+    <div class="cart-layout-grid">
 
-
+      <!-- Left: Items -->
+      <div>
+        <!-- Select All bar -->
+        <label class="select-all-bar">
+          <input type="checkbox" id="selectAll" checked onchange="toggleSelectAll(this)">
+          <span>Select All Items</span>
+          <span style="margin-left:auto; font-size:0.82rem; font-weight:400; color:#a16207;" id="selectedCountLabel">
+            {{ cart_items|length }} of {{ cart_items|length }} selected
+          </span>
+        </label>
 
         {% for item in cart_items %}
         <div class="cart-item-card" id="cart-item-{{ item.id }}">
+          <!-- Checkbox -->
+          <div class="item-checkbox-wrap">
+            <input type="checkbox" class="item-checkbox" id="chk-{{ item.id }}"
+              data-item-id="{{ item.id }}" checked onchange="onItemCheck()">
+          </div>
+
           <div class="cart-item-img">
             {% if item.product.image_data %}
               <img src="{{ item.product.image_data }}" alt="{{ item.product.name }}">
@@ -41,6 +203,7 @@
               <div class="cart-img-placeholder">🍟</div>
             {% endif %}
           </div>
+
           <div class="cart-item-info">
             <h4 class="cart-item-name">{{ item.product.name }}</h4>
             <div class="cart-item-meta">
@@ -49,6 +212,7 @@
             </div>
             <div class="cart-item-price">₱{{ "%.0f"|format(item.product.price) }} each</div>
           </div>
+
           <div class="cart-item-actions">
             <div class="cart-qty-control">
               <button class="cart-qty-btn" onclick="updateCart({{ item.id }}, {{ item.quantity - 1 }})">−</button>
@@ -63,19 +227,44 @@
         </div>
         {% endfor %}
 
+        <div style="margin-top:1.2rem;">
+          <a href="{{ url_for('index') }}" class="btn-continue-shopping" style="display:inline-flex; max-width:220px;">
+            <i class="fas fa-arrow-left me-2"></i>Continue Shopping
+          </a>
+        </div>
       </div>
 
-      <!-- Checkout Button -->
-      <div style="margin-top:1.5rem; text-align:right;">
-        <a href="{{ url_for('checkout') }}" class="btn-checkout" style="display:inline-flex; max-width:280px;">
-          <i class="fas fa-credit-card me-2"></i>Proceed to Checkout
+      <!-- Right: Order Summary -->
+      <div class="cart-summary-panel">
+        <div class="summary-title">🧾 Order Summary</div>
+
+        <div class="summary-row">
+          <span>Subtotal (<span id="summaryCount">{{ cart_items|length }}</span> items)</span>
+          <span id="summarySubtotal">₱0</span>
+        </div>
+
+        <div class="summary-row">
+          <span>Delivery Fee</span>
+          <span id="summaryDelivery">₱0</span>
+        </div>
+
+        <p id="deliveryNote" class="delivery-note"></p>
+
+        <hr class="summary-divider">
+
+        <div class="summary-total-row">
+          <span>Total</span>
+          <span class="summary-total-amount" id="summaryTotal">₱0</span>
+        </div>
+
+        <a href="{{ url_for('checkout') }}" id="btnProceed" class="btn-proceed disabled">
+          <i class="fas fa-credit-card"></i> Proceed to Order
         </a>
-        <a href="{{ url_for('index') }}" class="btn-continue-shopping" style="display:inline-flex; max-width:220px; margin-top:0.5rem;">
-          <i class="fas fa-arrow-left me-2"></i>Continue Shopping
-        </a>
+        <p class="selected-count-note" id="proceedNote">Select items to proceed</p>
       </div>
 
     </div>
+
     {% else %}
     <div class="empty-state">
       <div class="empty-icon">🛒</div>
@@ -92,11 +281,82 @@
 
 {% block extra_js %}
 <script>
+const FREE_DELIVERY_MIN = 200;
+const DELIVERY_FEE      = 20;
+
 const itemPrices = {
   {% for item in cart_items %}
   {{ item.id }}: { price: {{ item.product.price }}, qty: {{ item.quantity }} },
   {% endfor %}
 };
+
+function recalcSummary() {
+  const checkboxes = document.querySelectorAll('.item-checkbox');
+  let subtotal = 0, selectedCount = 0;
+
+  checkboxes.forEach(chk => {
+    const id = parseInt(chk.dataset.itemId);
+    const card = document.getElementById('cart-item-' + id);
+    if (chk.checked) {
+      subtotal += itemPrices[id].price * itemPrices[id].qty;
+      selectedCount++;
+      if (card) card.classList.remove('deselected');
+    } else {
+      if (card) card.classList.add('deselected');
+    }
+  });
+
+  const fee   = (selectedCount > 0 && subtotal < FREE_DELIVERY_MIN) ? DELIVERY_FEE : 0;
+  const total = subtotal + fee;
+
+  document.getElementById('summaryCount').textContent    = selectedCount;
+  document.getElementById('summarySubtotal').textContent = '₱' + Math.round(subtotal);
+  document.getElementById('summaryTotal').textContent    = '₱' + Math.round(total);
+
+  const deliveryEl = document.getElementById('summaryDelivery');
+  const noteEl     = document.getElementById('deliveryNote');
+
+  if (selectedCount === 0) {
+    deliveryEl.innerHTML   = '₱0';
+    noteEl.textContent     = '';
+    noteEl.style.color     = '#94a3b8';
+  } else if (subtotal >= FREE_DELIVERY_MIN) {
+    deliveryEl.innerHTML   = '<span class="free-tag">FREE</span>';
+    noteEl.textContent     = '🎉 You qualified for free delivery!';
+    noteEl.style.color     = '#065f46';
+  } else {
+    const needed           = FREE_DELIVERY_MIN - subtotal;
+    deliveryEl.innerHTML   = '<span class="fee-tag">+ ₱' + DELIVERY_FEE + '</span>';
+    noteEl.textContent     = '🛵 Add ₱' + Math.round(needed) + ' more for FREE delivery!';
+    noteEl.style.color     = '#d97706';
+  }
+
+  const btn  = document.getElementById('btnProceed');
+  const note = document.getElementById('proceedNote');
+  if (selectedCount > 0) {
+    btn.classList.remove('disabled');
+    note.textContent = selectedCount + ' item' + (selectedCount !== 1 ? 's' : '') + ' selected · ₱' + Math.round(total) + ' total';
+  } else {
+    btn.classList.add('disabled');
+    note.textContent = 'Select at least one item to proceed';
+  }
+
+  // Select-all state
+  const selectAll = document.getElementById('selectAll');
+  const total_items = checkboxes.length;
+  document.getElementById('selectedCountLabel').textContent =
+    selectedCount + ' of ' + total_items + ' selected';
+  if (selectedCount === 0)           { selectAll.indeterminate = false; selectAll.checked = false; }
+  else if (selectedCount === total_items) { selectAll.indeterminate = false; selectAll.checked = true; }
+  else                               { selectAll.indeterminate = true; }
+}
+
+function toggleSelectAll(master) {
+  document.querySelectorAll('.item-checkbox').forEach(chk => chk.checked = master.checked);
+  recalcSummary();
+}
+
+function onItemCheck() { recalcSummary(); }
 
 function updateCart(itemId, newQty) {
   if (newQty < 1) { removeItem(itemId); return; }
@@ -113,7 +373,8 @@ function updateCart(itemId, newQty) {
         itemPrices[itemId].qty = newQty;
         subtotalEl.textContent = '₱' + Math.round(itemPrices[itemId].price * newQty);
       }
-      updateCartBadge();
+      if (typeof updateCartBadge === 'function') updateCartBadge();
+      recalcSummary();
     }
   });
 }
@@ -125,9 +386,11 @@ function removeItem(itemId) {
     if (d.success) {
       const card = document.getElementById('cart-item-' + itemId);
       if (card) { card.style.opacity = '0'; card.style.transform = 'translateX(20px)'; setTimeout(() => location.reload(), 300); }
-      updateCartBadge();
+      if (typeof updateCartBadge === 'function') updateCartBadge();
     }
   });
 }
+
+recalcSummary();
 </script>
 {% endblock %}
