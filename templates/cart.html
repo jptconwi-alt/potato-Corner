@@ -215,9 +215,9 @@
 
           <div class="cart-item-actions">
             <div class="cart-qty-control">
-              <button class="cart-qty-btn" onclick="updateCart({{ item.id }}, {{ item.quantity - 1 }})">−</button>
+              <button class="cart-qty-btn" onclick="changeQty({{ item.id }}, -1)">−</button>
               <span class="cart-qty-val" id="qty-display-{{ item.id }}">{{ item.quantity }}</span>
-              <button class="cart-qty-btn" onclick="updateCart({{ item.id }}, {{ item.quantity + 1 }})">+</button>
+              <button class="cart-qty-btn" onclick="changeQty({{ item.id }}, +1)">+</button>
             </div>
             <div class="cart-item-subtotal" id="subtotal-{{ item.id }}">₱{{ "%.0f"|format(item.product.price * item.quantity) }}</div>
             <button class="cart-remove-btn" onclick="removeItem({{ item.id }})">
@@ -357,6 +357,13 @@ function toggleSelectAll(master) {
 }
 
 function onItemCheck() { recalcSummary(); }
+
+function changeQty(itemId, delta) {
+  const qtyEl = document.getElementById('qty-display-' + itemId);
+  const currentQty = parseInt(qtyEl ? qtyEl.textContent : 1);
+  const newQty = currentQty + delta;
+  updateCart(itemId, newQty);
+}
 
 function updateCart(itemId, newQty) {
   if (newQty < 1) { removeItem(itemId); return; }

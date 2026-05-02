@@ -179,6 +179,9 @@
   border: 2px solid #e0e0e0;
   overflow: hidden;
   z-index: 1;
+  touch-action: none; /* Prevents iOS scroll conflict with Leaflet */
+  -webkit-user-select: none;
+  user-select: none;
 }
 .map-coords-display {
   display: flex;
@@ -794,14 +797,33 @@
   // ── Skeleton → Real transition ──────────────────────────
   const skeleton = document.getElementById('checkoutSkeleton');
   const real     = document.getElementById('checkoutReal');
+
+  function showCheckout() {
+    skeleton.style.display = 'none';
+    real.style.display     = 'flex';
+    initMap();
+  }
+
+  // Show skeleton immediately
   skeleton.style.display = 'flex';
-  window.addEventListener('load', () => {
-    setTimeout(() => {
-      skeleton.style.display = 'none';
-      real.style.display     = 'flex';
-      initMap();
-    }, 600);
-  });
+
+  // iOS Safari sometimes fires 'load' before scripts finish or not at all
+  // Use DOMContentLoaded with a short timer, fallback to load event
+  let checkoutShown = false;
+  function safeShow() {
+    if (checkoutShown) return;
+    checkoutShown = true;
+    setTimeout(showCheckout, 300);
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    safeShow();
+  } else {
+    document.addEventListener('DOMContentLoaded', safeShow);
+    window.addEventListener('load', safeShow);
+  }
+  // Absolute fallback — never leave user on skeleton forever
+  setTimeout(safeShow, 2500);
 
   // ── Leaflet Map Setup ─────────────────────────────────────
   let map, marker, deliveryLat = null, deliveryLng = null;
@@ -1021,7 +1043,9 @@
     document.getElementById('placeOrderText').textContent = 'Processing…';
     document.getElementById('placingOverlay').classList.add('active');
 
-    this.submit();
+    // Small delay allows iOS to render the overlay before navigation
+    var form = this;
+    setTimeout(function() { form.submit(); }, 80);
   });
 
   // ── Inline validation on blur ────────────────────────────
