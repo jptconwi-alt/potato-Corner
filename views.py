@@ -20,6 +20,8 @@ def allowed_file(filename):
 def get_session_id():
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
+        session.modified = True   # force Flask to save the cookie
+    session.permanent = True      # survive browser restarts (uses PERMANENT_SESSION_LIFETIME)
     return session['session_id']
 
 

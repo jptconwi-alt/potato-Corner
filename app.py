@@ -1,4 +1,5 @@
 import warnings
+from datetime import timedelta
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
 
 from flask import Flask, redirect, url_for, session, flash
@@ -89,6 +90,7 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY']                     = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['PERMANENT_SESSION_LIFETIME']      = timedelta(days=30)
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
