@@ -2,6 +2,8 @@
 {% block title %}Checkout — Potato Corner{% endblock %}
 
 {% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
 /* ── Skeleton Loading ─────────────────────────────── */
 @keyframes shimmer {
@@ -140,6 +142,92 @@
   text-align: center;
   margin-top: .75rem;
 }
+
+/* ── Leaflet Map ──────────────────────────────────── */
+.map-section {
+  background: #fff;
+  border-radius: 14px;
+  border: 1.5px solid #e0e0e0;
+  padding: 1.2rem;
+  margin-top: 1rem;
+}
+.map-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.map-hint {
+  font-size: 0.78rem;
+  color: #666;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #e3f2fd;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid #90caf9;
+  color: #1565c0;
+}
+#deliveryMap {
+  height: 280px;
+  border-radius: 10px;
+  border: 2px solid #e0e0e0;
+  overflow: hidden;
+  z-index: 1;
+}
+.map-coords-display {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  color: #555;
+}
+.map-coords-display .coord-badge {
+  background: #f1f8e9;
+  border: 1px solid #a5d6a7;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-family: monospace;
+  color: #2e7d32;
+  font-weight: 600;
+}
+.map-pin-set-indicator {
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  background: #e8f5e9;
+  border: 1.5px solid #a5d6a7;
+  border-radius: 8px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  color: #2e7d32;
+  font-weight: 600;
+  margin-top: 0.5rem;
+}
+.map-pin-set-indicator.visible { display: flex; }
+.btn-use-my-location {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #1565c0;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 0.6rem;
+}
+.btn-use-my-location:hover { background: #0d47a1; transform: translateY(-1px); }
+.btn-use-my-location:disabled { background: #90a4ae; cursor: not-allowed; }
 </style>
 {% endblock %}
 
@@ -321,6 +409,36 @@
               </div>
             </div>
 
+            <!-- ── Leaflet Delivery Map ── -->
+            <div class="map-section">
+              <div class="map-section-title">
+                <i class="fas fa-map-marker-alt" style="color:#e53935"></i>
+                Pin Your Exact Delivery Location
+              </div>
+              <div class="map-hint">
+                <i class="fas fa-hand-pointer"></i>
+                Click on the map to drop a pin at your exact delivery location. This helps our rider find you faster!
+              </div>
+              <div id="deliveryMap"></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:0.6rem;align-items:center;">
+                <button type="button" class="btn-use-my-location" id="btnMyLocation" onclick="useMyLocation()">
+                  <i class="fas fa-crosshairs"></i> Use My Current Location
+                </button>
+                <div class="map-pin-set-indicator" id="pinSetIndicator">
+                  <i class="fas fa-check-circle"></i> Delivery pin set!
+                </div>
+              </div>
+              <div class="map-coords-display" id="coordsDisplay" style="display:none;">
+                <i class="fas fa-location-arrow" style="color:#1565c0"></i>
+                Lat: <span class="coord-badge" id="coordLat">—</span>
+                Lng: <span class="coord-badge" id="coordLng">—</span>
+              </div>
+            </div>
+
+            <!-- Hidden fields for map coordinates -->
+            <input type="hidden" name="delivery_lat" id="hiddenLat">
+            <input type="hidden" name="delivery_lng" id="hiddenLng">
+
             <!-- Hidden combined address for backend -->
             <input type="hidden" name="address" id="hiddenAddress">
           </div>
@@ -427,6 +545,14 @@
               <span><i class="fas fa-undo me-1 text-success"></i> Order tracked in real-time</span>
             </div>
           </div>
+
+          <!-- Map location status -->
+          <div id="mapStatusCard" style="display:none;margin-top:1rem;padding:.75rem;background:#e8f5e9;border:1.5px solid #a5d6a7;border-radius:10px;">
+            <div style="font-size:.8rem;color:#2e7d32;font-weight:700;margin-bottom:4px;">
+              <i class="fas fa-map-marker-alt me-1"></i> Delivery Pin Set
+            </div>
+            <div style="font-size:.75rem;color:#388e3c;" id="mapStatusText">Location pinned on map</div>
+          </div>
         </div>
       </div>
     </div>
@@ -435,6 +561,8 @@
 {% endblock %}
 
 {% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
   // ── Skeleton → Real transition ──────────────────────────
@@ -445,8 +573,131 @@
     setTimeout(() => {
       skeleton.style.display = 'none';
       real.style.display     = 'flex';
-    }, 600); // brief skeleton flash so user sees it loaded
+      initMap();
+    }, 600);
   });
+
+  // ── Leaflet Map Setup ─────────────────────────────────────
+  let map, marker, deliveryLat = null, deliveryLng = null;
+
+  function initMap() {
+    // Default center: Tandag, Surigao del Sur (adjust to your area)
+    const defaultLat = 9.0779;
+    const defaultLng = 126.0110;
+
+    map = L.map('deliveryMap').setView([defaultLat, defaultLng], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Custom red pin icon
+    const pinIcon = L.divIcon({
+      html: `<div style="
+        background:#e53935;
+        width:28px;height:28px;
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        border:3px solid #fff;
+        box-shadow:0 3px 10px rgba(0,0,0,0.3);
+        display:flex;align-items:center;justify-content:center;
+      ">
+        <div style="
+          width:10px;height:10px;
+          background:#fff;
+          border-radius:50%;
+          transform:rotate(45deg);
+        "></div>
+      </div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 28],
+      className: ''
+    });
+
+    // Click to place marker
+    map.on('click', function(e) {
+      placePin(e.latlng.lat, e.latlng.lng, pinIcon);
+    });
+
+    // Pre-fill if user has saved coords
+    const savedLat = "{{ current_user.delivery_lat if current_user.is_authenticated and current_user.delivery_lat else '' }}";
+    const savedLng = "{{ current_user.delivery_lng if current_user.is_authenticated and current_user.delivery_lng else '' }}";
+    if (savedLat && savedLng) {
+      placePin(parseFloat(savedLat), parseFloat(savedLng), pinIcon);
+      map.setView([parseFloat(savedLat), parseFloat(savedLng)], 16);
+    }
+  }
+
+  function placePin(lat, lng, icon) {
+    deliveryLat = lat;
+    deliveryLng = lng;
+
+    if (!icon) {
+      icon = L.divIcon({
+        html: `<div style="background:#e53935;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><div style="width:10px;height:10px;background:#fff;border-radius:50%;transform:rotate(45deg);"></div></div>`,
+        iconSize: [28, 28], iconAnchor: [14, 28], className: ''
+      });
+    }
+
+    if (marker) { map.removeLayer(marker); }
+    marker = L.marker([lat, lng], { icon, draggable: true }).addTo(map);
+
+    marker.bindPopup('<strong>📍 Delivery Here</strong><br><small>Drag to adjust</small>').openPopup();
+
+    // Allow dragging to adjust pin
+    marker.on('dragend', function(e) {
+      const pos = marker.getLatLng();
+      updatePinInfo(pos.lat, pos.lng);
+    });
+
+    updatePinInfo(lat, lng);
+  }
+
+  function updatePinInfo(lat, lng) {
+    deliveryLat = lat;
+    deliveryLng = lng;
+
+    document.getElementById('hiddenLat').value = lat.toFixed(7);
+    document.getElementById('hiddenLng').value = lng.toFixed(7);
+
+    document.getElementById('coordLat').textContent = lat.toFixed(5);
+    document.getElementById('coordLng').textContent = lng.toFixed(5);
+    document.getElementById('coordsDisplay').style.display = 'flex';
+    document.getElementById('pinSetIndicator').classList.add('visible');
+
+    // Update summary card
+    const mapStatusCard = document.getElementById('mapStatusCard');
+    const mapStatusText = document.getElementById('mapStatusText');
+    mapStatusCard.style.display = 'block';
+    mapStatusText.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+
+  // ── Use My Location ────────────────────────────────────
+  window.useMyLocation = function() {
+    const btn = document.getElementById('btnMyLocation');
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.');
+      return;
+    }
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Locating…';
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        placePin(lat, lng);
+        map.setView([lat, lng], 17);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-crosshairs"></i> Use My Current Location';
+      },
+      function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-crosshairs"></i> Use My Current Location';
+        alert('Could not get your location. Please pin manually on the map.');
+      }
+    );
+  };
 
   // ── Payment option highlight ────────────────────────────
   const payInputs = document.querySelectorAll('.payment-option input');
@@ -481,7 +732,6 @@
   }
 
   function validatePhone(v) {
-    // Accept 09XXXXXXXXX or +639XXXXXXXXX or 639XXXXXXXXX
     return /^(09|\+639|639)\d{9}$/.test(v.replace(/[\s\-]/g, ''));
   }
 
@@ -523,7 +773,6 @@
     e.preventDefault();
 
     if (!validateAll()) {
-      // Scroll to first error
       const firstErr = document.querySelector('.is-invalid');
       if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
@@ -536,7 +785,6 @@
 
     buildAddress();
 
-    // Confirm before e-wallet redirect
     const method = document.querySelector('.payment-option input:checked').value;
     if (['GCash', 'Maya'].includes(method)) {
       if (!confirm(`You will be redirected to ${method} to complete payment. Continue?`)) return;

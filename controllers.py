@@ -253,6 +253,8 @@ class OrderController:
             customer_email=customer_data['email'],
             customer_phone=customer_data['phone'],
             delivery_address=customer_data['address'],
+            delivery_lat=customer_data.get('delivery_lat'),
+            delivery_lng=customer_data.get('delivery_lng'),
             total_amount=total,
             payment_method=customer_data['payment_method'],
             status='Pending',

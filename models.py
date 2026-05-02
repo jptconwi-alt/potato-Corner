@@ -83,6 +83,8 @@ class Order(db.Model):
     customer_email   = db.Column(db.String(100), nullable=False)
     customer_phone   = db.Column(db.String(20), nullable=False)
     delivery_address = db.Column(db.Text, nullable=False)
+    delivery_lat     = db.Column(db.Float, nullable=True)
+    delivery_lng     = db.Column(db.Float, nullable=True)
     total_amount     = db.Column(db.Float, nullable=False)
     status           = db.Column(db.String(20), default='Pending')
     payment_method   = db.Column(db.String(50), nullable=False)

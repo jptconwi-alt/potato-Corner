@@ -1,9 +1,115 @@
 {% extends "base.html" %}
 {% block title %}Manage Orders — Admin{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+.btn-view-map {
+  background: linear-gradient(135deg, #1565c0, #0d47a1);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  transition: all 0.2s;
+}
+.btn-view-map:hover { transform: translateY(-1px); opacity: 0.9; }
+.btn-no-location {
+  font-size: 0.7rem;
+  color: #bbb;
+  font-style: italic;
+}
+
+/* Map Modal */
+.map-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(15,23,42,0.7);
+  backdrop-filter: blur(4px);
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.map-modal-overlay.open { display: flex; }
+.map-modal-card {
+  background: #fff;
+  border-radius: 18px;
+  width: 100%;
+  max-width: 620px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+}
+.map-modal-header {
+  background: linear-gradient(135deg, #1565c0, #0d47a1);
+  color: #fff;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.map-modal-header h5 { margin: 0; font-weight: 700; font-size: 1rem; }
+.map-modal-close {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  border-radius: 50%;
+  width: 32px; height: 32px;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex; align-items: center; justify-content: center;
+}
+.map-modal-body { padding: 0; }
+#adminDeliveryMap { height: 380px; }
+.map-modal-footer {
+  padding: 0.85rem 1.2rem;
+  background: #f8f9fa;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.map-customer-info {
+  flex: 1;
+  min-width: 0;
+}
+.map-customer-name { font-weight: 700; font-size: 0.9rem; color: #333; }
+.map-customer-addr { font-size: 0.78rem; color: #666; margin-top: 2px; }
+.map-open-google {
+  background: #4285F4;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.map-open-google:hover { background: #1a73e8; color: #fff; }
+.no-pin-notice {
+  padding: 3rem;
+  text-align: center;
+  color: #888;
+}
+.no-pin-notice i { font-size: 2rem; margin-bottom: 0.75rem; display: block; color: #ccc; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="admin-layout">
-  <!-- Sidebar (same as dashboard) -->
+  <!-- Sidebar -->
   <aside class="admin-sidebar" id="adminSidebar">
     <div class="admin-sidebar-header">
       <div class="admin-logo">🍟</div>
@@ -73,7 +179,7 @@
                   <th>Order #</th>
                   <th>Customer</th>
                   <th>Phone</th>
-                  <th>Address</th>
+                  <th>Address & Location</th>
                   <th>Items</th>
                   <th>Total</th>
                   <th>Payment Method</th>
@@ -98,12 +204,23 @@
                     <div class="admin-address-cell" title="{{ order.delivery_address }}">
                       {{ order.delivery_address[:35] }}{% if order.delivery_address|length > 35 %}...{% endif %}
                     </div>
+                    <!-- Map button if coordinates exist -->
+                    {% if order.delivery_lat and order.delivery_lng %}
+                    <button class="btn-view-map" onclick="openDeliveryMap(
+                      {{ order.delivery_lat }}, {{ order.delivery_lng }},
+                      '{{ order.customer_name|e }}',
+                      '{{ order.delivery_address|e }}'
+                    )">
+                      <i class="fas fa-map-marker-alt"></i> View on Map
+                    </button>
+                    {% else %}
+                    <span class="btn-no-location"><i class="fas fa-map-marker-alt me-1"></i>No pin set</span>
+                    {% endif %}
                   </td>
                   <td>
                     <button class="btn-view-items" onclick="showItems({{ order.id }})">
                       {{ order.items|length }} item{{ 's' if order.items|length != 1 }}
                     </button>
-                    <!-- Hidden items data -->
                     <div id="items-{{ order.id }}" class="d-none">
                       {% for item in order.items %}
                       <div>{{ item.product_name }} × {{ item.quantity }} = ₱{{ "%.0f"|format(item.subtotal) }}</div>
@@ -165,9 +282,34 @@
     </div>
   </div>
 </div>
+
+<!-- Delivery Map Modal -->
+<div class="map-modal-overlay" id="deliveryMapModal" onclick="closeDeliveryMapModal(event)">
+  <div class="map-modal-card">
+    <div class="map-modal-header">
+      <h5><i class="fas fa-map-marker-alt me-2"></i>Delivery Location</h5>
+      <button class="map-modal-close" onclick="closeDeliveryMapModal()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="map-modal-body">
+      <div id="adminDeliveryMap"></div>
+    </div>
+    <div class="map-modal-footer">
+      <div class="map-customer-info">
+        <div class="map-customer-name" id="mapCustomerName">—</div>
+        <div class="map-customer-addr" id="mapCustomerAddr">—</div>
+      </div>
+      <a href="#" id="mapOpenGoogle" target="_blank" class="map-open-google">
+        <i class="fab fa-google"></i> Open in Google Maps
+      </a>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 function toggleSidebar() {
   document.getElementById('adminSidebar').classList.toggle('open');
@@ -248,12 +390,75 @@ function showItems(orderId) {
   const itemsDiv = document.getElementById('items-' + orderId);
   const rows = itemsDiv ? itemsDiv.querySelectorAll('div') : [];
   let html = '<div class="modal-items-list">';
-  rows.forEach(r => {
-    html += '<div class="modal-item-row">' + r.innerHTML + '</div>';
-  });
+  rows.forEach(r => { html += '<div class="modal-item-row">' + r.innerHTML + '</div>'; });
   html += '</div>';
   document.getElementById('modalItemsBody').innerHTML = html;
   new bootstrap.Modal(document.getElementById('itemsModal')).show();
 }
+
+// ── Delivery Map Modal ──────────────────────────────────
+let adminMap = null;
+let adminMarker = null;
+
+function openDeliveryMap(lat, lng, customerName, address) {
+  document.getElementById('mapCustomerName').textContent = customerName;
+  document.getElementById('mapCustomerAddr').textContent = address;
+  document.getElementById('mapOpenGoogle').href = `https://www.google.com/maps?q=${lat},${lng}`;
+
+  const modal = document.getElementById('deliveryMapModal');
+  modal.classList.add('open');
+
+  // Init or re-init map
+  setTimeout(() => {
+    if (adminMap) {
+      adminMap.remove();
+      adminMap = null;
+    }
+
+    adminMap = L.map('adminDeliveryMap').setView([lat, lng], 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(adminMap);
+
+    // Rider delivery pin icon
+    const pinIcon = L.divIcon({
+      html: `<div style="
+        background:#e53935;width:36px;height:36px;
+        border-radius:50% 50% 50% 0;transform:rotate(-45deg);
+        border:4px solid #fff;box-shadow:0 4px 14px rgba(0,0,0,0.35);
+        display:flex;align-items:center;justify-content:center;
+      ">
+        <div style="transform:rotate(45deg);color:#fff;font-size:14px;">📍</div>
+      </div>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 36],
+      className: ''
+    });
+
+    adminMarker = L.marker([lat, lng], { icon: pinIcon }).addTo(adminMap);
+    adminMarker.bindPopup(
+      `<div style="min-width:160px">
+        <strong>🚚 Deliver Here</strong><br>
+        <small style="color:#555">${customerName}</small><br>
+        <small style="color:#888">${address}</small>
+      </div>`
+    ).openPopup();
+
+    // Add a circle to indicate approximate area
+    L.circle([lat, lng], { radius: 50, color: '#e53935', fillColor: '#ef9a9a', fillOpacity: 0.2, weight: 2 }).addTo(adminMap);
+
+    adminMap.invalidateSize();
+  }, 150);
+}
+
+function closeDeliveryMapModal(e) {
+  if (e && e.target !== document.getElementById('deliveryMapModal')) return;
+  document.getElementById('deliveryMapModal').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeDeliveryMapModal();
+});
 </script>
 {% endblock %}

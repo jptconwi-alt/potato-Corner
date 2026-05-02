@@ -84,45 +84,45 @@ def register_routes(app):
             return jsonify({'success': True, 'full_name': full_name})
         return jsonify({'success': False, 'message': str(result)})
 
-    @app.route('/register', methods=['GET', 'POST'])
-    def register():
-        if current_user.is_authenticated:
-            return redirect(url_for('index'))
-        if request.method == 'POST':
-            username = request.form.get('username', '').strip()
-            email = request.form.get('email', '').strip()
-            password = request.form.get('password', '')
-            confirm = request.form.get('confirm_password', '')
-            full_name = request.form.get('full_name', '').strip()
-            phone = request.form.get('phone', '').strip()
-            street = request.form.get('street', '').strip()
-            barangay = request.form.get('barangay', '').strip()
-            city = request.form.get('city', '').strip()
-            province = request.form.get('province', '').strip()
-            zipcode = request.form.get('zipcode', '').strip()
+    # @app.route('/register', methods=['GET', 'POST'])
+    # def register():
+    #     if current_user.is_authenticated:
+    #         return redirect(url_for('index'))
+    #     if request.method == 'POST':
+    #         username = request.form.get('username', '').strip()
+    #         email = request.form.get('email', '').strip()
+    #         password = request.form.get('password', '')
+    #         confirm = request.form.get('confirm_password', '')
+    #         full_name = request.form.get('full_name', '').strip()
+    #         phone = request.form.get('phone', '').strip()
+    #         street = request.form.get('street', '').strip()
+    #         barangay = request.form.get('barangay', '').strip()
+    #         city = request.form.get('city', '').strip()
+    #         province = request.form.get('province', '').strip()
+    #         zipcode = request.form.get('zipcode', '').strip()
 
-            if password != confirm:
-                flash('Passwords do not match', 'danger')
-                return render_template('register.html')
-            if len(password) < 6:
-                flash('Password must be at least 6 characters', 'danger')
-                return render_template('register.html')
+    #         if password != confirm:
+    #             flash('Passwords do not match', 'danger')
+    #             return render_template('register.html')
+    #         if len(password) < 6:
+    #             flash('Password must be at least 6 characters', 'danger')
+    #             return render_template('register.html')
 
-            success, result = AuthController.register_user(username, email, password, full_name, phone)
-            if success:
-                # Save address fields
-                result.street = street
-                result.barangay = barangay
-                result.city = city
-                result.province = province
-                result.zipcode = zipcode
-                result.profile_complete = True
-                db.session.commit()
-                flash('Account created! Please log in.', 'success')
-                return redirect(url_for('index'))
-            else:
-                flash(result, 'danger')
-        return render_template('register.html')
+    #         success, result = AuthController.register_user(username, email, password, full_name, phone)
+    #         if success:
+    #             # Save address fields
+    #             result.street = street
+    #             result.barangay = barangay
+    #             result.city = city
+    #             result.province = province
+    #             result.zipcode = zipcode
+    #             result.profile_complete = True
+    #             db.session.commit()
+    #             flash('Account created! Please log in.', 'success')
+    #             return redirect(url_for('index'))
+    #         else:
+    #             flash(result, 'danger')
+    #     return render_template('register.html')
 
     @app.route('/logout')
     def logout():
@@ -271,6 +271,8 @@ def register_routes(app):
                 'phone': request.form.get('phone', '').strip(),
                 'address': request.form.get('address', '').strip(),
                 'payment_method': request.form.get('payment_method', 'Cash on Delivery'),
+                'delivery_lat': float(request.form.get('delivery_lat')) if request.form.get('delivery_lat') else None,
+                'delivery_lng': float(request.form.get('delivery_lng')) if request.form.get('delivery_lng') else None,
             }
             if not all([customer_data['name'], customer_data['email'], customer_data['phone'], customer_data['address']]):
                 flash('Please fill in all required fields', 'danger')
