@@ -571,6 +571,13 @@ def register_routes(app):
         try:
             # Remove cart items referencing this product first to avoid FK constraint
             CartItem.query.filter_by(product_id=product_id).delete()
+            # Detach order items from this product (product_name is already stored,
+            # so history is preserved; we just clear the FK reference)
+            from sqlalchemy import text
+            db.session.execute(
+                text("UPDATE order_items SET product_id = NULL WHERE product_id = :pid"),
+                {"pid": product_id}
+            )
             db.session.delete(product)
             db.session.commit()
             return jsonify({'success': True})

@@ -98,7 +98,7 @@
             <div class="admin-product-actions">
               <button class="btn-product-edit"
                 data-product-id="{{ product.id }}"
-                data-product="{{ product.to_dict()|tojson|e }}"
+                data-product="{{ product.to_dict()|tojson }}"
                 onclick="openEditProduct(this.dataset.productId, JSON.parse(this.dataset.product))">
                 <i class="fas fa-pen"></i> Edit
               </button>
