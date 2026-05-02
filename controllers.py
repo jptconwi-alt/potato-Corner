@@ -268,7 +268,6 @@ class OrderController:
                 order_id=order.id,
                 product_id=cart_item.product_id,
                 product_name=cart_item.product.name,
-                size=cart_item.product.size,
                 quantity=cart_item.quantity,
                 price=cart_item.product.price,
                 subtotal=cart_item.product.price * cart_item.quantity

@@ -108,10 +108,14 @@ class OrderItem(db.Model):
     order_id     = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id   = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
     product_name = db.Column(db.String(100), nullable=False)
-    size         = db.Column(db.String(20), nullable=True)
     quantity     = db.Column(db.Integer, nullable=False)
     price        = db.Column(db.Float, nullable=False)
     subtotal     = db.Column(db.Float, nullable=False)
+    product      = db.relationship('Product', foreign_keys=[product_id], lazy='joined')
+
+    @property
+    def size(self):
+        return self.product.size if self.product else None
 
     def to_dict(self):
         return {
