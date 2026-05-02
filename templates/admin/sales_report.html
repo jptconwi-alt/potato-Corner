@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Sales Report — Admin{% endblock %}
 
-{% block extra_head %}
+{% block extra_css %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 /* ══════════════════════════════════════
@@ -316,14 +316,40 @@ function toggleSidebar() {
   document.getElementById('sidebarOverlay').classList.toggle('active');
 }
 {% if chart_labels %}
+const chartLabels     = {{ chart_labels | tojson }};
+const chartIncome     = {{ chart_data | tojson }};
+const chartOrders     = {{ orders_chart_data | tojson }};
+
 const ctx = document.getElementById('incomeChart').getContext('2d');
 new Chart(ctx, {
   type: 'bar',
   data: {
-    labels: {{ chart_labels | tojson }},
+    labels: chartLabels,
     datasets: [
-      { label: 'Income (₱)', data: {{ chart_data | tojson }}, backgroundColor: 'rgba(16,185,129,0.75)', borderColor: '#059669', borderWidth: 2, borderRadius: 6, yAxisID: 'yIncome', order: 2 },
-      { label: 'Orders', data: {{ orders_chart_data | tojson }}, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 2.5, pointBackgroundColor: '#3b82f6', pointRadius: 4, fill: true, tension: 0.4, yAxisID: 'yOrders', order: 1 }
+      {
+        label: 'Income (₱)',
+        data: chartIncome,
+        backgroundColor: 'rgba(16,185,129,0.75)',
+        borderColor: '#059669',
+        borderWidth: 2,
+        borderRadius: 6,
+        yAxisID: 'yIncome',
+        order: 2
+      },
+      {
+        label: 'Orders',
+        data: chartOrders,
+        type: 'line',
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.08)',
+        borderWidth: 2.5,
+        pointBackgroundColor: '#3b82f6',
+        pointRadius: 4,
+        fill: true,
+        tension: 0.4,
+        yAxisID: 'yOrders',
+        order: 1
+      }
     ]
   },
   options: {
@@ -331,13 +357,44 @@ new Chart(ctx, {
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
-      tooltip: { backgroundColor: '#1e293b', titleColor: '#f1f5f9', bodyColor: '#cbd5e1', padding: 10, cornerRadius: 8,
-        callbacks: { label: ctx => ctx.dataset.label === 'Income (₱)' ? '  ₱' + ctx.parsed.y.toLocaleString('en-PH', {minimumFractionDigits:2}) : '  ' + ctx.parsed.y + ' orders' }
+      tooltip: {
+        backgroundColor: '#1e293b',
+        titleColor: '#f1f5f9',
+        bodyColor: '#cbd5e1',
+        padding: 10,
+        cornerRadius: 8,
+        callbacks: {
+          label: function(context) {
+            if (context.dataset.label === 'Income (\u20b1)')
+              return '  \u20b1' + context.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+            return '  ' + context.parsed.y + ' orders';
+          }
+        }
       }
     },
     scales: {
-      yIncome: { type: 'linear', position: 'left', beginAtZero: true, ticks: { callback: val => '₱' + val.toLocaleString(), color: '#059669', font: { weight: '600', size: 11 } }, grid: { color: 'rgba(0,0,0,.05)' } },
-      yOrders: { type: 'linear', position: 'right', beginAtZero: true, ticks: { stepSize: 1, color: '#3b82f6', font: { weight: '600', size: 11 } }, grid: { drawOnChartArea: false } }
+      yIncome: {
+        type: 'linear',
+        position: 'left',
+        beginAtZero: true,
+        ticks: {
+          callback: function(val) { return '\u20b1' + val.toLocaleString(); },
+          color: '#059669',
+          font: { weight: '600', size: 11 }
+        },
+        grid: { color: 'rgba(0,0,0,.05)' }
+      },
+      yOrders: {
+        type: 'linear',
+        position: 'right',
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1,
+          color: '#3b82f6',
+          font: { weight: '600', size: 11 }
+        },
+        grid: { drawOnChartArea: false }
+      }
     }
   }
 });
