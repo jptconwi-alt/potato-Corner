@@ -170,6 +170,20 @@
 .summary-card.green .s-value { color: #16a34a; }
 .summary-card.orange .s-value { color: #ea580c; }
 </style>
+<style>
+.admin-toast {
+  position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
+  display: flex; align-items: center; gap: .65rem;
+  padding: .8rem 1.2rem; border-radius: 10px;
+  font-size: .875rem; font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  animation: toastIn .25s ease;
+  max-width: 340px;
+}
+.admin-toast.success { background: #16a34a; color: #fff; }
+.admin-toast.error   { background: #dc2626; color: #fff; }
+@keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -635,6 +649,19 @@ document.querySelectorAll('.status-tab').forEach(tab => {
     applyFilters();
   });
 });
+
+
+function showToast(msg, type) {
+  const existing = document.querySelector('.admin-toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.className = 'admin-toast ' + (type || 'success');
+  t.innerHTML = (type === 'error'
+    ? '<i class="fas fa-exclamation-circle"></i> '
+    : '<i class="fas fa-check-circle"></i> ') + msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
 
 // Init summary on load
 applyFilters();
