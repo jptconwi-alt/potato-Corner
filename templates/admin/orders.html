@@ -307,7 +307,7 @@
                     </button>
                     <div id="items-{{ order.id }}" class="d-none" style="font-size:.75rem;margin-top:4px;">
                       {% for item in order.items %}
-                      <div>{{ item.product_name }} ×{{ item.quantity }} = ₱{{ "%.0f"|format(item.subtotal) }}</div>
+                      <div>{{ item.product_name }}{% if item.size %} ({{ item.size }}){% endif %} ×{{ item.quantity }} = ₱{{ "%.0f"|format(item.subtotal) }}</div>
                       {% endfor %}
                     </div>
                     <div style="font-weight:700;font-size:.88rem;margin-top:2px;">₱{{ "%.0f"|format(order.total_amount) }}</div>

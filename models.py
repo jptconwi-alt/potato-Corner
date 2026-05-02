@@ -108,14 +108,15 @@ class OrderItem(db.Model):
     order_id     = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
     product_id   = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=True)
     product_name = db.Column(db.String(100), nullable=False)
+    size         = db.Column(db.String(20), nullable=True)
     quantity     = db.Column(db.Integer, nullable=False)
     price        = db.Column(db.Float, nullable=False)
     subtotal     = db.Column(db.Float, nullable=False)
 
     def to_dict(self):
         return {
-            'product_name': self.product_name, 'quantity': self.quantity,
-            'price': self.price, 'subtotal': self.subtotal
+            'product_name': self.product_name, 'size': self.size,
+            'quantity': self.quantity, 'price': self.price, 'subtotal': self.subtotal
         }
 
 

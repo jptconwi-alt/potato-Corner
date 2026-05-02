@@ -15,6 +15,12 @@ with app.app_context():
         except Exception as e:
             print(f"delivery_lng skipped: {e}")
 
+        try:
+            conn.execute(db.text("ALTER TABLE order_items ADD COLUMN size VARCHAR(20)"))
+            print("Added order_items.size")
+        except Exception as e:
+            print(f"order_items.size skipped: {e}")
+
         conn.commit()
 
     print("Migration complete!")
