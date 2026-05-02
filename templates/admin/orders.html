@@ -115,6 +115,60 @@
   color: #888;
 }
 .no-pin-notice i { font-size: 2rem; margin-bottom: 0.75rem; display: block; color: #ccc; }
+
+/* Date Filter Tabs */
+.date-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.date-filter-bar label {
+  font-size: .8rem;
+  font-weight: 600;
+  color: #555;
+  margin-right: 4px;
+}
+.date-tab {
+  background: #f1f5f9;
+  border: 1.5px solid #e2e8f0;
+  color: #475569;
+  border-radius: 20px;
+  padding: 5px 16px;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .18s;
+}
+.date-tab:hover { background: #e2e8f0; }
+.date-tab.active {
+  background: #1565c0;
+  border-color: #1565c0;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(21,101,192,.25);
+}
+
+/* Totals Summary Bar */
+.orders-summary-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.summary-card {
+  background: #fff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 20px;
+  flex: 1;
+  min-width: 140px;
+  text-align: center;
+}
+.summary-card .s-label { font-size: .72rem; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.summary-card .s-value { font-size: 1.25rem; font-weight: 800; color: #1565c0; margin-top: 2px; }
+.summary-card.green .s-value { color: #16a34a; }
+.summary-card.orange .s-value { color: #ea580c; }
 </style>
 {% endblock %}
 
@@ -171,6 +225,36 @@
     </div>
 
     <div class="admin-content">
+      <!-- Date Filter Bar -->
+      <div class="date-filter-bar">
+        <label><i class="fas fa-calendar-alt me-1"></i>Period:</label>
+        <button class="date-tab active" data-period="all">All Time</button>
+        <button class="date-tab" data-period="today">Today</button>
+        <button class="date-tab" data-period="week">This Week</button>
+        <button class="date-tab" data-period="month">This Month</button>
+        <button class="date-tab" data-period="year">This Year</button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="orders-summary-bar">
+        <div class="summary-card">
+          <div class="s-label">Orders</div>
+          <div class="s-value" id="summaryOrderCount">0</div>
+        </div>
+        <div class="summary-card green">
+          <div class="s-label">Revenue</div>
+          <div class="s-value" id="summaryRevenue">₱0</div>
+        </div>
+        <div class="summary-card orange">
+          <div class="s-label">Pending</div>
+          <div class="s-value" id="summaryPending">0</div>
+        </div>
+        <div class="summary-card">
+          <div class="s-label">Delivered</div>
+          <div class="s-value" id="summaryDelivered">0</div>
+        </div>
+      </div>
+
       <!-- Status Filter Tabs -->
       <div class="order-status-tabs">
         <button class="status-tab active" data-filter="all">All <span>{{ orders|length }}</span></button>
@@ -198,7 +282,7 @@
               </thead>
               <tbody>
                 {% for order in orders %}
-                <tr class="order-row" data-status="{{ order.status.lower().replace(' ', '-') }}" id="order-row-{{ order.id }}">
+                <tr class="order-row" data-status="{{ order.status.lower().replace(' ', '-') }}" data-date="{{ order.order_date.strftime('%Y-%m-%dT%H:%M:%S') }}" data-amount="{{ order.total_amount }}" id="order-row-{{ order.id }}">
                   <td>
                     <span class="admin-order-num">{{ order.order_number }}</span>
                   </td>
@@ -316,17 +400,7 @@ function toggleSidebar() {
   document.getElementById('sidebarOverlay').classList.toggle('active');
 }
 
-// Status filter tabs
-document.querySelectorAll('.status-tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const filter = tab.dataset.filter;
-    document.querySelectorAll('.order-row').forEach(row => {
-      row.style.display = (filter === 'all' || row.dataset.status === filter) ? '' : 'none';
-    });
-  });
-});
+// Status filter tabs are handled in the date filter section below
 
 function updateStatus(orderId, sel) {
   const newStatus = sel.value;
@@ -463,5 +537,81 @@ function closeDeliveryMapModal(e) {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeDeliveryMapModal();
 });
+
+// ── Date Period Filter ──────────────────────────────────
+let activePeriod = 'all';
+let activeStatus = 'all';
+
+function getDateRange(period) {
+  const now = new Date();
+  const start = new Date();
+  if (period === 'today') {
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'week') {
+    const day = start.getDay();
+    start.setDate(start.getDate() - day);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'month') {
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  } else if (period === 'year') {
+    start.setMonth(0, 1);
+    start.setHours(0, 0, 0, 0);
+  } else {
+    return null; // all time
+  }
+  return { start, end: now };
+}
+
+function applyFilters() {
+  const range = getDateRange(activePeriod);
+  const rows = document.querySelectorAll('.order-row');
+
+  rows.forEach(row => {
+    const rowDate = new Date(row.dataset.date);
+    const rowStatus = row.dataset.status;
+    const inPeriod = !range || (rowDate >= range.start && rowDate <= range.end);
+    const inStatus = activeStatus === 'all' || rowStatus === activeStatus;
+    row.style.display = (inPeriod && inStatus) ? '' : 'none';
+  });
+
+  // Tally visible rows
+  let count = 0, revenue = 0, pending = 0, delivered = 0;
+  rows.forEach(row => {
+    if (row.style.display !== 'none') {
+      count++;
+      revenue += parseFloat(row.dataset.amount) || 0;
+      if (row.dataset.status === 'pending') pending++;
+      if (row.dataset.status === 'delivered') delivered++;
+    }
+  });
+
+  document.getElementById('summaryOrderCount').textContent = count;
+  document.getElementById('summaryRevenue').textContent = '₱' + revenue.toLocaleString('en-PH', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  document.getElementById('summaryPending').textContent = pending;
+  document.getElementById('summaryDelivered').textContent = delivered;
+}
+
+document.querySelectorAll('.date-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    activePeriod = tab.dataset.period;
+    applyFilters();
+  });
+});
+
+// Override status tab logic to integrate with date filter
+document.querySelectorAll('.status-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    activeStatus = tab.dataset.filter;
+    applyFilters();
+  });
+});
+
+// Init summary on load
+applyFilters();
 </script>
 {% endblock %}
