@@ -24,6 +24,7 @@ def run_migrations(engine):
         "ALTER TABLE product ADD COLUMN image_data TEXT",
         "ALTER TABLE orders ADD COLUMN delivery_lat REAL",
         "ALTER TABLE orders ADD COLUMN delivery_lng REAL",
+        "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1",
     ]
     with engine.connect() as conn:
         for sql in migrations:
