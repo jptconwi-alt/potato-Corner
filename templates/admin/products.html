@@ -61,16 +61,16 @@
         <input type="text" id="productSearch" placeholder="Search products..." class="admin-search-input" oninput="filterProducts()">
       </div>
 
-      <!-- Bulk-select toolbar (hidden until ≥1 card is checked) -->
-      <div id="bulkActionBar" style="display:none;align-items:center;gap:12px;background:var(--admin-card,#1e2433);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 18px;margin-bottom:14px;flex-wrap:wrap;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--text-primary,#fff);user-select:none;">
+      <!-- Bulk-select toolbar (hidden until select mode is active) -->
+      <div id="bulkActionBar" style="display:none;align-items:center;gap:12px;background:#1b5e20;border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 18px;margin-bottom:14px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#fff;user-select:none;">
           <input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll(this.checked)"
-            style="width:18px;height:18px;accent-color:#e63946;cursor:pointer;">
+            style="width:18px;height:18px;accent-color:#f9a825;cursor:pointer;">
           <span id="selectAllLabel">Select All</span>
         </label>
-        <span id="selectedCount" style="color:var(--text-muted,#aaa);font-size:.9rem;"></span>
+        <span id="selectedCount" style="color:rgba(255,255,255,.8);font-size:.9rem;"></span>
         <div style="margin-left:auto;display:flex;gap:8px;">
-          <button onclick="cancelSelection()" class="btn btn-secondary btn-sm px-3">
+          <button onclick="cancelSelection()" class="btn btn-sm px-3" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);">
             <i class="fas fa-times me-1"></i>Cancel
           </button>
           <button onclick="confirmBulkDelete()" class="btn btn-danger btn-sm px-3">
@@ -81,11 +81,11 @@
 
       <!-- Select mode toggle button (shown above grid) -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-        <span id="selectModeHint" style="color:var(--text-muted,#aaa);font-size:.85rem;display:none;">
+        <span id="selectModeHint" style="color:#6b7280;font-size:.85rem;display:none;">
           Click cards to select, or use the checkboxes
         </span>
         <button id="selectModeBtn" onclick="toggleSelectMode()"
-          style="margin-left:auto;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--text-primary,#fff);border-radius:8px;padding:6px 14px;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:6px;">
+          style="margin-left:auto;background:#e8f5e9;border:1.5px solid #43a047;color:#1b5e20;border-radius:8px;padding:6px 16px;font-size:.85rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
           <i class="fas fa-check-square"></i> Select
         </button>
       </div>
@@ -933,8 +933,9 @@ function toggleSelectMode() {
 
   if (selectModeActive) {
     btn.innerHTML = '<i class="fas fa-times"></i> Cancel Select';
-    btn.style.background = 'rgba(230,57,70,.2)';
-    btn.style.borderColor = 'rgba(230,57,70,.4)';
+    btn.style.background = '#fce4e4';
+    btn.style.borderColor = '#c62828';
+    btn.style.color = '#c62828';
     hint.style.display = '';
     bar.style.display = 'flex';
     // Show all checkboxes on visible cards
@@ -964,9 +965,10 @@ function cancelSelection() {
   const hint = document.getElementById('selectModeHint');
   const bar = document.getElementById('bulkActionBar');
 
-  btn.innerHTML = '<i class="fas fa-check-square"></i> Select';
-  btn.style.background = '';
-  btn.style.borderColor = '';
+    btn.innerHTML = '<i class="fas fa-check-square"></i> Select';
+    btn.style.background = '#e8f5e9';
+    btn.style.borderColor = '#43a047';
+    btn.style.color = '#1b5e20';
   hint.style.display = 'none';
   bar.style.display = 'none';
 

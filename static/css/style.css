@@ -350,7 +350,7 @@ select.form-control-custom{cursor:pointer}
 .sidebar-close-btn:hover{color:#fff}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
 .sidebar-overlay.active{display:block}
-.admin-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.admin-main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;z-index:1}
 .admin-topbar{background:#fff;padding:1rem 1.5rem;border-bottom:1.5px solid var(--gray-200);display:flex;align-items:center;gap:1rem;position:sticky;top:72px;z-index:90;box-shadow:var(--shadow-sm)}
 .sidebar-toggle-btn{background:none;border:none;color:var(--gray-600);cursor:pointer;font-size:1.1rem;padding:4px;transition:var(--transition)}
 .sidebar-toggle-btn:hover{color:var(--green-main)}
@@ -452,8 +452,8 @@ select.form-control-custom{cursor:pointer}
 .admin-product-img-wrap{position:relative;height:140px;background:var(--green-pale);display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0}
 .admin-product-img{width:100%;height:100%;object-fit:contain;padding:.5rem}
 .admin-product-img-placeholder{font-size:3rem}
-.admin-product-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;opacity:0;transition:var(--transition)}
-.admin-product-card:hover .admin-product-overlay{opacity:1}
+.admin-product-overlay{position:absolute;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;opacity:0;transition:var(--transition);pointer-events:none}
+.admin-product-card:hover .admin-product-overlay{opacity:1;pointer-events:auto}
 .btn-upload-img{background:#fff;color:var(--gray-800);border:none;padding:.45rem .85rem;border-radius:var(--radius-sm);font-size:.78rem;font-weight:600;cursor:pointer;transition:var(--transition);transform:translateY(6px)}
 .admin-product-card:hover .btn-upload-img{transform:translateY(0)}
 .btn-upload-img:hover{background:var(--gold)}
@@ -464,7 +464,7 @@ select.form-control-custom{cursor:pointer}
 .toggle-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
 input:checked+.toggle-slider{background:var(--green-main)}
 input:checked+.toggle-slider::before{transform:translateX(16px)}
-.admin-product-info{padding:.75rem}
+.admin-product-info{padding:.75rem;position:relative;z-index:2}
 .admin-product-flavor-chip{display:inline-block;background:var(--green-pale);color:var(--green-dark);font-size:.65rem;font-weight:600;padding:.15rem .5rem;border-radius:50px;margin-bottom:.35rem}
 .admin-product-name{font-weight:700;font-size:.82rem;margin-bottom:.25rem;line-height:1.3}
 .admin-product-price{font-family:'Fredoka One',cursive;font-size:1.1rem;color:var(--green-main)}
@@ -572,13 +572,14 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
 .btn-payment-toggle:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ── Fix admin upload overlay always visible fix ── */
-.admin-product-img-wrap:hover .admin-product-overlay { opacity: 1; }
+.admin-product-img-wrap:hover .admin-product-overlay { opacity: 1; pointer-events: auto; }
 .admin-product-overlay {
   position: absolute; inset: 0;
   background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity 0.2s;
   border-radius: inherit;
+  pointer-events: none;
 }
 
 /* ═══════════════════════════════════════════════════
