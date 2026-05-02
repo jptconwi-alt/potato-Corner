@@ -150,6 +150,106 @@
   </div>
 </footer>
 
+{% if not (request.endpoint and (request.endpoint.startswith('admin') or request.endpoint in ['login','register','complete_profile','admin_login'])) %}
+<!-- ── Mobile Bottom Navigation Bar ──────────────────────────────── -->
+<nav class="mobile-bottom-nav">
+  <a href="{{ url_for('index') }}" class="mobile-nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+    <i class="fas fa-home"></i>
+    <span>Menu</span>
+  </a>
+  <a href="{{ url_for('cart') }}" class="mobile-nav-item {% if request.endpoint == 'cart' %}active{% endif %}">
+    <div class="mobile-nav-icon-wrap">
+      <i class="fas fa-shopping-cart"></i>
+      <span class="mobile-cart-badge" id="mobileCartCount" style="display:none;">0</span>
+    </div>
+    <span>Cart</span>
+  </a>
+  {% if current_user.is_authenticated %}
+    <a href="{{ url_for('orders') }}" class="mobile-nav-item {% if request.endpoint == 'orders' %}active{% endif %}">
+      <i class="fas fa-box"></i>
+      <span>Orders</span>
+    </a>
+    <a href="{{ url_for('profile') }}" class="mobile-nav-item {% if request.endpoint == 'profile' %}active{% endif %}">
+      <div class="mobile-nav-avatar">{{ current_user.full_name[0].upper() }}</div>
+      <span>Profile</span>
+    </a>
+  {% else %}
+    <a href="#" class="mobile-nav-item" onclick="openGlobalAuth('login');return false;">
+      <i class="fas fa-sign-in-alt"></i>
+      <span>Login</span>
+    </a>
+    <a href="#" class="mobile-nav-item" onclick="openGlobalAuth('register');return false;">
+      <i class="fas fa-user-plus"></i>
+      <span>Sign Up</span>
+    </a>
+  {% endif %}
+</nav>
+
+<style>
+.mobile-bottom-nav { display: none; }
+@media (max-width: 991px) {
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 9999;
+    background: #fff;
+    border-top: 1px solid #e8e8e8;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.10);
+    height: 60px;
+    align-items: stretch;
+    justify-content: space-around;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  body { padding-bottom: calc(60px + env(safe-area-inset-bottom)); }
+  .navbar { display: none !important; }
+}
+.mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-decoration: none;
+  color: #999;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 6px 4px 4px;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-nav-item:active { background: #f5f5f5; }
+.mobile-nav-item.active { color: #ee4d2d; }
+.mobile-nav-item i { font-size: 20px; line-height: 1; }
+.mobile-nav-item > span { font-size: 10px; line-height: 1; }
+.mobile-nav-icon-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+.mobile-cart-badge {
+  position: absolute;
+  top: -6px; right: -10px;
+  background: #ee4d2d;
+  color: #fff;
+  font-size: 9px; font-weight: 700;
+  min-width: 16px; height: 16px;
+  border-radius: 8px;
+  display: flex !important;
+  align-items: center; justify-content: center;
+  padding: 0 4px; line-height: 1;
+}
+.mobile-nav-avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #ee4d2d;
+  color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.mobile-nav-item.active .mobile-nav-avatar {
+  box-shadow: 0 0 0 2px rgba(238,77,45,0.25);
+}
+</style>
+{% endif %}
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   // Update cart badge
@@ -157,10 +257,18 @@
     fetch('/api/cart/count')
       .then(r => r.json())
       .then(d => {
+        const count = d.count || 0;
+        // Desktop badge
         const badge = document.getElementById('cartCount');
         if (badge) {
-          badge.textContent = d.count || 0;
-          badge.style.display = d.count > 0 ? 'flex' : 'none';
+          badge.textContent = count;
+          badge.style.display = count > 0 ? 'flex' : 'none';
+        }
+        // Mobile bottom nav badge
+        const mobileBadge = document.getElementById('mobileCartCount');
+        if (mobileBadge) {
+          mobileBadge.textContent = count;
+          mobileBadge.style.display = count > 0 ? 'flex' : 'none';
         }
       }).catch(() => {});
   }
