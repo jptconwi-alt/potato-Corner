@@ -5,22 +5,6 @@
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-/* ── Skeleton Loading ─────────────────────────────── */
-@keyframes shimmer {
-  0%   { background-position: -700px 0 }
-  100% { background-position:  700px 0 }
-}
-.skeleton {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 700px 100%;
-  animation: shimmer 1.4s infinite;
-  border-radius: 8px;
-}
-.skeleton-line  { height: 14px; margin-bottom: 10px; }
-.skeleton-input { height: 48px; margin-bottom: 14px; border-radius: 10px; }
-.skeleton-btn   { height: 52px; border-radius: 10px; width: 100%; }
-.skeleton-item  { height: 20px; margin-bottom: 8px; }
-
 /* ── Profile Incomplete Warning ───────────────────── */
 .profile-warning-banner {
   background: linear-gradient(135deg, #fff3cd, #ffe69c);
@@ -525,37 +509,8 @@
 <section class="checkout-section">
   <div class="container">
 
-    <!-- ── Skeleton shown while page JS runs ── -->
-    <div id="checkoutSkeleton" class="checkout-layout" style="display:none">
-      <div class="checkout-form-col">
-        <div class="checkout-card">
-          <div class="skeleton skeleton-line" style="width:40%;margin-bottom:1.5rem"></div>
-          <div class="skeleton skeleton-input"></div>
-          <div class="skeleton skeleton-input"></div>
-          <div class="skeleton skeleton-input"></div>
-          <div class="skeleton skeleton-input" style="height:72px"></div>
-        </div>
-        <div class="checkout-card">
-          <div class="skeleton skeleton-line" style="width:35%;margin-bottom:1.5rem"></div>
-          <div class="skeleton skeleton-input"></div>
-          <div class="skeleton skeleton-input"></div>
-          <div class="skeleton skeleton-input"></div>
-        </div>
-        <div class="skeleton skeleton-btn"></div>
-      </div>
-      <div class="checkout-summary-col">
-        <div class="order-summary-card">
-          <div class="skeleton skeleton-line" style="width:50%;margin-bottom:1.5rem"></div>
-          {% for i in range(3) %}
-          <div class="skeleton skeleton-item"></div>
-          {% endfor %}
-          <div class="skeleton skeleton-input" style="margin-top:1rem"></div>
-        </div>
-      </div>
-    </div>
-
     <!-- ── Real checkout form ── -->
-    <div id="checkoutReal" class="checkout-layout" style="display:none">
+    <div id="checkoutReal" class="checkout-layout">
       <div class="checkout-form-col">
 
         {% if current_user.is_authenticated and not current_user.profile_complete %}
@@ -838,37 +793,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
-  var skeleton = document.getElementById('checkoutSkeleton');
-  var real     = document.getElementById('checkoutReal');
-
-  // ── Show real form immediately, no skeleton on mobile ──
-  var isMobile = window.innerWidth < 768;
-
-  function showCheckout() {
-    if (skeleton) skeleton.style.display = 'none';
-    if (real)     real.style.display = 'flex';
-  }
-
-  if (isMobile) {
-    // On mobile: skip skeleton entirely, show form right away
-    showCheckout();
-  } else {
-    // Desktop: show skeleton briefly, then real
-    if (skeleton) skeleton.style.display = 'flex';
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      setTimeout(showCheckout, 400);
-    } else {
-      document.addEventListener('DOMContentLoaded', function() { setTimeout(showCheckout, 400); });
-    }
-    // Hard fallback
-    setTimeout(showCheckout, 1500);
-  }
-
   // ── Leaflet Map Setup ─────────────────────────────────────
   var map, marker, deliveryLat = null, deliveryLng = null;
 
   function initMap() {
-    // Guard: if Leaflet didn't load, hide the map section gracefully
     if (typeof L === 'undefined') {
       var ms = document.querySelector('.map-section');
       if (ms) ms.style.display = 'none';
