@@ -4,8 +4,19 @@
 {% block extra_css %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
+.admin-orders-table { min-width: 0 !important; table-layout: fixed; width: 100%; }
+.admin-orders-table th, .admin-orders-table td { padding: .55rem .65rem !important; font-size: .78rem !important; }
+.admin-orders-table th:nth-child(1) { width: 90px; }
+.admin-orders-table th:nth-child(2) { width: 22%; }
+.admin-orders-table th:nth-child(3) { width: 18%; }
+.admin-orders-table th:nth-child(4) { width: 90px; }
+.admin-orders-table th:nth-child(5) { width: 130px; }
+.admin-orders-table th:nth-child(6) { width: 72px; }
+.admin-orders-table th:nth-child(7) { width: 44px; }
+.admin-table-wrap { overflow-x: hidden !important; }
+.status-select { font-size: .75rem !important; padding: .3rem .4rem !important; max-width: 130px; }
+.btn-payment-toggle { font-size: .72rem !important; padding: .25rem .5rem !important; white-space: nowrap; }
 .btn-view-map {
-  background: linear-gradient(135deg, #1565c0, #0d47a1);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -176,59 +187,48 @@
             <table class="admin-table admin-orders-table">
               <thead>
                 <tr>
-                  <th>Order #</th>
+                  <th>Order</th>
                   <th>Customer</th>
-                  <th>Phone</th>
-                  <th>Address & Location</th>
-                  <th>Items</th>
-                  <th>Total</th>
-                  <th>Payment Method</th>
-                  <th>Payment Status</th>
+                  <th>Items & Total</th>
+                  <th>Payment</th>
                   <th>Status</th>
                   <th>Date</th>
-                  <th>Actions</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {% for order in orders %}
                 <tr class="order-row" data-status="{{ order.status.lower().replace(' ', '-') }}" id="order-row-{{ order.id }}">
-                  <td><span class="admin-order-num">{{ order.order_number }}</span></td>
+                  <td>
+                    <span class="admin-order-num">{{ order.order_number }}</span>
+                  </td>
                   <td>
                     <div class="admin-customer-cell">
                       <div class="admin-customer-avatar">{{ order.customer_name[0].upper() }}</div>
-                      <span>{{ order.customer_name }}</span>
+                      <div>
+                        <div style="font-weight:600;font-size:.82rem;">{{ order.customer_name }}</div>
+                        <div style="font-size:.75rem;color:#888;">{{ order.customer_phone }}</div>
+                        <div style="font-size:.72rem;color:#aaa;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="{{ order.delivery_address }}">{{ order.delivery_address[:30] }}{% if order.delivery_address|length > 30 %}…{% endif %}</div>
+                        {% if order.delivery_lat and order.delivery_lng %}
+                        <button class="btn-view-map" onclick="openDeliveryMap({{ order.delivery_lat }}, {{ order.delivery_lng }}, '{{ order.customer_name|e }}', '{{ order.delivery_address|e }}')">
+                          <i class="fas fa-map-marker-alt"></i> Map
+                        </button>
+                        {% endif %}
+                      </div>
                     </div>
-                  </td>
-                  <td>{{ order.customer_phone }}</td>
-                  <td>
-                    <div class="admin-address-cell" title="{{ order.delivery_address }}">
-                      {{ order.delivery_address[:35] }}{% if order.delivery_address|length > 35 %}...{% endif %}
-                    </div>
-                    <!-- Map button if coordinates exist -->
-                    {% if order.delivery_lat and order.delivery_lng %}
-                    <button class="btn-view-map" onclick="openDeliveryMap(
-                      {{ order.delivery_lat }}, {{ order.delivery_lng }},
-                      '{{ order.customer_name|e }}',
-                      '{{ order.delivery_address|e }}'
-                    )">
-                      <i class="fas fa-map-marker-alt"></i> View on Map
-                    </button>
-                    {% else %}
-                    <span class="btn-no-location"><i class="fas fa-map-marker-alt me-1"></i>No pin set</span>
-                    {% endif %}
                   </td>
                   <td>
                     <button class="btn-view-items" onclick="showItems({{ order.id }})">
                       {{ order.items|length }} item{{ 's' if order.items|length != 1 }}
                     </button>
-                    <div id="items-{{ order.id }}" class="d-none">
+                    <div id="items-{{ order.id }}" class="d-none" style="font-size:.75rem;margin-top:4px;">
                       {% for item in order.items %}
-                      <div>{{ item.product_name }} × {{ item.quantity }} = ₱{{ "%.0f"|format(item.subtotal) }}</div>
+                      <div>{{ item.product_name }} ×{{ item.quantity }} = ₱{{ "%.0f"|format(item.subtotal) }}</div>
                       {% endfor %}
                     </div>
+                    <div style="font-weight:700;font-size:.88rem;margin-top:2px;">₱{{ "%.0f"|format(order.total_amount) }}</div>
+                    <div style="font-size:.72rem;color:#888;">{{ order.payment_method }}</div>
                   </td>
-                  <td><strong>₱{{ "%.0f"|format(order.total_amount) }}</strong></td>
-                  <td><span class="payment-chip">{{ order.payment_method }}</span></td>
                   <td>
                     <button class="btn-payment-toggle {% if order.payment_status == 'Paid' %}paid{% else %}unpaid{% endif %}"
                             onclick="togglePayment({{ order.id }}, this)"
@@ -242,12 +242,12 @@
                             data-original="{{ order.status }}">
                       <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>⏳ Pending</option>
                       <option value="Preparing" {% if order.status == 'Preparing' %}selected{% endif %}>🔥 Preparing</option>
-                      <option value="Out for Delivery" {% if order.status == 'Out for Delivery' %}selected{% endif %}>🚚 Out for Delivery</option>
+                      <option value="Out for Delivery" {% if order.status == 'Out for Delivery' %}selected{% endif %}>🚚 On the Way</option>
                       <option value="Delivered" {% if order.status == 'Delivered' %}selected{% endif %}>✅ Delivered</option>
                       <option value="Cancelled" {% if order.status == 'Cancelled' %}selected{% endif %}>❌ Cancelled</option>
                     </select>
                   </td>
-                  <td><span class="admin-date-small">{{ order.order_date.strftime('%b %d, %Y') }}<br>{{ order.order_date.strftime('%I:%M %p') }}</span></td>
+                  <td><span class="admin-date-small">{{ order.order_date.strftime('%b %d') }}<br>{{ order.order_date.strftime('%I:%M %p') }}</span></td>
                   <td>
                     <div class="admin-action-btns">
                       {% if order.status != 'Delivered' %}
