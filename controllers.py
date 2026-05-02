@@ -98,8 +98,8 @@ class ProductController:
     
     @staticmethod
     def get_all_products():
-        """Get all available products"""
-        return Product.query.filter_by(is_available=True).all()
+        """Get all available fries products"""
+        return Product.query.filter_by(is_available=True, category='Fries').all()
     
     @staticmethod
     def get_product_by_id(product_id):
@@ -109,12 +109,12 @@ class ProductController:
     @staticmethod
     def get_products_by_flavor(flavor):
         """Get products by flavor"""
-        return Product.query.filter_by(flavor=flavor, is_available=True).all()
+        return Product.query.filter_by(flavor=flavor, is_available=True, category='Fries').all()
     
     @staticmethod
     def get_flavors():
-        """Get all unique flavors"""
-        flavors = db.session.query(Product.flavor).distinct().all()
+        """Get all unique flavors from Fries only"""
+        flavors = db.session.query(Product.flavor).filter_by(category='Fries', is_available=True).distinct().all()
         return [flavor[0] for flavor in flavors]
 
 class CartController:
