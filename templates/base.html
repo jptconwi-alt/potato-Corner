@@ -24,11 +24,7 @@
 <nav class="navbar navbar-expand-lg">
   <div class="container">
     <a class="navbar-brand" href="{{ url_for('index') }}">
-      <div class="brand-icon">🍟</div>
-      <div class="brand-text">
-        <span class="brand-main">Potato</span>
-        <span class="brand-sub">Corner</span>
-      </div>
+      <img src="{{ url_for('static', filename='images/potato-corner-logo.png') }}" alt="Potato Corner" style="height:52px;width:auto;object-fit:contain;">
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
       <span class="navbar-toggler-icon"></span>

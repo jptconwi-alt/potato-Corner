@@ -729,6 +729,10 @@
             </div>
           </div>
 
+          <a href="{{ url_for('cart') }}" class="btn btn-outline-secondary w-100 mb-3" style="border-radius:12px;padding:.65rem;font-weight:600;">
+            <i class="fas fa-arrow-left me-2"></i>Back to Cart
+          </a>
+
           <button type="submit" class="btn-place-order" id="placeOrderBtn">
             <i class="fas fa-check-circle me-2"></i>
             <span id="placeOrderText">Place Order</span>
@@ -756,11 +760,15 @@
           <div class="summary-rows">
             <div class="summary-row">
               <span>Subtotal</span>
-              <span>₱{{ "%.0f"|format(total) }}</span>
+              <span>₱{{ "%.0f"|format(subtotal) }}</span>
             </div>
             <div class="summary-row">
               <span>Delivery</span>
+              {% if delivery_fee == 0 %}
               <span class="text-success fw-bold">Free 🎉</span>
+              {% else %}
+              <span>₱{{ "%.0f"|format(delivery_fee) }}</span>
+              {% endif %}
             </div>
             <div class="summary-row total-row">
               <span>Total</span>

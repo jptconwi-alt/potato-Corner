@@ -232,8 +232,10 @@ def register_routes(app):
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
         cart_items = CartController.get_cart_items(sid, uid)
-        total = sum(i.product.price * i.quantity for i in cart_items)
-        return render_template('cart.html', cart_items=cart_items, total=total)
+        subtotal = sum(i.product.price * i.quantity for i in cart_items)
+        delivery_fee = 0 if subtotal >= 500 else 50
+        total = subtotal + delivery_fee
+        return render_template('cart.html', cart_items=cart_items, subtotal=subtotal, delivery_fee=delivery_fee, total=total)
 
     @app.route('/cart/add', methods=['POST'])
     def cart_add():
@@ -287,7 +289,9 @@ def register_routes(app):
         if not cart_items:
             flash('Your cart is empty', 'warning')
             return redirect(url_for('cart'))
-        total = sum(i.product.price * i.quantity for i in cart_items)
+        subtotal = sum(i.product.price * i.quantity for i in cart_items)
+        delivery_fee = 0 if subtotal >= 500 else 50
+        total = subtotal + delivery_fee
 
         if request.method == 'POST':
             customer_data = {
@@ -301,13 +305,13 @@ def register_routes(app):
             }
             if not all([customer_data['name'], customer_data['email'], customer_data['phone'], customer_data['address']]):
                 flash('Please fill in all required fields', 'danger')
-                return render_template('checkout.html', cart_items=cart_items, total=total)
+                return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal, delivery_fee=delivery_fee, total=total)
 
-            order = OrderController.create_order(sid, customer_data, cart_items, uid)
+            order = OrderController.create_order(sid, customer_data, cart_items, uid, delivery_fee)
             CartController.clear_cart(sid, uid)
             return redirect(url_for('order_confirmation', order_number=order.order_number))
 
-        return render_template('checkout.html', cart_items=cart_items, total=total)
+        return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal, delivery_fee=delivery_fee, total=total)
 
     @app.route('/order/confirmation/<order_number>')
     def order_confirmation(order_number):

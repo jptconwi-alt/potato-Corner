@@ -131,12 +131,10 @@ class CartController:
     def add_to_cart(session_id, product_id, user_id=None, quantity=1):
         """Add item to cart"""
         # Check if item already in cart
-        query = CartItem.query.filter_by(product_id=product_id)
-        
         if user_id:
-            cart_item = query.filter_by(user_id=user_id).first()
+            cart_item = CartItem.query.filter_by(product_id=product_id, user_id=user_id).first()
         else:
-            cart_item = query.filter_by(session_id=session_id).first()
+            cart_item = CartItem.query.filter_by(product_id=product_id, session_id=session_id).first()
         
         if cart_item:
             cart_item.quantity += quantity
@@ -241,10 +239,11 @@ class OrderController:
                 return order_number
     
     @staticmethod
-    def create_order(session_id, customer_data, cart_items, user_id=None):
+    def create_order(session_id, customer_data, cart_items, user_id=None, delivery_fee=50):
         """Create new order from cart"""
         order_number = OrderController.generate_order_number()
-        total = sum(item.product.price * item.quantity for item in cart_items)
+        subtotal = sum(item.product.price * item.quantity for item in cart_items)
+        total = subtotal + delivery_fee
         
         order = Order(
             order_number=order_number,
