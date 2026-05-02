@@ -309,45 +309,53 @@ function recalcSummary() {
   const fee   = (selectedCount > 0 && subtotal < FREE_DELIVERY_MIN) ? DELIVERY_FEE : 0;
   const total = subtotal + fee;
 
-  document.getElementById('summaryCount').textContent    = selectedCount;
-  document.getElementById('summarySubtotal').textContent = '₱' + Math.round(subtotal);
-  document.getElementById('summaryTotal').textContent    = '₱' + Math.round(total);
+  const summaryCount    = document.getElementById('summaryCount');
+  const summarySubtotal = document.getElementById('summarySubtotal');
+  const summaryTotal    = document.getElementById('summaryTotal');
+  const deliveryEl      = document.getElementById('summaryDelivery');
+  const noteEl          = document.getElementById('deliveryNote');
+  const btn             = document.getElementById('btnProceed');
+  const note            = document.getElementById('proceedNote');
+  const selectAll       = document.getElementById('selectAll');
+  const countLabel      = document.getElementById('selectedCountLabel');
 
-  const deliveryEl = document.getElementById('summaryDelivery');
-  const noteEl     = document.getElementById('deliveryNote');
+  if (summaryCount)    summaryCount.textContent    = selectedCount;
+  if (summarySubtotal) summarySubtotal.textContent = '₱' + Math.round(subtotal);
+  if (summaryTotal)    summaryTotal.textContent    = '₱' + Math.round(total);
 
-  if (selectedCount === 0) {
-    deliveryEl.innerHTML   = '₱0';
-    noteEl.textContent     = '';
-    noteEl.style.color     = '#94a3b8';
-  } else if (subtotal >= FREE_DELIVERY_MIN) {
-    deliveryEl.innerHTML   = '<span class="free-tag">FREE</span>';
-    noteEl.textContent     = '🎉 You qualified for free delivery!';
-    noteEl.style.color     = '#065f46';
-  } else {
-    const needed           = FREE_DELIVERY_MIN - subtotal;
-    deliveryEl.innerHTML   = '<span class="fee-tag">+ ₱' + DELIVERY_FEE + '</span>';
-    noteEl.textContent     = '🛵 Add ₱' + Math.round(needed) + ' more for FREE delivery!';
-    noteEl.style.color     = '#d97706';
+  if (deliveryEl && noteEl) {
+    if (selectedCount === 0) {
+      deliveryEl.innerHTML   = '₱0';
+      noteEl.textContent     = '';
+      noteEl.style.color     = '#94a3b8';
+    } else if (subtotal >= FREE_DELIVERY_MIN) {
+      deliveryEl.innerHTML   = '<span class="free-tag">FREE</span>';
+      noteEl.textContent     = '🎉 You qualified for free delivery!';
+      noteEl.style.color     = '#065f46';
+    } else {
+      const needed           = FREE_DELIVERY_MIN - subtotal;
+      deliveryEl.innerHTML   = '<span class="fee-tag">+ ₱' + DELIVERY_FEE + '</span>';
+      noteEl.textContent     = '🛵 Add ₱' + Math.round(needed) + ' more for FREE delivery!';
+      noteEl.style.color     = '#d97706';
+    }
   }
 
-  const btn  = document.getElementById('btnProceed');
-  const note = document.getElementById('proceedNote');
-  if (selectedCount > 0) {
-    btn.classList.remove('disabled');
-    note.textContent = selectedCount + ' item' + (selectedCount !== 1 ? 's' : '') + ' selected · ₱' + Math.round(total) + ' total';
-  } else {
-    btn.classList.add('disabled');
-    note.textContent = 'Select at least one item to proceed';
+  if (btn && note) {
+    if (selectedCount > 0) {
+      btn.classList.remove('disabled');
+      note.textContent = selectedCount + ' item' + (selectedCount !== 1 ? 's' : '') + ' selected · ₱' + Math.round(total) + ' total';
+    } else {
+      btn.classList.add('disabled');
+      note.textContent = 'Select at least one item to proceed';
+    }
   }
 
   // Select-all state
-  const selectAll = document.getElementById('selectAll');
   const total_items = checkboxes.length;
-  document.getElementById('selectedCountLabel').textContent =
-    selectedCount + ' of ' + total_items + ' selected';
-  if (selectedCount === 0)           { selectAll.indeterminate = false; selectAll.checked = false; }
-  else if (selectedCount === total_items) { selectAll.indeterminate = false; selectAll.checked = true; }
+  if (countLabel) countLabel.textContent = selectedCount + ' of ' + total_items + ' selected';
+  if (selectAll) {
+    if (selectedCount === 0)                { selectAll.indeterminate = false; selectAll.checked = false; }
+    else if (selectedCount === total_items) { selectAll.indeterminate = false; selectAll.checked = true; }
   else                               { selectAll.indeterminate = true; }
 }
 
