@@ -248,6 +248,9 @@ def create_app():
                 if changed:
                     db.session.commit()
 
+            if not user.is_active:
+                flash('Your account has been disabled. Please contact support.', 'danger')
+                return redirect(url_for('login'))
             login_user(user, remember=False)
             session['user_id'] = user.id
 
