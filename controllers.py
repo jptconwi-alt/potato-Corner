@@ -125,7 +125,7 @@ class CartController:
         """Get all items in cart"""
         if user_id:
             return CartItem.query.filter_by(user_id=user_id).all()
-        return CartItem.query.filter_by(session_id=session_id).all()
+        return CartItem.query.filter_by(session_id=session_id, user_id=None).all()
     
     @staticmethod
     def add_to_cart(session_id, product_id, user_id=None, quantity=1):
@@ -206,7 +206,7 @@ class CartController:
     @staticmethod
     def merge_carts(session_id, user_id):
         """Merge session cart with user cart on login"""
-        session_items = CartItem.query.filter_by(session_id=session_id).all()
+        session_items = CartItem.query.filter_by(session_id=session_id, user_id=None).all()
         user_items = CartItem.query.filter_by(user_id=user_id).all()
         
         # Create dict of user items for quick lookup
@@ -214,13 +214,13 @@ class CartController:
         
         for session_item in session_items:
             if session_item.product_id in user_items_dict:
-                # Update quantity of existing user item
+                # Merge: add session qty to existing user item
                 user_items_dict[session_item.product_id].quantity += session_item.quantity
                 db.session.delete(session_item)
             else:
-                # Assign session item to user
+                # Reassign session item to user and clear session link
                 session_item.user_id = user_id
-                # Keep session_id intact (nullable but not erased)
+                session_item.session_id = None
         
         db.session.commit()
 
