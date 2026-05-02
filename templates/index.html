@@ -315,10 +315,11 @@
 
   const quantities = {};
 
-  // Initialize quantities from displayed values
-  {% for product in products %}
-  quantities[{{ product.id }}] = 1;
-  {% endfor %}
+  // Initialize quantities from qty display elements in the DOM
+  document.querySelectorAll('[id^="qty-"]').forEach(function(el) {
+    const productId = parseInt(el.id.replace('qty-', ''));
+    quantities[productId] = parseInt(el.textContent) || 1;
+  });
 
   function changeQty(productId, delta) {
     if (!quantities[productId]) quantities[productId] = 1;
@@ -406,7 +407,7 @@
   ═══════════════════════════════════════════ */
   let _pendingProductId = null;
   let _pendingBtn       = null;
-  let _loggedIn         = {{ 'true' if current_user.is_authenticated else 'false' }};
+  let _loggedIn = {% if current_user.is_authenticated %}true{% else %}false{% endif %};
 
   function showAuthOverlay(tab, productId, btn) {
     _pendingProductId = (productId !== undefined) ? productId : null;
