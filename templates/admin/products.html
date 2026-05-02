@@ -103,9 +103,9 @@
                 style="width:20px;height:20px;accent-color:#e63946;cursor:pointer;">
             </label>
             {% if product.image_data %}
-              <img src="{{ product.image_data }}" alt="{{ product.name }}" class="admin-product-img">
+              <img src="{{ product.image_data }}" alt="{{ product.name }}" class="admin-product-img" loading="lazy" decoding="async">
             {% elif product.image_url and product.image_url != '_data_' %}
-              <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="admin-product-img">
+              <img src="{{ url_for('static', filename='images/' + product.image_url) }}" alt="{{ product.name }}" class="admin-product-img" loading="lazy" decoding="async">
             {% else %}
               <div class="admin-product-img-placeholder">🍟</div>
             {% endif %}
@@ -500,8 +500,20 @@ function toggleSidebar() {
 function filterProducts() {
   const q = document.getElementById('productSearch').value.toLowerCase();
   document.querySelectorAll('.admin-product-card').forEach(card => {
-    card.style.display = card.dataset.name.includes(q) ? '' : 'none';
+    const visible = card.dataset.name.includes(q);
+    card.style.display = visible ? '' : 'none';
+    // In select mode, only show checkbox labels on visible cards
+    if (selectModeActive) {
+      const lbl = card.querySelector('.card-select-label');
+      if (lbl) lbl.style.display = visible ? '' : 'none';
+      // Uncheck hidden cards
+      if (!visible) {
+        const cb = card.querySelector('.product-checkbox');
+        if (cb && cb.checked) { cb.checked = false; card.classList.remove('card-selected'); }
+      }
+    }
   });
+  if (selectModeActive) updateBulkBar();
 }
 
 function toggleAvailability(productId, checkbox) {
@@ -925,10 +937,12 @@ function toggleSelectMode() {
     btn.style.borderColor = 'rgba(230,57,70,.4)';
     hint.style.display = '';
     bar.style.display = 'flex';
-    // Show all checkboxes
-    document.querySelectorAll('.card-select-label').forEach(l => l.style.display = '');
-    // Make whole card clickable for selection
+    // Show all checkboxes on visible cards
     document.querySelectorAll('.admin-product-card').forEach(card => {
+      if (card.style.display !== 'none') {
+        const lbl = card.querySelector('.card-select-label');
+        if (lbl) lbl.style.display = '';
+      }
       card.style.cursor = 'pointer';
       card.addEventListener('click', cardClickHandler);
     });
@@ -939,7 +953,6 @@ function toggleSelectMode() {
 }
 
 function cardClickHandler(e) {
-  // Don't trigger if clicking a button/input/label inside card
   if (e.target.closest('button,input,label,a')) return;
   const cb = this.querySelector('.product-checkbox');
   if (cb) { cb.checked = !cb.checked; onCardCheckChange(cb); }
@@ -957,7 +970,6 @@ function cancelSelection() {
   hint.style.display = 'none';
   bar.style.display = 'none';
 
-  // Uncheck & hide all
   document.querySelectorAll('.product-checkbox').forEach(cb => cb.checked = false);
   document.querySelectorAll('.card-select-label').forEach(l => l.style.display = 'none');
   document.querySelectorAll('.admin-product-card').forEach(card => {
@@ -965,7 +977,8 @@ function cancelSelection() {
     card.classList.remove('card-selected');
     card.removeEventListener('click', cardClickHandler);
   });
-  document.getElementById('selectAllCheck').checked = false;
+  const selectAllCb = document.getElementById('selectAllCheck');
+  if (selectAllCb) { selectAllCb.checked = false; selectAllCb.indeterminate = false; }
 }
 
 function onCardCheckChange(cb) {
@@ -975,34 +988,41 @@ function onCardCheckChange(cb) {
 }
 
 function toggleSelectAll(checked) {
-  document.querySelectorAll('.product-checkbox').forEach(cb => {
-    // Only target visible cards
-    const card = cb.closest('.admin-product-card');
-    if (card && card.style.display !== 'none') {
-      cb.checked = checked;
-      onCardCheckChange(cb);
-    }
+  // Only act on visible cards
+  document.querySelectorAll('.admin-product-card').forEach(card => {
+    if (card.style.display === 'none') return;
+    const cb = card.querySelector('.product-checkbox');
+    if (!cb) return;
+    cb.checked = checked;
+    card.classList.toggle('card-selected', checked);
   });
   updateBulkBar();
 }
 
 function updateBulkBar() {
-  const checked = document.querySelectorAll('.product-checkbox:checked');
-  const all = document.querySelectorAll('.product-checkbox');
-  const count = checked.length;
+  // Count only visible cards
+  const visibleCards = Array.from(document.querySelectorAll('.admin-product-card'))
+    .filter(c => c.style.display !== 'none');
+  const allCbs = visibleCards.map(c => c.querySelector('.product-checkbox')).filter(Boolean);
+  const checkedCbs = allCbs.filter(cb => cb.checked);
+  const count = checkedCbs.length;
+  const total = allCbs.length;
 
-  document.getElementById('selectedCount').textContent =
-    count > 0 ? count + ' product' + (count > 1 ? 's' : '') + ' selected' : '';
+  const countEl = document.getElementById('selectedCount');
+  if (countEl) countEl.textContent = count > 0 ? count + ' product' + (count > 1 ? 's' : '') + ' selected' : '';
 
   const selectAllCb = document.getElementById('selectAllCheck');
-  selectAllCb.indeterminate = count > 0 && count < all.length;
-  selectAllCb.checked = all.length > 0 && count === all.length;
-  document.getElementById('selectAllLabel').textContent =
-    (count === all.length && all.length > 0) ? 'Deselect All' : 'Select All';
+  if (selectAllCb) {
+    selectAllCb.indeterminate = count > 0 && count < total;
+    selectAllCb.checked = total > 0 && count === total;
+  }
+  const selectAllLabel = document.getElementById('selectAllLabel');
+  if (selectAllLabel) selectAllLabel.textContent = (count === total && total > 0) ? 'Deselect All' : 'Select All';
 }
 
 function getSelectedIds() {
   return Array.from(document.querySelectorAll('.product-checkbox:checked')).map(cb => cb.value);
+}
 }
 
 function confirmBulkDelete() {

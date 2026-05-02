@@ -574,6 +574,7 @@ def register_routes(app):
             # connection that runs the DELETE (PRAGMA foreign_keys is per-connection).
             with db.engine.connect() as conn:
                 conn.execute(text("PRAGMA foreign_keys = OFF"))
+                conn.execute(text("UPDATE order_items SET product_id = NULL WHERE product_id = :pid"), {"pid": product_id})
                 conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": product_id})
                 conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": product_id})
                 conn.execute(text("PRAGMA foreign_keys = ON"))
@@ -603,6 +604,8 @@ def register_routes(app):
                         pid = int(pid)
                     except (ValueError, TypeError):
                         continue
+                    # Preserve order history — null out FK before deleting
+                    conn.execute(text("UPDATE order_items SET product_id = NULL WHERE product_id = :pid"), {"pid": pid})
                     conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": pid})
                     conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": pid})
                     deleted += 1
