@@ -21,6 +21,12 @@ with app.app_context():
         except Exception as e:
             print(f"order_items.size skipped: {e}")
 
+        try:
+            conn.execute(db.text("ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1"))
+            print("Added users.is_active")
+        except Exception as e:
+            print(f"users.is_active skipped: {e}")
+
         conn.commit()
 
     print("Migration complete!")

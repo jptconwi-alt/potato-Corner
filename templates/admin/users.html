@@ -1,6 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Manage Users — Admin{% endblock %}
 
+{% block extra_css %}
+<style>
+.user-card-disabled {
+  opacity: .75;
+  border-color: #fecaca !important;
+  background: #fff5f5;
+}
+.user-disabled-badge {
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .2rem .5rem;
+  border-radius: 50px;
+  border: 1px solid rgba(239,68,68,.25);
+  flex-shrink: 0;
+}
+.btn-toggle-user {
+  padding: .42rem .75rem;
+  border-radius: var(--radius-sm);
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all .18s;
+  white-space: nowrap;
+}
+.btn-disable {
+  background: #fff1f2;
+  color: #be123c;
+  border-color: #fecdd3;
+}
+.btn-disable:hover { background: #be123c; color: #fff; }
+.btn-enable {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-enable:hover { background: #15803d; color: #fff; }
+.user-card-footer { padding: .75rem 1rem; border-top: 1px solid var(--gray-200); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="admin-layout">
   <aside class="admin-sidebar" id="adminSidebar">
@@ -53,15 +96,17 @@
       <!-- Users Grid -->
       <div class="users-grid" id="usersGrid">
         {% for user in users %}
-        <div class="user-card" id="user-card-{{ user.id }}" data-name="{{ user.full_name.lower() }}" data-email="{{ user.email.lower() }}">
+        <div class="user-card {% if not user.is_active %}user-card-disabled{% endif %}" id="user-card-{{ user.id }}" data-name="{{ user.full_name.lower() }}" data-email="{{ user.email.lower() }}" data-active="{{ 'true' if user.is_active else 'false' }}">
           <div class="user-card-header">
-            <div class="user-card-avatar">{{ user.full_name[0].upper() }}</div>
+            <div class="user-card-avatar" style="{{ 'opacity:.4;filter:grayscale(1)' if not user.is_active }}">{{ user.full_name[0].upper() }}</div>
             <div class="user-card-info">
               <div class="user-card-name">{{ user.full_name }}</div>
               <div class="user-card-email">{{ user.email }}</div>
             </div>
             {% if user.is_admin %}
             <div class="user-admin-badge"><i class="fas fa-shield-alt me-1"></i>Admin</div>
+            {% elif not user.is_active %}
+            <div class="user-disabled-badge"><i class="fas fa-ban me-1"></i>Disabled</div>
             {% endif %}
           </div>
           <div class="user-card-body">
@@ -84,9 +129,20 @@
           </div>
           <div class="user-card-footer">
             {% if not user.is_admin %}
-            <button class="btn-user-contact w-100" onclick="showContact('{{ user.email }}', '{{ user.full_name }}', '{{ user.phone or '' }}', '{{ user.get_full_address() }}')">
-              <i class="fas fa-envelope me-1"></i>Contact User
-            </button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-user-contact" style="flex:1;" onclick="showContact('{{ user.email }}', '{{ user.full_name }}', '{{ user.phone or '' }}', '{{ user.get_full_address() }}')">
+                <i class="fas fa-envelope me-1"></i>Contact
+              </button>
+              <button class="btn-toggle-user {% if user.is_active %}btn-disable{% else %}btn-enable{% endif %}"
+                      id="toggle-btn-{{ user.id }}"
+                      onclick="toggleUser({{ user.id }}, this)">
+                {% if user.is_active %}
+                <i class="fas fa-ban me-1"></i>Disable
+                {% else %}
+                <i class="fas fa-check-circle me-1"></i>Enable
+                {% endif %}
+              </button>
+            </div>
             {% else %}
             <div class="text-center text-muted small py-1"><i class="fas fa-shield-alt me-1"></i>Administrator Account</div>
             {% endif %}
@@ -166,6 +222,47 @@ function showContact(email, name, phone, address) {
     address ? 'Address: ' + address : 'Address: Not provided'
   ].join('\n');
   alert(msg);
+}
+
+function toggleUser(userId, btn) {
+  const card = document.getElementById('user-card-' + userId);
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Wait...';
+
+  fetch('/admin/user/' + userId + '/toggle-active', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) { alert(d.message); btn.disabled = false; return; }
+      const isActive = d.is_active;
+      // Update card style
+      card.dataset.active = isActive ? 'true' : 'false';
+      card.classList.toggle('user-card-disabled', !isActive);
+      // Update avatar opacity
+      const avatar = card.querySelector('.user-card-avatar');
+      avatar.style.opacity      = isActive ? '' : '.4';
+      avatar.style.filter       = isActive ? '' : 'grayscale(1)';
+      // Update badge
+      const badgeEl = card.querySelector('.user-disabled-badge');
+      if (!isActive && !badgeEl) {
+        const hdr = card.querySelector('.user-card-header');
+        const badge = document.createElement('div');
+        badge.className = 'user-disabled-badge';
+        badge.innerHTML = '<i class="fas fa-ban me-1"></i>Disabled';
+        hdr.appendChild(badge);
+      } else if (isActive && badgeEl) {
+        badgeEl.remove();
+      }
+      // Update button
+      btn.disabled = false;
+      if (isActive) {
+        btn.className = 'btn-toggle-user btn-disable';
+        btn.innerHTML = '<i class="fas fa-ban me-1"></i>Disable';
+      } else {
+        btn.className = 'btn-toggle-user btn-enable';
+        btn.innerHTML = '<i class="fas fa-check-circle me-1"></i>Enable';
+      }
+    })
+    .catch(() => { btn.disabled = false; btn.innerHTML = 'Error'; });
 }
 </script>
 {% endblock %}

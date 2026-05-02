@@ -23,6 +23,7 @@ class User(UserMixin, db.Model):
     google_id     = db.Column(db.String(100), unique=True, nullable=True)
     profile_complete = db.Column(db.Boolean, default=False)  # False for new Google users
     is_admin      = db.Column(db.Boolean, default=False)
+    is_active     = db.Column(db.Boolean, default=True)
     created_at    = db.Column(db.DateTime, default=datetime.utcnow)
     orders        = db.relationship('Order', backref='user', lazy=True)
 

@@ -392,6 +392,17 @@ def register_routes(app):
         all_users = User.query.order_by(User.created_at.desc()).all()
         return render_template('admin/users.html', users=all_users)
 
+    @app.route('/admin/user/<int:user_id>/toggle-active', methods=['POST'])
+    @admin_required
+    def admin_toggle_user_active(user_id):
+        user = User.query.get_or_404(user_id)
+        if user.is_admin:
+            return jsonify({'success': False, 'message': 'Cannot disable an admin account.'})
+        user.is_active = not user.is_active
+        db.session.commit()
+        state = 'enabled' if user.is_active else 'disabled'
+        return jsonify({'success': True, 'is_active': user.is_active, 'message': f'User {state} successfully.'})
+
     @app.route('/admin/products')
     @admin_required
     def admin_products():

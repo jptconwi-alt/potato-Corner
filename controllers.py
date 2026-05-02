@@ -46,6 +46,8 @@ class AuthController:
         ).first()
         
         if user and user.check_password(password):
+            if not getattr(user, 'is_active', True):
+                return False, 'Your account has been disabled. Please contact support.'
             login_user(user, remember=remember)
             return True, user
         
