@@ -3,142 +3,10 @@
 
 {% block extra_css %}
 <style>
-/* ── Cart Selection Styles ─────────────────────────── */
-.cart-select-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: linear-gradient(135deg, #fff8e1, #fffde7);
-  border: 1.5px solid #ffc107;
-  border-radius: 14px;
-  padding: 0.85rem 1.2rem;
-  margin-bottom: 1.2rem;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-.cart-select-bar-left {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-.select-all-checkbox {
-  width: 20px;
-  height: 20px;
-  accent-color: #e65100;
-  cursor: pointer;
-  border-radius: 4px;
-}
-.cart-select-label {
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #5d4037;
-}
-.cart-selected-count {
-  background: #e65100;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 2px 10px;
-  border-radius: 20px;
-}
-.btn-proceed-selected {
-  background: linear-gradient(135deg, #e65100, #bf360c);
-  color: #fff;
-  border: none;
-  border-radius: 25px;
-  padding: 0.55rem 1.5rem;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s;
-  box-shadow: 0 3px 12px rgba(230,81,0,0.3);
-}
-.btn-proceed-selected:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 18px rgba(230,81,0,0.4);
-}
-.btn-proceed-selected:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* ── Per-item checkbox ────────────────────────────── */
+/* ── Per-item card ────────────────────────────── */
 .cart-item-card {
   position: relative;
   transition: all 0.2s;
-}
-.cart-item-select {
-  display: flex;
-  align-items: center;
-  padding: 0 0.5rem 0 1rem;
-}
-.item-checkbox {
-  width: 18px;
-  height: 18px;
-  accent-color: #e65100;
-  cursor: pointer;
-}
-.cart-item-card.item-selected {
-  border-color: #e65100 !important;
-  box-shadow: 0 0 0 2px rgba(230,81,0,0.15), 0 4px 16px rgba(0,0,0,0.08) !important;
-  background: #fff8f5 !important;
-}
-
-/* ── Proceed to Order Floating Bar ────────────────── */
-.proceed-order-bar {
-  position: sticky;
-  bottom: 1rem;
-  background: linear-gradient(135deg, #1b5e20, #2e7d32);
-  color: #fff;
-  border-radius: 16px;
-  padding: 1rem 1.5rem;
-  display: none;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  box-shadow: 0 8px 32px rgba(27,94,32,0.35);
-  z-index: 100;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-}
-.proceed-order-bar.visible { display: flex; }
-.proceed-bar-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.proceed-bar-items {
-  font-size: 0.85rem;
-  opacity: 0.85;
-}
-.proceed-bar-total {
-  font-size: 1.25rem;
-  font-weight: 800;
-}
-.btn-go-checkout {
-  background: #fff;
-  color: #1b5e20;
-  border: none;
-  border-radius: 25px;
-  padding: 0.65rem 1.75rem;
-  font-weight: 800;
-  font-size: 0.95rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.2s;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.btn-go-checkout:hover {
-  background: #f1f8e9;
-  transform: translateY(-1px);
-  color: #1b5e20;
 }
 </style>
 {% endblock %}
@@ -160,29 +28,10 @@
       <!-- Cart Items -->
       <div class="cart-items-col">
 
-        <!-- Select All Bar -->
-        <div class="cart-select-bar">
-          <div class="cart-select-bar-left">
-            <input type="checkbox" class="select-all-checkbox" id="selectAll" onchange="toggleSelectAll(this)">
-            <label for="selectAll" class="cart-select-label">Select All Items</label>
-            <span class="cart-selected-count" id="selectedCount">0 selected</span>
-          </div>
-          <button class="btn-proceed-selected" id="btnProceedSelected" onclick="proceedWithSelected()" disabled>
-            <i class="fas fa-bolt"></i> Proceed with Selected
-          </button>
-        </div>
+
 
         {% for item in cart_items %}
         <div class="cart-item-card" id="cart-item-{{ item.id }}">
-          <!-- Item Checkbox -->
-          <div class="cart-item-select">
-            <input type="checkbox" class="item-checkbox" id="check-{{ item.id }}"
-              data-item-id="{{ item.id }}"
-              data-price="{{ item.product.price }}"
-              data-qty="{{ item.quantity }}"
-              onchange="onItemCheckChange()">
-          </div>
-          <label for="check-{{ item.id }}" style="display:contents;cursor:pointer;">
           <div class="cart-item-img">
             {% if item.product.image_data %}
               <img src="{{ item.product.image_data }}" alt="{{ item.product.name }}">
@@ -200,7 +49,6 @@
             </div>
             <div class="cart-item-price">₱{{ "%.0f"|format(item.product.price) }} each</div>
           </div>
-          </label>
           <div class="cart-item-actions">
             <div class="cart-qty-control">
               <button class="cart-qty-btn" onclick="updateCart({{ item.id }}, {{ item.quantity - 1 }})">−</button>
@@ -215,57 +63,18 @@
         </div>
         {% endfor %}
 
-        <!-- Sticky Proceed Bar (shows when items are selected) -->
-        <div class="proceed-order-bar" id="proceedBar">
-          <div class="proceed-bar-info">
-            <div class="proceed-bar-items" id="proceedBarItems">0 items selected</div>
-            <div class="proceed-bar-total" id="proceedBarTotal">₱0</div>
-          </div>
-          <a href="#" class="btn-go-checkout" id="proceedBarBtn" onclick="proceedWithSelected(); return false;">
-            <i class="fas fa-credit-card"></i> Proceed to Order
-          </a>
-        </div>
       </div>
 
-      <!-- Order Summary -->
-      <div class="cart-summary-col">
-        <div class="order-summary-card">
-          <h3 class="summary-title">Order Summary</h3>
-          <div class="summary-rows">
-            <div class="summary-row">
-              <span>Subtotal</span>
-              <span id="summarySubtotal">₱{{ "%.0f"|format(total) }}</span>
-            </div>
-            <div class="summary-row">
-              <span>Delivery Fee</span>
-              <span class="text-success">Free</span>
-            </div>
-            <div class="summary-row total-row">
-              <span>Total</span>
-              <span class="total-price" id="summaryTotal">₱{{ "%.0f"|format(total) }}</span>
-            </div>
-          </div>
-
-          <div style="background:#fff3e0;border:1.5px solid #ffcc02;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem;font-size:.82rem;color:#e65100;">
-            <i class="fas fa-info-circle me-1"></i>
-            <strong>Tip:</strong> Select specific items using checkboxes above to order only those items, or use the button below to order everything.
-          </div>
-
-          <a href="{{ url_for('checkout') }}" class="btn-checkout">
-            <i class="fas fa-credit-card me-2"></i>Checkout All Items
-          </a>
-          <a href="{{ url_for('index') }}" class="btn-continue-shopping">
-            <i class="fas fa-arrow-left me-2"></i>Continue Shopping
-          </a>
-        </div>
-
-        <!-- Promo Chips -->
-        <div class="promo-chips">
-          <div class="promo-chip"><i class="fas fa-truck me-2"></i>Free Delivery</div>
-          <div class="promo-chip"><i class="fas fa-shield-alt me-2"></i>Secure Payment</div>
-          <div class="promo-chip"><i class="fas fa-fire me-2"></i>Hot & Fresh</div>
-        </div>
+      <!-- Checkout Button -->
+      <div style="margin-top:1.5rem; text-align:right;">
+        <a href="{{ url_for('checkout') }}" class="btn-checkout" style="display:inline-flex; max-width:280px;">
+          <i class="fas fa-credit-card me-2"></i>Proceed to Checkout
+        </a>
+        <a href="{{ url_for('index') }}" class="btn-continue-shopping" style="display:inline-flex; max-width:220px; margin-top:0.5rem;">
+          <i class="fas fa-arrow-left me-2"></i>Continue Shopping
+        </a>
       </div>
+
     </div>
     {% else %}
     <div class="empty-state">
@@ -283,89 +92,12 @@
 
 {% block extra_js %}
 <script>
-// ── Item prices for calculation ──────────────────────
 const itemPrices = {
   {% for item in cart_items %}
   {{ item.id }}: { price: {{ item.product.price }}, qty: {{ item.quantity }} },
   {% endfor %}
 };
 
-function onItemCheckChange() {
-  const checkboxes = document.querySelectorAll('.item-checkbox');
-  const checked = document.querySelectorAll('.item-checkbox:checked');
-  const selectAll = document.getElementById('selectAll');
-
-  // Update select-all state
-  if (checked.length === 0) {
-    selectAll.indeterminate = false;
-    selectAll.checked = false;
-  } else if (checked.length === checkboxes.length) {
-    selectAll.indeterminate = false;
-    selectAll.checked = true;
-  } else {
-    selectAll.indeterminate = true;
-    selectAll.checked = false;
-  }
-
-  // Highlight selected cards
-  checkboxes.forEach(cb => {
-    const card = document.getElementById('cart-item-' + cb.dataset.itemId);
-    if (card) card.classList.toggle('item-selected', cb.checked);
-  });
-
-  // Update count & total
-  let total = 0;
-  checked.forEach(cb => {
-    const id = parseInt(cb.dataset.itemId);
-    if (itemPrices[id]) total += itemPrices[id].price * itemPrices[id].qty;
-  });
-
-  const countEl = document.getElementById('selectedCount');
-  const btnEl = document.getElementById('btnProceedSelected');
-  const proceedBar = document.getElementById('proceedBar');
-  const proceedBarItems = document.getElementById('proceedBarItems');
-  const proceedBarTotal = document.getElementById('proceedBarTotal');
-
-  countEl.textContent = checked.length + ' selected';
-  btnEl.disabled = checked.length === 0;
-
-  if (checked.length > 0) {
-    proceedBar.classList.add('visible');
-    proceedBarItems.textContent = checked.length + ' item' + (checked.length !== 1 ? 's' : '') + ' selected';
-    proceedBarTotal.textContent = '₱' + Math.round(total).toLocaleString();
-  } else {
-    proceedBar.classList.remove('visible');
-  }
-
-  // Update summary
-  document.getElementById('summarySubtotal').textContent = checked.length > 0
-    ? '₱' + Math.round(total) + ' (selected)'
-    : '₱{{ "%.0f"|format(total) }}';
-  document.getElementById('summaryTotal').textContent = '₱' + Math.round(
-    checked.length > 0 ? total : {{ total }}
-  );
-}
-
-function toggleSelectAll(cb) {
-  document.querySelectorAll('.item-checkbox').forEach(c => {
-    c.checked = cb.checked;
-  });
-  onItemCheckChange();
-}
-
-function proceedWithSelected() {
-  const checked = document.querySelectorAll('.item-checkbox:checked');
-  if (checked.length === 0) {
-    alert('Please select at least one item to proceed.');
-    return;
-  }
-  const selectedIds = Array.from(checked).map(cb => cb.dataset.itemId);
-  // Store selected IDs in sessionStorage for checkout
-  sessionStorage.setItem('selectedCartItems', JSON.stringify(selectedIds));
-  window.location.href = '{{ url_for("checkout") }}?selected=' + selectedIds.join(',');
-}
-
-// ── Existing cart functions ──────────────────────────
 function updateCart(itemId, newQty) {
   if (newQty < 1) { removeItem(itemId); return; }
   fetch('/cart/update', {
@@ -376,16 +108,12 @@ function updateCart(itemId, newQty) {
     if (d.success) {
       const qtyEl = document.getElementById('qty-display-' + itemId);
       if (qtyEl) qtyEl.textContent = newQty;
-      if (itemPrices[itemId]) {
+      const subtotalEl = document.getElementById('subtotal-' + itemId);
+      if (subtotalEl && itemPrices[itemId]) {
         itemPrices[itemId].qty = newQty;
-        const subtotalEl = document.getElementById('subtotal-' + itemId);
-        if (subtotalEl) subtotalEl.textContent = '₱' + Math.round(itemPrices[itemId].price * newQty);
-        // Update checkbox data-qty
-        const cb = document.querySelector('[data-item-id="' + itemId + '"]');
-        if (cb) cb.dataset.qty = newQty;
+        subtotalEl.textContent = '₱' + Math.round(itemPrices[itemId].price * newQty);
       }
       updateCartBadge();
-      onItemCheckChange();
     }
   });
 }
