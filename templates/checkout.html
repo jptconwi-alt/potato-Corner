@@ -661,6 +661,9 @@
                 Lat: <span class="coord-badge" id="coordLat">—</span>
                 Lng: <span class="coord-badge" id="coordLng">—</span>
               </div>
+              <div id="errMapPin" style="display:none;margin-top:0.5rem;font-size:0.75rem;color:#e53935;font-weight:600;">
+                <i class="fas fa-exclamation-circle me-1"></i>Please pin your exact delivery location on the map.
+              </div>
             </div>
 
             <!-- Hidden fields for map coordinates -->
@@ -887,6 +890,12 @@
     document.getElementById('coordsDisplay').style.display = 'flex';
     document.getElementById('pinSetIndicator').classList.add('visible');
 
+    // Clear map error once pin is set
+    const mapErrEl = document.getElementById('errMapPin');
+    const mapSection = document.querySelector('.map-section');
+    if (mapErrEl) mapErrEl.style.display = 'none';
+    if (mapSection) mapSection.style.border = '1.5px solid #a5d6a7';
+
     // Update summary card
     const mapStatusCard = document.getElementById('mapStatusCard');
     const mapStatusText = document.getElementById('mapStatusText');
@@ -958,19 +967,34 @@
 
   function validateAll() {
     let ok = true;
-    const name  = document.getElementById('fieldName').value.trim();
-    const phone = document.getElementById('fieldPhone').value.trim();
-    const email = document.getElementById('fieldEmail').value.trim();
+    const name     = document.getElementById('fieldName').value.trim();
+    const phone    = document.getElementById('fieldPhone').value.trim();
+    const email    = document.getElementById('fieldEmail').value.trim();
     const street   = document.getElementById('fieldStreet').value.trim();
     const barangay = document.getElementById('fieldBarangay').value.trim();
     const city     = document.getElementById('fieldCity').value.trim();
 
-    ok = showErr('fieldName',     'errName',     name.length < 3)     && ok;
-    ok = showErr('fieldPhone',    'errPhone',    !validatePhone(phone)) && ok;
-    ok = showErr('fieldEmail',    'errEmail',    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) && ok;
-    ok = showErr('fieldStreet',   'errStreet',   street.length < 3)   && ok;
-    ok = showErr('fieldBarangay', 'errBarangay', barangay.length < 2) && ok;
-    ok = showErr('fieldCity',     'errCity',     city.length < 2)     && ok;
+    // Validate each field independently so ALL errors show at once
+    if (!showErr('fieldName',     'errName',     name.length < 3))     ok = false;
+    if (!showErr('fieldPhone',    'errPhone',    !validatePhone(phone))) ok = false;
+    if (!showErr('fieldEmail',    'errEmail',    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) ok = false;
+    if (!showErr('fieldStreet',   'errStreet',   street.length < 3))   ok = false;
+    if (!showErr('fieldBarangay', 'errBarangay', barangay.length < 2)) ok = false;
+    if (!showErr('fieldCity',     'errCity',     city.length < 2))     ok = false;
+
+    // Validate map pin
+    const mapErrEl = document.getElementById('errMapPin');
+    const mapSection = document.querySelector('.map-section');
+    if (!deliveryLat || !deliveryLng) {
+      if (mapErrEl) {
+        mapErrEl.style.display = 'block';
+        if (mapSection) mapSection.style.border = '1.5px solid #e53935';
+      }
+      ok = false;
+    } else {
+      if (mapErrEl) mapErrEl.style.display = 'none';
+      if (mapSection) mapSection.style.border = '1.5px solid #e0e0e0';
+    }
 
     return ok;
   }
@@ -994,8 +1018,16 @@
     e.preventDefault();
 
     if (!validateAll()) {
-      const firstErr = document.querySelector('.is-invalid');
-      if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Scroll to first visible error — field or map pin
+      const firstInvalid = document.querySelector('.is-invalid');
+      const mapErr = document.getElementById('errMapPin');
+      const mapErrVisible = mapErr && mapErr.style.display === 'block';
+
+      if (firstInvalid) {
+        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (mapErrVisible) {
+        mapErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return;
     }
 
