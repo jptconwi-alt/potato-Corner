@@ -565,18 +565,20 @@ def register_routes(app):
     @app.route('/admin/product/<int:product_id>/delete', methods=['POST'])
     @admin_required
     def admin_delete_product(product_id):
-        product = Product.query.get(product_id)
-        if not product:
-            return jsonify({'success': False, 'message': 'Product not found'})
         try:
-            from models import OrderItem, CartItem
-            OrderItem.query.filter_by(product_id=product_id).delete()
-            CartItem.query.filter_by(product_id=product_id).delete()
-            db.session.delete(product)
-            db.session.commit()
+            from sqlalchemy import text
+            with db.engine.connect() as conn:
+                conn.execute(text("PRAGMA foreign_keys = OFF"))
+                conn.execute(text("DELETE FROM order_items WHERE product_id = :pid"), {"pid": product_id})
+                conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": product_id})
+                result = conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": product_id})
+                conn.execute(text("PRAGMA foreign_keys = ON"))
+                conn.commit()
+            if result.rowcount == 0:
+                return jsonify({'success': False, 'message': 'Product not found'})
+            db.session.expire_all()
             return jsonify({'success': True})
         except Exception as e:
-            db.session.rollback()
             return jsonify({'success': False, 'message': f'Delete failed: {str(e)}'})
 
     # ── Admin: Bulk Delete Products ─────────────
@@ -588,24 +590,22 @@ def register_routes(app):
         if not ids:
             return jsonify({'success': False, 'message': 'No product IDs provided'})
         try:
-            from models import OrderItem, CartItem
-            deleted = 0
-            for pid in ids:
-                try:
-                    pid = int(pid)
-                except (ValueError, TypeError):
-                    continue
-                product = Product.query.get(pid)
-                if not product:
-                    continue
-                OrderItem.query.filter_by(product_id=pid).delete()
-                CartItem.query.filter_by(product_id=pid).delete()
-                db.session.delete(product)
-                deleted += 1
-            db.session.commit()
-            return jsonify({'success': True, 'deleted': deleted})
+            int_ids = [int(i) for i in ids if str(i).isdigit()]
+            if not int_ids:
+                return jsonify({'success': False, 'message': 'No valid IDs'})
+            from sqlalchemy import text
+            placeholders = ','.join([':id' + str(i) for i in range(len(int_ids))])
+            params = {'id' + str(i): v for i, v in enumerate(int_ids)}
+            with db.engine.connect() as conn:
+                conn.execute(text("PRAGMA foreign_keys = OFF"))
+                conn.execute(text(f"DELETE FROM order_items WHERE product_id IN ({placeholders})"), params)
+                conn.execute(text(f"DELETE FROM cart_items WHERE product_id IN ({placeholders})"), params)
+                result = conn.execute(text(f"DELETE FROM products WHERE id IN ({placeholders})"), params)
+                conn.execute(text("PRAGMA foreign_keys = ON"))
+                conn.commit()
+            db.session.expire_all()
+            return jsonify({'success': True, 'deleted': result.rowcount})
         except Exception as e:
-            db.session.rollback()
             return jsonify({'success': False, 'message': f'Bulk delete failed: {str(e)}'})
 
     # ── Admin: Sales Report ─────────────────

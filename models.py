@@ -63,10 +63,12 @@ class Product(db.Model):
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
+        # image_data (base64) excluded — too large to embed in HTML attributes
         return {
             'id': self.id, 'name': self.name, 'description': self.description,
             'price': self.price, 'size': self.size, 'flavor': self.flavor,
-            'image_url': self.image_url, 'image_data': self.image_data,
+            'image_url': self.image_url,
+            'has_image_data': bool(self.image_data),
             'is_available': self.is_available,
             'category': self.category or 'Fries'
         }

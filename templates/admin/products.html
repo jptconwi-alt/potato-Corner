@@ -747,14 +747,14 @@ function openEditProduct(productId, product) {
   const editPreviewWrap = document.getElementById('editPreviewWrap');
   const editImagePreview = document.getElementById('editImagePreview');
   document.getElementById('editImageInput').value = '';
-  let currentImgSrc = '';
-  if (product.image_data) {
-    currentImgSrc = product.image_data;
+  // Get current image from the card's <img> element (avoids embedding base64 in data attr)
+  const card = document.getElementById('prod-' + productId);
+  const cardImg = card ? card.querySelector('.admin-product-img') : null;
+  if (cardImg && cardImg.src) {
+    editImagePreview.src = cardImg.src;
+    editPreviewWrap.classList.remove('d-none');
   } else if (product.image_url && product.image_url !== '_data_') {
-    currentImgSrc = '/static/images/' + product.image_url;
-  }
-  if (currentImgSrc) {
-    editImagePreview.src = currentImgSrc;
+    editImagePreview.src = '/static/images/' + product.image_url;
     editPreviewWrap.classList.remove('d-none');
   } else {
     editPreviewWrap.classList.add('d-none');
@@ -858,16 +858,25 @@ function confirmDeleteProduct(productId, productName) {
   openModal('deleteProductModal');
 }
 
-function executeDeleteProduct() {
+async function executeDeleteProduct() {
   const productId = document.getElementById('deleteProductId').value;
   const btn = document.getElementById('deleteConfirmBtn');
+  const resetBtn = () => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
+  };
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
 
-  fetch('/admin/product/' + productId + '/delete', { method: 'POST' })
-  .then(r => handleFetchResponse(r))
-  .then(d => {
-    if (!d) return;
+  const controller = new AbortController();
+  const timer = setTimeout(() => { controller.abort(); resetBtn(); alert('Request timed out. Please try again.'); }, 10000);
+
+  try {
+    const res = await fetch('/admin/product/' + productId + '/delete', {
+      method: 'POST', signal: controller.signal
+    });
+    clearTimeout(timer);
+    const d = await res.json();
     if (d.success) {
       closeModal('deleteProductModal');
       const card = document.getElementById('prod-' + productId);
@@ -879,16 +888,13 @@ function executeDeleteProduct() {
       }
       showToast('Product deleted!', 'success');
     } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
+      resetBtn();
       alert('Failed: ' + (d.message || 'Unknown error'));
     }
-  })
-  .catch(err => {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete';
-    alert('Error: ' + err.message);
-  });
+  } catch(err) {
+    clearTimeout(timer);
+    if (err.name !== 'AbortError') { resetBtn(); alert('Error: ' + err.message); }
+  }
 }
 
 // ── Global safety net: if any modal fires hidden.bs.modal, clean up backdrop ─
@@ -1041,17 +1047,25 @@ async function executeBulkDelete() {
   const ids = getSelectedIds();
   if (ids.length === 0) return;
   const btn = document.getElementById('bulkDeleteConfirmBtn');
+  const resetBtn = () => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete All';
+  };
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => { controller.abort(); resetBtn(); alert('Request timed out. Please try again.'); }, 15000);
 
   try {
     const res = await fetch('/admin/products/bulk-delete', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ids})
+      body: JSON.stringify({ids}),
+      signal: controller.signal
     });
-    const d = await handleFetchResponse(res);
-    if (!d) return;
+    clearTimeout(timer);
+    const d = await res.json();
     if (d.success) {
       closeModal('bulkDeleteModal');
       ids.forEach(id => {
@@ -1066,14 +1080,12 @@ async function executeBulkDelete() {
       cancelSelection();
       showToast((d.deleted || ids.length) + ' product(s) deleted!', 'success');
     } else {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete All';
+      resetBtn();
       alert('Failed: ' + (d.message || 'Unknown error'));
     }
   } catch(err) {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete All';
-    alert('Error: ' + err.message);
+    clearTimeout(timer);
+    if (err.name !== 'AbortError') { resetBtn(); alert('Error: ' + err.message); }
   }
 }
 

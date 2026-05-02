@@ -446,7 +446,8 @@ select.form-control-custom{cursor:pointer}
 .uo-header{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.35rem}
 .uo-date{font-size:.77rem;color:var(--gray-400)}
 .uo-items{font-size:.8rem;color:var(--gray-600)}
-.admin-products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem}
+.admin-products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;contain:layout style}
+.admin-product-card{content-visibility:auto;contain-intrinsic-size:0 320px}
 .admin-product-card{background:#fff;border-radius:var(--radius);border:1.5px solid var(--gray-200);transition:var(--transition);box-shadow:var(--shadow-sm)}
 .admin-product-card:hover{border-color:var(--green-light);box-shadow:var(--shadow-md)}
 .admin-product-img-wrap{position:relative;height:140px;background:var(--green-pale);display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:var(--radius) var(--radius) 0 0}
