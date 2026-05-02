@@ -1026,7 +1026,6 @@ function getSelectedIds() {
   return Array.from(document.querySelectorAll('.product-checkbox:checked')).map(cb => cb.value);
 }
 
-
 function confirmBulkDelete() {
   const ids = getSelectedIds();
   if (ids.length === 0) { alert('No products selected.'); return; }
