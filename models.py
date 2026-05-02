@@ -1,7 +1,14 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# Philippine Standard Time (UTC+8)
+PHT = timezone(timedelta(hours=8))
+
+def ph_now():
+    """Return current Philippine Standard Time (UTC+8)."""
+    return datetime.now(PHT).replace(tzinfo=None)
 
 db = SQLAlchemy()
 
@@ -24,7 +31,7 @@ class User(UserMixin, db.Model):
     profile_complete = db.Column(db.Boolean, default=False)  # False for new Google users
     is_admin      = db.Column(db.Boolean, default=False)
     is_active     = db.Column(db.Boolean, default=True)
-    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at    = db.Column(db.DateTime, default=ph_now)
     orders        = db.relationship('Order', backref='user', lazy=True)
 
     def set_password(self, password):
@@ -61,7 +68,7 @@ class Product(db.Model):
     image_data   = db.Column(db.Text, nullable=True)   # base64 encoded for persistent storage
     is_available = db.Column(db.Boolean, default=True)
     category     = db.Column(db.String(50), default='Fries')
-    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at   = db.Column(db.DateTime, default=ph_now)
 
     def to_dict(self):
         # image_data (base64) excluded — too large to embed in HTML attributes
@@ -91,7 +98,7 @@ class Order(db.Model):
     payment_method   = db.Column(db.String(50), nullable=False)
     payment_status   = db.Column(db.String(20), default='Unpaid')
     paymongo_source_id = db.Column(db.String(100), nullable=True)
-    order_date       = db.Column(db.DateTime, default=datetime.utcnow)
+    order_date       = db.Column(db.DateTime, default=ph_now)
     items            = db.relationship('OrderItem', backref='order', lazy=True, cascade='all, delete-orphan')
 
     def to_dict(self):
@@ -132,5 +139,5 @@ class CartItem(db.Model):
     user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity   = db.Column(db.Integer, nullable=False, default=1)
-    added_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    added_at   = db.Column(db.DateTime, default=ph_now)
     product    = db.relationship('Product', backref='cart_items')

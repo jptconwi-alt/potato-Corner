@@ -4,6 +4,7 @@ from flask import render_template, request, redirect, url_for, flash, jsonify, s
 from flask_login import login_required, current_user, logout_user
 from datetime import datetime
 from werkzeug.utils import secure_filename
+from models import ph_now
 from models import db, User, Product, Order, OrderItem, CartItem
 from controllers import AuthController, ProductController, CartController, OrderController
 from auth_decorator import admin_required
@@ -378,7 +379,7 @@ def register_routes(app):
                                recent_orders=recent_orders,
                                pending_delivery=pending_delivery,
                                pending_count=pending_count,
-                               now=datetime.utcnow())
+                               now=ph_now())
 
     @app.route('/admin/orders')
     @admin_required
@@ -658,7 +659,7 @@ def register_routes(app):
         from collections import defaultdict
         import calendar as cal_mod
         period = request.args.get('period', 'month')
-        now = datetime.utcnow()
+        now = ph_now()
 
         if period == 'today':
             start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -797,7 +798,7 @@ def register_routes(app):
                      o.order_date.strftime('%Y-%m-%d %H:%M')] for o in rows]
             title = 'Orders Report'
 
-        generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
+        generated_at = ph_now().strftime('%Y-%m-%d %H:%M')
 
         # ── CSV ──────────────────────────────────────
         if fmt == 'csv':
@@ -809,7 +810,7 @@ def register_routes(app):
             writer.writerows(data)
             response = make_response(output.getvalue())
             response.headers['Content-Type'] = 'text/csv'
-            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{datetime.now().strftime("%Y%m%d")}.csv'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{ph_now().strftime("%Y%m%d")}.csv'
             return response
 
         # ── PDF ──────────────────────────────────────
@@ -873,7 +874,7 @@ def register_routes(app):
             buf.seek(0)
             response = make_response(buf.read())
             response.headers['Content-Type'] = 'application/pdf'
-            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{datetime.now().strftime("%Y%m%d")}.pdf'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{ph_now().strftime("%Y%m%d")}.pdf'
             return response
 
         # ── DOCX ─────────────────────────────────────
@@ -951,7 +952,7 @@ def register_routes(app):
             buf.seek(0)
             response = make_response(buf.read())
             response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{datetime.now().strftime("%Y%m%d")}.docx'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{ph_now().strftime("%Y%m%d")}.docx'
             return response
 
         return jsonify({'error': 'Unsupported format'}), 400

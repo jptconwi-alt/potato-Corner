@@ -1,7 +1,7 @@
 import random
 import string
 from datetime import datetime
-from models import db, User, Product, Order, OrderItem, CartItem
+from models import db, User, Product, Order, OrderItem, CartItem, ph_now
 from flask_login import login_user, logout_user, current_user
 
 class AuthController:
@@ -233,7 +233,7 @@ class OrderController:
     def generate_order_number():
         """Generate unique order number"""
         while True:
-            date_part = datetime.now().strftime('%Y%m%d')
+            date_part = ph_now().strftime('%Y%m%d')
             random_part = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
             order_number = f"PC-{date_part}-{random_part}"
             

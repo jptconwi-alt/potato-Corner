@@ -1513,3 +1513,19 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
     font-size: 1.55rem;
   }
 }
+/* ── Performance optimizations ───────────────────────── */
+.particle,
+.hero-fries-art,
+.auth-emoji,
+.ring {
+  will-change: transform;
+}
+.btn, .card, .product-card {
+  will-change: auto;
+}
+/* Reduce expensive repaints: replace backdrop-filter on low-end with solid bg fallback */
+@media (prefers-reduced-motion: reduce) {
+  .particle, .hero-fries-art, .auth-emoji, .ring {
+    animation: none !important;
+  }
+}
