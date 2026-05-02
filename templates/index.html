@@ -315,6 +315,11 @@
 
   const quantities = {};
 
+  // Initialize quantities from displayed values
+  {% for product in products %}
+  quantities[{{ product.id }}] = 1;
+  {% endfor %}
+
   function changeQty(productId, delta) {
     if (!quantities[productId]) quantities[productId] = 1;
     quantities[productId] = Math.max(1, quantities[productId] + delta);
@@ -344,6 +349,9 @@
       if (d.success) {
         btn.innerHTML = '<i class="fas fa-check me-2"></i>Added!';
         btn.classList.add('btn-success-state');
+        quantities[productId] = 1;
+        const qtyEl = document.getElementById('qty-' + productId);
+        if (qtyEl) qtyEl.textContent = 1;
         updateCartBadge();
         setTimeout(() => {
           btn.innerHTML = original;
