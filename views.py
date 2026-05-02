@@ -585,6 +585,34 @@ def register_routes(app):
             db.session.rollback()
             return jsonify({'success': False, 'message': f'Delete failed: {str(e)}'})
 
+    # ── Admin: Bulk Delete Products ─────────────
+    @app.route('/admin/products/bulk-delete', methods=['POST'])
+    @admin_required
+    def admin_bulk_delete_products():
+        data = request.get_json() or {}
+        ids = data.get('ids', [])
+        if not ids:
+            return jsonify({'success': False, 'message': 'No product IDs provided'})
+        try:
+            from sqlalchemy import text
+            deleted = 0
+            with db.engine.connect() as conn:
+                conn.execute(text("PRAGMA foreign_keys = OFF"))
+                for pid in ids:
+                    try:
+                        pid = int(pid)
+                    except (ValueError, TypeError):
+                        continue
+                    conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": pid})
+                    conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": pid})
+                    deleted += 1
+                conn.execute(text("PRAGMA foreign_keys = ON"))
+                conn.commit()
+            db.session.expire_all()
+            return jsonify({'success': True, 'deleted': deleted})
+        except Exception as e:
+            return jsonify({'success': False, 'message': f'Bulk delete failed: {str(e)}'})
+
     # ── Admin: Sales Report ─────────────────
     @app.route('/admin/sales-report')
     @admin_required

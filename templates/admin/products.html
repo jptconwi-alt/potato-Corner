@@ -61,11 +61,47 @@
         <input type="text" id="productSearch" placeholder="Search products..." class="admin-search-input" oninput="filterProducts()">
       </div>
 
+      <!-- Bulk-select toolbar (hidden until ≥1 card is checked) -->
+      <div id="bulkActionBar" style="display:none;align-items:center;gap:12px;background:var(--admin-card,#1e2433);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 18px;margin-bottom:14px;flex-wrap:wrap;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--text-primary,#fff);user-select:none;">
+          <input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll(this.checked)"
+            style="width:18px;height:18px;accent-color:#e63946;cursor:pointer;">
+          <span id="selectAllLabel">Select All</span>
+        </label>
+        <span id="selectedCount" style="color:var(--text-muted,#aaa);font-size:.9rem;"></span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button onclick="cancelSelection()" class="btn btn-secondary btn-sm px-3">
+            <i class="fas fa-times me-1"></i>Cancel
+          </button>
+          <button onclick="confirmBulkDelete()" class="btn btn-danger btn-sm px-3">
+            <i class="fas fa-trash me-1"></i>Delete Selected
+          </button>
+        </div>
+      </div>
+
+      <!-- Select mode toggle button (shown above grid) -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <span id="selectModeHint" style="color:var(--text-muted,#aaa);font-size:.85rem;display:none;">
+          Click cards to select, or use the checkboxes
+        </span>
+        <button id="selectModeBtn" onclick="toggleSelectMode()"
+          style="margin-left:auto;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);color:var(--text-primary,#fff);border-radius:8px;padding:6px 14px;font-size:.85rem;cursor:pointer;display:flex;align-items:center;gap:6px;">
+          <i class="fas fa-check-square"></i> Select
+        </button>
+      </div>
+
       <!-- Products Grid -->
       <div class="admin-products-grid" id="adminProductsGrid">
         {% for product in products %}
         <div class="admin-product-card" id="prod-{{ product.id }}" data-name="{{ product.name.lower() }}">
-          <div class="admin-product-img-wrap">
+          <div class="admin-product-img-wrap" style="position:relative;">
+            <!-- Select checkbox (hidden until select-mode is active) -->
+            <label class="card-select-label" onclick="event.stopPropagation()"
+              style="position:absolute;top:8px;left:8px;z-index:10;display:none;cursor:pointer;">
+              <input type="checkbox" class="product-checkbox" value="{{ product.id }}"
+                onchange="onCardCheckChange(this)"
+                style="width:20px;height:20px;accent-color:#e63946;cursor:pointer;">
+            </label>
             {% if product.image_data %}
               <img src="{{ product.image_data }}" alt="{{ product.name }}" class="admin-product-img">
             {% elif product.image_url and product.image_url != '_data_' %}
@@ -365,6 +401,29 @@
         <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
         <button type="button" id="deleteConfirmBtn" class="btn btn-danger px-4" onclick="executeDeleteProduct()">
           <i class="fas fa-trash me-2"></i>Yes, Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Delete Confirm Modal -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content admin-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-trash me-2"></i>Bulk Delete</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-3">
+        <div style="font-size:3rem;margin-bottom:.5rem;">⚠️</div>
+        <p style="font-size:1.05rem;font-weight:600;" id="bulkDeleteMsg">Delete selected products?</p>
+        <p class="text-muted" style="font-size:.9rem;">This action cannot be undone. Order history will be preserved.</p>
+      </div>
+      <div class="modal-footer" style="justify-content:center;gap:1rem;">
+        <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="bulkDeleteConfirmBtn" class="btn btn-danger px-4" onclick="executeBulkDelete()">
+          <i class="fas fa-trash me-2"></i>Yes, Delete All
         </button>
       </div>
     </div>
@@ -850,6 +909,160 @@ if (editZone) {
     }
   });
 }
+
+// ── Bulk Select ──────────────────────────────────────────────────────────────
+let selectModeActive = false;
+
+function toggleSelectMode() {
+  selectModeActive = !selectModeActive;
+  const btn = document.getElementById('selectModeBtn');
+  const hint = document.getElementById('selectModeHint');
+  const bar = document.getElementById('bulkActionBar');
+
+  if (selectModeActive) {
+    btn.innerHTML = '<i class="fas fa-times"></i> Cancel Select';
+    btn.style.background = 'rgba(230,57,70,.2)';
+    btn.style.borderColor = 'rgba(230,57,70,.4)';
+    hint.style.display = '';
+    bar.style.display = 'flex';
+    // Show all checkboxes
+    document.querySelectorAll('.card-select-label').forEach(l => l.style.display = '');
+    // Make whole card clickable for selection
+    document.querySelectorAll('.admin-product-card').forEach(card => {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', cardClickHandler);
+    });
+  } else {
+    cancelSelection();
+  }
+  updateBulkBar();
+}
+
+function cardClickHandler(e) {
+  // Don't trigger if clicking a button/input/label inside card
+  if (e.target.closest('button,input,label,a')) return;
+  const cb = this.querySelector('.product-checkbox');
+  if (cb) { cb.checked = !cb.checked; onCardCheckChange(cb); }
+}
+
+function cancelSelection() {
+  selectModeActive = false;
+  const btn = document.getElementById('selectModeBtn');
+  const hint = document.getElementById('selectModeHint');
+  const bar = document.getElementById('bulkActionBar');
+
+  btn.innerHTML = '<i class="fas fa-check-square"></i> Select';
+  btn.style.background = '';
+  btn.style.borderColor = '';
+  hint.style.display = 'none';
+  bar.style.display = 'none';
+
+  // Uncheck & hide all
+  document.querySelectorAll('.product-checkbox').forEach(cb => cb.checked = false);
+  document.querySelectorAll('.card-select-label').forEach(l => l.style.display = 'none');
+  document.querySelectorAll('.admin-product-card').forEach(card => {
+    card.style.cursor = '';
+    card.classList.remove('card-selected');
+    card.removeEventListener('click', cardClickHandler);
+  });
+  document.getElementById('selectAllCheck').checked = false;
+}
+
+function onCardCheckChange(cb) {
+  const card = cb.closest('.admin-product-card');
+  if (card) card.classList.toggle('card-selected', cb.checked);
+  updateBulkBar();
+}
+
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.product-checkbox').forEach(cb => {
+    // Only target visible cards
+    const card = cb.closest('.admin-product-card');
+    if (card && card.style.display !== 'none') {
+      cb.checked = checked;
+      onCardCheckChange(cb);
+    }
+  });
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const checked = document.querySelectorAll('.product-checkbox:checked');
+  const all = document.querySelectorAll('.product-checkbox');
+  const count = checked.length;
+
+  document.getElementById('selectedCount').textContent =
+    count > 0 ? count + ' product' + (count > 1 ? 's' : '') + ' selected' : '';
+
+  const selectAllCb = document.getElementById('selectAllCheck');
+  selectAllCb.indeterminate = count > 0 && count < all.length;
+  selectAllCb.checked = all.length > 0 && count === all.length;
+  document.getElementById('selectAllLabel').textContent =
+    (count === all.length && all.length > 0) ? 'Deselect All' : 'Select All';
+}
+
+function getSelectedIds() {
+  return Array.from(document.querySelectorAll('.product-checkbox:checked')).map(cb => cb.value);
+}
+
+function confirmBulkDelete() {
+  const ids = getSelectedIds();
+  if (ids.length === 0) { alert('No products selected.'); return; }
+  document.getElementById('bulkDeleteMsg').textContent =
+    'Delete ' + ids.length + ' selected product' + (ids.length > 1 ? 's' : '') + '?';
+  const btn = document.getElementById('bulkDeleteConfirmBtn');
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete All';
+  openModal('bulkDeleteModal');
+}
+
+async function executeBulkDelete() {
+  const ids = getSelectedIds();
+  if (ids.length === 0) return;
+  const btn = document.getElementById('bulkDeleteConfirmBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Deleting...';
+
+  try {
+    const res = await fetch('/admin/products/bulk-delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ids})
+    });
+    const d = await handleFetchResponse(res);
+    if (!d) return;
+    if (d.success) {
+      closeModal('bulkDeleteModal');
+      ids.forEach(id => {
+        const card = document.getElementById('prod-' + id);
+        if (card) {
+          card.style.transition = 'opacity .35s, transform .35s';
+          card.style.opacity = '0';
+          card.style.transform = 'scale(.88)';
+          setTimeout(() => card.remove(), 380);
+        }
+      });
+      cancelSelection();
+      showToast((d.deleted || ids.length) + ' product(s) deleted!', 'success');
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete All';
+      alert('Failed: ' + (d.message || 'Unknown error'));
+    }
+  } catch(err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash me-2"></i>Yes, Delete All';
+    alert('Error: ' + err.message);
+  }
+}
+
+// Highlight selected cards with a ring
+const selStyle = document.createElement('style');
+selStyle.textContent = `
+  .card-selected { outline: 2px solid #e63946 !important; outline-offset: 2px; }
+  .card-select-label input[type=checkbox] { box-shadow: 0 0 0 2px rgba(255,255,255,.3); border-radius:3px; }
+`;
+document.head.appendChild(selStyle);
 
 </script>
 {% endblock %}
