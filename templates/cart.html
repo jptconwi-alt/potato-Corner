@@ -356,7 +356,8 @@ function recalcSummary() {
   if (selectAll) {
     if (selectedCount === 0)                { selectAll.indeterminate = false; selectAll.checked = false; }
     else if (selectedCount === total_items) { selectAll.indeterminate = false; selectAll.checked = true; }
-  else                               { selectAll.indeterminate = true; }
+    else                                   { selectAll.indeterminate = true; }
+  }
 }
 
 function toggleSelectAll(master) {
