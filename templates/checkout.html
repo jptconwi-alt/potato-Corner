@@ -122,17 +122,17 @@
 .placing-text { font-weight: 700; font-size: 1.1rem; color: #2e7d32; }
 
 /* ── Payment method icons ─────────────────────────── */
-.payment-option-inner { position: relative; }
+.payment-option-inner { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1rem; }
 .payment-secure-tag {
-  position: absolute;
-  right: 10px; top: 50%;
-  transform: translateY(-50%);
   font-size: .68rem;
   background: #e8f5e9;
   color: #2e7d32;
   padding: 2px 7px;
   border-radius: 20px;
   font-weight: 700;
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: flex-start;
 }
 
 /* ── Rate limit notice ────────────────────────────── */
@@ -234,228 +234,272 @@
 
 /* ════════════════════════════════════════════
    CHECKOUT — Mobile / iOS  (≤ 767px)
+   Clean rewrite — compact, no overflow bugs
 ════════════════════════════════════════════ */
 @media (max-width: 767px) {
 
-  /* Stack the two columns */
+  /* ── Page wrapper ── */
+  .checkout-section { padding: 0.5rem 0 1rem !important; }
+  .checkout-section .container { padding-left: 12px !important; padding-right: 12px !important; }
+
+  /* ── Page header ── */
+  .page-header-section { padding: 0.5rem 0 !important; }
+  .page-title  { font-size: 0.95rem !important; }
+  .page-sub    { font-size: 0.7rem !important; margin: 0 !important; }
+
+  /* ── Layout: single column, summary on top ── */
   .checkout-layout {
     display: flex !important;
     flex-direction: column !important;
-    gap: 0.85rem !important;
+    gap: 0.6rem !important;
+    width: 100% !important;
   }
+  .checkout-form-col,
+  .checkout-summary-col { width: 100% !important; min-width: 0 !important; }
+  .checkout-summary-col { order: -1; }
 
-  /* Cards */
+  /* ── Cards ── */
   .checkout-card {
-    padding: 0.85rem 0.9rem !important;
-    border-radius: 12px !important;
-    margin-bottom: 0.75rem !important;
+    padding: 0.75rem 0.8rem !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.6rem !important;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07) !important;
   }
   .checkout-card-title {
-    font-size: 0.82rem !important;
-    margin-bottom: 0.7rem !important;
-    padding-bottom: 0.5rem !important;
+    font-size: 0.78rem !important;
+    margin-bottom: 0.6rem !important;
+    padding-bottom: 0.4rem !important;
   }
 
-  /* Security badge */
+  /* ── Profile warning banner ── */
+  .profile-warning-banner {
+    padding: 0.6rem 0.75rem !important;
+    border-radius: 9px !important;
+    margin-bottom: 0.6rem !important;
+    gap: 0.5rem !important;
+    flex-wrap: wrap !important;
+  }
+  .profile-warning-banner .pw-icon { font-size: 1.2rem !important; }
+  .profile-warning-banner .pw-text h5 { font-size: 0.78rem !important; }
+  .profile-warning-banner .pw-text p  { font-size: 0.68rem !important; }
+  .profile-warning-banner .pw-btn {
+    font-size: 0.68rem !important;
+    padding: 0.3rem 0.65rem !important;
+    margin-left: 0 !important;
+  }
+
+  /* ── Security badge ── */
   .security-badge {
-    font-size: 0.72rem !important;
-    padding: 0.45rem 0.7rem !important;
-    margin-bottom: 0.75rem !important;
-    border-radius: 8px !important;
+    font-size: 0.68rem !important;
+    padding: 0.38rem 0.6rem !important;
+    margin-bottom: 0.6rem !important;
+    border-radius: 7px !important;
   }
 
-  /* Address badges */
+  /* ── Address badges ── */
   .address-complete-badge,
   .address-incomplete-badge {
-    font-size: 0.7rem !important;
-    padding: 0.25rem 0.6rem !important;
-    margin-bottom: 0.55rem !important;
+    font-size: 0.65rem !important;
+    padding: 0.22rem 0.55rem !important;
+    margin-bottom: 0.5rem !important;
+    border-radius: 20px !important;
   }
 
-  /* Form rows — always single column on mobile */
-  .checkout-form .form-row-2 {
-    grid-template-columns: 1fr !important;
+  /* ── Form grid: always 1 column ── */
+  .form-row-2 {
+    display: flex !important;
+    flex-direction: column !important;
     gap: 0 !important;
   }
 
-  /* Form groups */
-  .form-group-custom {
-    margin-bottom: 0.6rem !important;
-  }
+  /* ── Form groups ── */
+  .form-group-custom { margin-bottom: 0.5rem !important; }
   .form-label-custom {
-    font-size: 0.68rem !important;
-    margin-bottom: 0.15rem !important;
+    font-size: 0.65rem !important;
+    margin-bottom: 0.12rem !important;
+    font-weight: 600 !important;
   }
 
-  /* Inputs */
+  /* ── Inputs — 16px prevents iOS auto-zoom ── */
   .form-control-custom {
-    font-size: 16px !important;   /* prevents iOS zoom */
-    padding: 0.5rem 0.65rem 0.5rem 2rem !important;
-    border-radius: 8px !important;
-    min-height: 42px !important;
+    font-size: 16px !important;
+    padding: 0.42rem 0.6rem 0.42rem 1.9rem !important;
+    border-radius: 7px !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    line-height: 1.3 !important;
+    box-sizing: border-box !important;
   }
   textarea.form-control-custom {
-    padding-top: 0.5rem !important;
-    min-height: 60px !important;
-    rows: 2 !important;
+    height: auto !important;
+    min-height: 52px !important;
+    padding-top: 0.42rem !important;
+    resize: none !important;
   }
+  .input-icon-wrap { position: relative !important; }
   .input-icon {
-    font-size: 0.75rem !important;
-    left: 9px !important;
+    font-size: 0.7rem !important;
+    left: 8px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    position: absolute !important;
+    pointer-events: none !important;
+    color: #94a3b8 !important;
+  }
+  textarea ~ .input-icon,
+  .input-icon-wrap:has(textarea) .input-icon {
+    top: 14px !important;
+    transform: none !important;
   }
   .input-hint,
   .input-error {
-    font-size: 0.68rem !important;
-    margin-top: 2px !important;
+    font-size: 0.62rem !important;
+    margin-top: 1px !important;
+    padding-left: 1px !important;
   }
 
-  /* Map */
+  /* ── Map ── */
   .map-section {
-    padding: 0.75rem !important;
-    border-radius: 10px !important;
-    margin-top: 0.65rem !important;
+    padding: 0.65rem 0.7rem !important;
+    border-radius: 9px !important;
+    margin-top: 0.5rem !important;
   }
   .map-section-title {
-    font-size: 0.8rem !important;
-    margin-bottom: 0.35rem !important;
+    font-size: 0.74rem !important;
+    margin-bottom: 0.3rem !important;
   }
   .map-hint {
-    font-size: 0.68rem !important;
-    padding: 0.35rem 0.6rem !important;
-    margin-bottom: 0.5rem !important;
+    font-size: 0.62rem !important;
+    padding: 0.3rem 0.55rem !important;
+    margin-bottom: 0.45rem !important;
     border-radius: 6px !important;
+    line-height: 1.4 !important;
   }
   #deliveryMap {
-    height: 200px !important;
-    border-radius: 8px !important;
+    height: 180px !important;
+    border-radius: 7px !important;
   }
   .btn-use-my-location {
-    font-size: 0.72rem !important;
-    padding: 0.38rem 0.7rem !important;
+    font-size: 0.68rem !important;
+    padding: 0.32rem 0.65rem !important;
     border-radius: 6px !important;
-    margin-top: 0.45rem !important;
+    margin-top: 0.4rem !important;
+    gap: 0.3rem !important;
   }
   .map-pin-set-indicator {
-    font-size: 0.7rem !important;
-    padding: 0.3rem 0.6rem !important;
+    font-size: 0.65rem !important;
+    padding: 0.25rem 0.55rem !important;
+    border-radius: 6px !important;
   }
   .map-coords-display {
-    font-size: 0.68rem !important;
-    margin-top: 0.4rem !important;
+    font-size: 0.62rem !important;
+    margin-top: 0.35rem !important;
+    flex-wrap: wrap !important;
+    gap: 0.3rem !important;
   }
   .coord-badge {
-    font-size: 0.65rem !important;
-    padding: 1px 5px !important;
-  }
-
-  /* Payment options */
-  .payment-options {
-    gap: 0.5rem !important;
-  }
-  .payment-option {
-    border-radius: 9px !important;
-    padding: 0 !important;
-  }
-  .payment-option-inner {
-    padding: 0.6rem 0.75rem !important;
-    gap: 0.55rem !important;
-  }
-  .payment-icon {
-    font-size: 1.1rem !important;
-  }
-  .payment-name {
-    font-size: 0.8rem !important;
-    font-weight: 700 !important;
-  }
-  .payment-desc {
-    font-size: 0.68rem !important;
-  }
-  .payment-secure-tag {
     font-size: 0.6rem !important;
     padding: 1px 5px !important;
   }
+
+  /* ── Payment options ── */
+  .payment-options { gap: 0.4rem !important; }
+  .payment-option  { border-radius: 8px !important; padding: 0 !important; }
+  .payment-option-inner {
+    padding: 0.5rem 0.65rem !important;
+    gap: 0.45rem !important;
+    align-items: center !important;
+  }
+  .payment-icon { font-size: 1rem !important; flex-shrink: 0 !important; }
+  .payment-name { font-size: 0.76rem !important; font-weight: 700 !important; line-height: 1.2 !important; }
+  .payment-desc { font-size: 0.62rem !important; line-height: 1.3 !important; }
+  .payment-secure-tag {
+    font-size: 0.55rem !important;
+    padding: 1px 5px !important;
+    position: static !important;
+    transform: none !important;
+    align-self: flex-start !important;
+    margin-top: 2px !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+  }
   #ewalletNotice {
-    font-size: 0.75rem !important;
-    padding: 0.6rem 0.75rem !important;
-    margin-top: 0.6rem !important;
-    border-radius: 8px !important;
+    font-size: 0.7rem !important;
+    padding: 0.5rem 0.65rem !important;
+    margin-top: 0.5rem !important;
+    border-radius: 7px !important;
+    line-height: 1.4 !important;
   }
 
-  /* Place order button */
+  /* ── Place Order button ── */
   .btn-place-order {
-    padding: 0.75rem 1rem !important;
-    font-size: 0.9rem !important;
-    border-radius: 10px !important;
+    padding: 0.7rem 1rem !important;
+    font-size: 0.88rem !important;
+    border-radius: 9px !important;
+    width: 100% !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
   }
   .rate-notice {
-    font-size: 0.68rem !important;
-    margin-top: 0.5rem !important;
+    font-size: 0.62rem !important;
+    margin-top: 0.4rem !important;
+    line-height: 1.4 !important;
   }
 
-  /* Order summary (right panel → moves below form) */
-  .checkout-summary-col {
-    order: -1;  /* show summary ABOVE form on mobile */
-  }
+  /* ── Order Summary card ── */
   .order-summary-card,
   .sticky-summary {
     position: static !important;
-    padding: 0.85rem 0.9rem !important;
-    border-radius: 12px !important;
+    padding: 0.75rem 0.8rem !important;
+    border-radius: 10px !important;
   }
   .summary-title {
-    font-size: 0.88rem !important;
-    margin-bottom: 0.65rem !important;
-    padding-bottom: 0.5rem !important;
+    font-size: 0.82rem !important;
+    margin-bottom: 0.55rem !important;
+    padding-bottom: 0.4rem !important;
   }
+  .summary-items { margin-bottom: 0.4rem !important; }
   .summary-item {
-    font-size: 0.78rem !important;
-    padding: 0.3rem 0 !important;
+    font-size: 0.74rem !important;
+    padding: 0.25rem 0 !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
   }
-  .summary-item-name { font-size: 0.75rem !important; }
-  .summary-item-price { font-size: 0.78rem !important; font-weight: 700 !important; }
+  .summary-item-name  { font-size: 0.72rem !important; flex: 1 !important; padding-right: 0.5rem !important; }
+  .summary-item-price { font-size: 0.74rem !important; font-weight: 700 !important; flex-shrink: 0 !important; }
   .summary-row {
-    font-size: 0.78rem !important;
-    padding: 0.3rem 0 !important;
+    font-size: 0.74rem !important;
+    padding: 0.22rem 0 !important;
   }
   .total-row {
-    font-size: 0.95rem !important;
-    margin-top: 0.35rem !important;
-    padding-top: 0.35rem !important;
+    font-size: 0.88rem !important;
+    margin-top: 0.3rem !important;
+    padding-top: 0.3rem !important;
   }
-  .total-price {
-    font-size: 1rem !important;
+  .total-price { font-size: 0.95rem !important; }
+
+  /* ── Map status in summary ── */
+  #mapStatusCard {
+    margin-top: 0.65rem !important;
+    padding: 0.6rem !important;
+    border-radius: 8px !important;
+    font-size: 0.7rem !important;
   }
 
-  /* Profile warning banner */
-  .profile-warning-banner {
-    padding: 0.75rem 0.9rem !important;
-    border-radius: 10px !important;
-    margin-bottom: 0.75rem !important;
-    gap: 0.6rem !important;
-  }
-  .profile-warning-banner .pw-icon { font-size: 1.4rem !important; }
-  .profile-warning-banner .pw-text h5 { font-size: 0.82rem !important; }
-  .profile-warning-banner .pw-text p  { font-size: 0.72rem !important; }
-  .profile-warning-banner .pw-btn {
-    font-size: 0.72rem !important;
-    padding: 0.35rem 0.7rem !important;
-  }
-
-  /* Page header */
-  .page-title { font-size: 1rem !important; }
-  .page-sub   { font-size: 0.72rem !important; }
-  .page-header-section { padding: 0.6rem 0 !important; }
-
-  /* Overlay */
-  .placing-spinner { width: 44px !important; height: 44px !important; }
-  .placing-text { font-size: 0.9rem !important; }
+  /* ── Placing overlay ── */
+  .placing-spinner { width: 40px !important; height: 40px !important; border-width: 4px !important; }
+  .placing-text { font-size: 0.85rem !important; }
 }
 
-@media (max-width: 390px) {
-  .checkout-card { padding: 0.7rem 0.75rem !important; }
-  .form-control-custom { min-height: 40px !important; }
-  #deliveryMap { height: 170px !important; }
-  .payment-option-inner { padding: 0.5rem 0.65rem !important; }
+/* ── Tiny screens (≤ 380px) ── */
+@media (max-width: 380px) {
+  .checkout-section .container { padding-left: 8px !important; padding-right: 8px !important; }
+  .checkout-card  { padding: 0.6rem 0.65rem !important; }
+  .form-control-custom { min-height: 38px !important; height: 38px !important; }
+  #deliveryMap { height: 155px !important; }
+  .payment-option-inner { padding: 0.42rem 0.55rem !important; }
+  .btn-place-order { padding: 0.6rem 0.8rem !important; font-size: 0.82rem !important; }
 }
 </style>
 {% endblock %}
