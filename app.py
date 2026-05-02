@@ -168,7 +168,13 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        try:
+            return User.query.get(int(user_id))
+        except Exception:
+            # Column mismatch (e.g. is_active not yet migrated on this env)
+            # Return None so Flask-Login marks session unauthenticated instead of 500
+            db.session.rollback()
+            return None
 
     with app.app_context():
         if use_libsql:

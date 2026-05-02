@@ -405,21 +405,35 @@ function toggleSidebar() {
 function updateStatus(orderId, sel) {
   const newStatus = sel.value;
   const original = sel.dataset.original;
+  sel.disabled = true;
   fetch('/admin/order/' + orderId + '/status', {
     method: 'POST',
     credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status: newStatus})
-  }).then(r => r.json()).then(d => {
+  })
+  .then(r => {
+    if (!r.ok) throw new Error('Server error ' + r.status);
+    return r.json();
+  })
+  .then(d => {
+    sel.disabled = false;
     if (d.success) {
-      sel.className = 'status-select status-' + newStatus.toLowerCase().replace(' ', '-');
+      sel.className = 'status-select status-' + newStatus.toLowerCase().replace(/ /g, '-');
       sel.dataset.original = newStatus;
       const row = document.getElementById('order-row-' + orderId);
-      if (row) row.dataset.status = newStatus.toLowerCase().replace(' ', '-');
+      if (row) row.dataset.status = newStatus.toLowerCase().replace(/ /g, '-');
+      showToast('Order status updated to ' + newStatus, 'success');
     } else {
       sel.value = original;
-      alert('Failed to update status');
+      showToast(d.message || 'Failed to update status', 'error');
     }
+  })
+  .catch(err => {
+    sel.disabled = false;
+    sel.value = original;
+    showToast('Network error — please refresh and try again.', 'error');
+    console.error('updateStatus error:', err);
   });
 }
 
@@ -451,15 +465,26 @@ function togglePayment(orderId, btn) {
     credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({payment_status: newStatus})
-  }).then(r => r.json()).then(d => {
+  })
+  .then(r => {
+    if (!r.ok) throw new Error('Server error ' + r.status);
+    return r.json();
+  })
+  .then(d => {
     btn.disabled = false;
     if (d.success) {
       btn.dataset.status = newStatus;
       btn.className = 'btn-payment-toggle ' + (newStatus === 'Paid' ? 'paid' : 'unpaid');
       btn.textContent = newStatus === 'Paid' ? '💰 Paid' : '⏳ Unpaid';
+      showToast('Payment marked as ' + newStatus, 'success');
     } else {
-      alert('Failed to update payment status');
+      showToast(d.message || 'Failed to update payment status', 'error');
     }
+  })
+  .catch(err => {
+    btn.disabled = false;
+    showToast('Network error — please refresh and try again.', 'error');
+    console.error('togglePayment error:', err);
   });
 }
 
