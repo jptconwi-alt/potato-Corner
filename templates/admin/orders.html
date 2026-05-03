@@ -579,8 +579,12 @@ document.addEventListener('keydown', function(e) {
 });
 
 // ── Date Period Filter ──────────────────────────────────
-let activePeriod = 'all';
-let activeStatus = 'all';
+// Persist filter state across page refreshes using sessionStorage
+const STORAGE_KEY_PERIOD = 'orders_activePeriod';
+const STORAGE_KEY_STATUS = 'orders_activeStatus';
+
+let activePeriod = sessionStorage.getItem(STORAGE_KEY_PERIOD) || 'all';
+let activeStatus = sessionStorage.getItem(STORAGE_KEY_STATUS) || 'all';
 
 function getDateRange(period) {
   const now = new Date();
@@ -632,11 +636,22 @@ function applyFilters() {
   document.getElementById('summaryDelivered').textContent = delivered;
 }
 
+// Restore saved tab highlights on load
+function restoreTabHighlights() {
+  document.querySelectorAll('.date-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.period === activePeriod);
+  });
+  document.querySelectorAll('.status-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.filter === activeStatus);
+  });
+}
+
 document.querySelectorAll('.date-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     activePeriod = tab.dataset.period;
+    sessionStorage.setItem(STORAGE_KEY_PERIOD, activePeriod);
     applyFilters();
   });
 });
@@ -647,6 +662,7 @@ document.querySelectorAll('.status-tab').forEach(tab => {
     document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     activeStatus = tab.dataset.filter;
+    sessionStorage.setItem(STORAGE_KEY_STATUS, activeStatus);
     applyFilters();
   });
 });
@@ -664,7 +680,8 @@ function showToast(msg, type) {
   setTimeout(() => t.remove(), 3500);
 }
 
-// Init summary on load
+// Init: restore saved filter state then apply
+restoreTabHighlights();
 applyFilters();
 </script>
 {% endblock %}
