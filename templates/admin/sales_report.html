@@ -20,6 +20,7 @@
 .sr-kpi:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,.09); }
 .sr-kpi::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; border-radius: 14px 0 0 14px; }
 .sr-kpi-today::before  { background: linear-gradient(180deg,#3b82f6,#6366f1); }
+.sr-kpi-week::before   { background: linear-gradient(180deg,#06b6d4,#0891b2); }
 .sr-kpi-month::before  { background: linear-gradient(180deg,#10b981,#059669); }
 .sr-kpi-year::before   { background: linear-gradient(180deg,#f59e0b,#d97706); }
 .sr-kpi-total::before  { background: linear-gradient(180deg,#8b5cf6,#7c3aed); }
@@ -27,6 +28,7 @@
 .sr-kpi-label { font-size: .73rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
 .sr-kpi-icon { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: .95rem; }
 .sr-kpi-today .sr-kpi-icon  { background: #eff6ff; color: #3b82f6; }
+.sr-kpi-week  .sr-kpi-icon  { background: #ecfeff; color: #06b6d4; }
 .sr-kpi-month .sr-kpi-icon  { background: #ecfdf5; color: #10b981; }
 .sr-kpi-year  .sr-kpi-icon  { background: #fffbeb; color: #f59e0b; }
 .sr-kpi-total .sr-kpi-icon  { background: #f5f3ff; color: #8b5cf6; }
@@ -175,22 +177,28 @@
       <!-- 1. KPI Strip -->
       <div>
         <p class="sr-section-title"><i class="fas fa-bolt me-1"></i>Auto-Recorded Summary</p>
+        <p class="text-muted" style="font-size:.8rem;margin-top:-6px;">Today's income is automatically counted in This Week, This Month, and This Year totals.</p>
         <div class="sr-kpi-grid">
-          <div class="sr-kpi sr-kpi-today">
+          <a href="{{ url_for('admin_sales_report', period='today') }}" class="sr-kpi sr-kpi-today text-decoration-none" title="View today's breakdown">
             <div class="sr-kpi-header"><span class="sr-kpi-label">Today's Income</span><div class="sr-kpi-icon"><i class="fas fa-sun"></i></div></div>
             <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_today) }}</div>
-            <div class="sr-kpi-sub">Auto-recorded live</div>
-          </div>
-          <div class="sr-kpi sr-kpi-month">
+            <div class="sr-kpi-sub">Auto-recorded live · click to filter</div>
+          </a>
+          <a href="{{ url_for('admin_sales_report', period='week') }}" class="sr-kpi sr-kpi-week text-decoration-none" title="View this week's breakdown">
+            <div class="sr-kpi-header"><span class="sr-kpi-label">This Week</span><div class="sr-kpi-icon"><i class="fas fa-calendar-week"></i></div></div>
+            <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_week) }}</div>
+            <div class="sr-kpi-sub">Includes today · click to filter</div>
+          </a>
+          <a href="{{ url_for('admin_sales_report', period='month') }}" class="sr-kpi sr-kpi-month text-decoration-none" title="View this month's breakdown">
             <div class="sr-kpi-header"><span class="sr-kpi-label">This Month</span><div class="sr-kpi-icon"><i class="fas fa-calendar-alt"></i></div></div>
             <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_month) }}</div>
-            <div class="sr-kpi-sub">{{ now.strftime('%B %Y') }}</div>
-          </div>
-          <div class="sr-kpi sr-kpi-year">
+            <div class="sr-kpi-sub">{{ now.strftime('%B %Y') }} · click to filter</div>
+          </a>
+          <a href="{{ url_for('admin_sales_report', period='year') }}" class="sr-kpi sr-kpi-year text-decoration-none" title="View this year's breakdown">
             <div class="sr-kpi-header"><span class="sr-kpi-label">This Year</span><div class="sr-kpi-icon"><i class="fas fa-calendar"></i></div></div>
             <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_year) }}</div>
-            <div class="sr-kpi-sub">{{ now.strftime('%Y') }}</div>
-          </div>
+            <div class="sr-kpi-sub">{{ now.strftime('%Y') }} · click to filter</div>
+          </a>
           <div class="sr-kpi sr-kpi-total">
             <div class="sr-kpi-header"><span class="sr-kpi-label">All-Time Revenue</span><div class="sr-kpi-icon"><i class="fas fa-coins"></i></div></div>
             <div class="sr-kpi-value">₱{{ "%.2f"|format(auto_total) }}</div>

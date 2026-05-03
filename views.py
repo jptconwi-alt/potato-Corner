@@ -703,7 +703,9 @@ def register_routes(app):
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         year_start  = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         all_delivered = Order.query.filter(Order.status == 'Delivered').all()
+        week_start  = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
         auto_today = sum(o.total_amount for o in all_delivered if o.order_date >= today_start)
+        auto_week  = sum(o.total_amount for o in all_delivered if o.order_date >= week_start)
         auto_month = sum(o.total_amount for o in all_delivered if o.order_date >= month_start)
         auto_year  = sum(o.total_amount for o in all_delivered if o.order_date >= year_start)
         auto_total = sum(o.total_amount for o in all_delivered)
@@ -774,6 +776,7 @@ def register_routes(app):
                                top_products=top_products,
                                pending_count=pending_count,
                                auto_today=auto_today,
+                               auto_week=auto_week,
                                auto_month=auto_month,
                                auto_year=auto_year,
                                auto_total=auto_total,
