@@ -11,4 +11,3 @@ libsql-experimental
 reportlab
 python-docx
 flask-socketio==5.3.6
-eventlet==0.35.2

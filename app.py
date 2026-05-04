@@ -1,6 +1,3 @@
-import eventlet
-eventlet.monkey_patch()
-
 import warnings
 from datetime import timedelta
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
@@ -196,8 +193,8 @@ def create_app():
     socketio.init_app(
         app,
         cors_allowed_origins='*',
-        async_mode='eventlet',
-        allow_upgrades=False,        # stay on polling; avoids "invalid transport" errors
+        async_mode='threading',
+        allow_upgrades=False,
         ping_timeout=60,
         ping_interval=25,
         logger=False,
