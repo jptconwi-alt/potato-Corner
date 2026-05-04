@@ -191,14 +191,23 @@ class CartController:
     
     @staticmethod
     def remove_from_cart(session_id, item_id, user_id=None):
-        """Remove item from cart"""
-        query = CartItem.query.filter_by(id=item_id)
-        
-        if user_id:
-            cart_item = query.filter_by(user_id=user_id).first()
-        else:
-            cart_item = query.filter_by(session_id=session_id).first()
-        
+        """Remove item from cart — matches by user_id OR session_id so
+        items added as a guest and then merged (or partially merged) are
+        always deletable after login."""
+        from sqlalchemy import or_
+        cart_item = CartItem.query.filter(
+            CartItem.id == item_id,
+            or_(
+                CartItem.user_id    == user_id    if user_id    else False,
+                CartItem.session_id == session_id if session_id else False,
+            )
+        ).first()
+
+        # Last-resort: if neither matched but the item_id exists and the caller
+        # IS authenticated, allow deletion (covers edge-cases after cart merge).
+        if not cart_item and user_id:
+            cart_item = CartItem.query.filter_by(id=item_id).first()
+
         if cart_item:
             db.session.delete(cart_item)
             db.session.commit()

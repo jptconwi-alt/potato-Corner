@@ -296,16 +296,6 @@ def register_routes(app):
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
         ok = CartController.remove_from_cart(sid, item_id, uid)
-        if not ok:
-            # Ownership check failed — retry with user_id-only to handle rows
-            # whose session_id was cleared to None after merge_carts.
-            if uid:
-                from models import CartItem as _CI
-                item = _CI.query.filter_by(id=item_id, user_id=uid).first()
-                if item:
-                    db.session.delete(item)
-                    db.session.commit()
-                    ok = True
         return jsonify({'success': bool(ok)})
 
     @app.route('/api/cart/count')
