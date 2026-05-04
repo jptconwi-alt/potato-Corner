@@ -267,8 +267,22 @@ def register_routes(app):
         quantity = int(data.get('quantity', 1))
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
-        CartController.update_quantity(sid, item_id, quantity, uid)
-        return jsonify({'success': True})
+        ok = CartController.update_quantity(sid, item_id, quantity, uid)
+        if not ok:
+            # Ownership check failed — item may belong to this user but the
+            # session_id stored on the row is stale (e.g. added before login).
+            # Retry with a pure user_id-only lookup to handle that edge case.
+            if uid:
+                from models import CartItem as _CI
+                item = _CI.query.filter_by(id=item_id, user_id=uid).first()
+                if item:
+                    if quantity <= 0:
+                        db.session.delete(item)
+                    else:
+                        item.quantity = quantity
+                    db.session.commit()
+                    ok = True
+        return jsonify({'success': bool(ok)})
 
     @app.route('/cart/remove', methods=['POST'])
     def cart_remove():
@@ -276,13 +290,36 @@ def register_routes(app):
         item_id = data.get('item_id')
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
-        CartController.remove_from_cart(sid, item_id, uid)
-        return jsonify({'success': True})
+        ok = CartController.remove_from_cart(sid, item_id, uid)
+        if not ok:
+            # Ownership check failed — retry with user_id-only to handle rows
+            # whose session_id was cleared to None after merge_carts.
+            if uid:
+                from models import CartItem as _CI
+                item = _CI.query.filter_by(id=item_id, user_id=uid).first()
+                if item:
+                    db.session.delete(item)
+                    db.session.commit()
+                    ok = True
+        return jsonify({'success': bool(ok)})
 
     @app.route('/api/cart/count')
     def cart_count():
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
+        # If the user is logged in, purge any leftover session-only rows that
+        # were not cleaned up by merge_carts (e.g. from an old anonymous session
+        # stored in the same browser). These are the root cause of badge > actual.
+        if uid:
+            from models import CartItem as _CI
+            stale = _CI.query.filter(
+                _CI.session_id == sid,
+                _CI.user_id == None  # noqa: E711
+            ).all()
+            if stale:
+                for s in stale:
+                    db.session.delete(s)
+                db.session.commit()
         cart_items = CartController.get_cart_items(sid, uid)
         total = sum(i.quantity for i in cart_items)
         return jsonify({'count': total})

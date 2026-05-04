@@ -523,7 +523,11 @@ function updateCart(itemId, newQty) {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({item_id: itemId, quantity: newQty})
   }).then(r => r.json()).then(d => {
-    if (d.success) {
+    if (!d.success) {
+      // Reload so the UI shows the actual server state
+      location.reload();
+      return;
+    }
       const qtyEl = document.getElementById('qty-display-' + itemId);
       if (qtyEl) qtyEl.textContent = newQty;
       const subtotalEl = document.getElementById('subtotal-' + itemId);
@@ -533,7 +537,6 @@ function updateCart(itemId, newQty) {
       }
       if (typeof fetchCartCount === "function") fetchCartCount(); else if (typeof updateCartBadge === "function") updateCartBadge();
       recalcSummary();
-    }
   });
 }
 
@@ -545,7 +548,10 @@ function removeItem(itemId) {
     body: JSON.stringify({item_id: itemId})
   })
   .then(r => r.json()).then(d => {
-    if (d.success) {
+    if (!d.success) {
+      alert('Could not remove item. Please refresh and try again.');
+      return;
+    }
       const card = document.getElementById('cart-item-' + itemId);
       if (card) {
         card.style.transition = 'all .3s ease';
@@ -574,7 +580,6 @@ function removeItem(itemId) {
       }
       // Update badge via polling
       fetchCartCount();
-    }
   });
 }
 

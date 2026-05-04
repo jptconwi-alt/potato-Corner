@@ -282,6 +282,19 @@ class CartController:
         
         db.session.commit()
 
+        # Purge any remaining orphaned session rows that still reference this
+        # session_id but are now shadowed by a user-owned row (can happen if
+        # merge_carts ran in a previous session but a stale cookie left rows
+        # behind). This is the root cause of the badge showing double the count.
+        orphans = CartItem.query.filter(
+            CartItem.session_id == session_id,
+            CartItem.user_id == None  # noqa: E711
+        ).all()
+        for orphan in orphans:
+            db.session.delete(orphan)
+        if orphans:
+            db.session.commit()
+
 class OrderController:
     """Handles order operations"""
     
