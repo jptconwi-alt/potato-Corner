@@ -724,5 +724,59 @@ function showToast(msg, type) {
 // Init: restore saved filter state then apply
 restoreTabHighlights();
 applyFilters();
+
+// ── Socket.IO: live order board sync ─────────────────────────────────────────
+// Join the shared admin_orders room so every open admin tab reflects status
+// changes made by any other admin tab — without a page refresh.
+(function () {
+  // Reuse the global socket created in base.html; wait for it to be ready.
+  function waitForSocket(cb) {
+    if (window.pcSocket) { cb(window.pcSocket); return; }
+    var t = setInterval(function () {
+      if (window.pcSocket) { clearInterval(t); cb(window.pcSocket); }
+    }, 100);
+  }
+
+  waitForSocket(function (socket) {
+    socket.emit('join_admin_orders', {});
+
+    // Another admin (or this same admin on another tab) just changed a status
+    socket.on('admin_order_updated', function (data) {
+      var orderId   = data.order_id;
+      var newStatus = data.status;
+      var row       = document.getElementById('order-row-' + orderId);
+      if (!row) return;   // order not visible in current filter
+
+      // Update data-status for filter logic
+      row.dataset.status = newStatus.toLowerCase().replace(/ /g, '-');
+
+      // Update the status label badge
+      var label = document.getElementById('status-label-' + orderId);
+      if (label) label.textContent = newStatus;
+
+      // Update the action button area to match new status
+      var container = document.getElementById('status-btns-' + orderId);
+      if (container) {
+        var html = '';
+        if (newStatus === 'Preparing') {
+          html = '<button class="status-action-btn delivering" onclick="setStatus(' + orderId + ', \'Out for Delivery\', this)">🚚 Dispatch</button>' +
+                 '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', \'Cancelled\', this)">✕ Cancel</button>';
+        } else if (newStatus === 'Out for Delivery') {
+          html = '<button class="status-action-btn delivered" onclick="setStatus(' + orderId + ', \'Delivered\', this)">✅ Delivered</button>' +
+                 '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', \'Cancelled\', this)">✕ Cancel</button>';
+        } else if (newStatus === 'Delivered') {
+          html = '<span class="status-badge-done delivered">✅ Delivered</span>';
+        } else if (newStatus === 'Cancelled') {
+          html = '<span class="status-badge-done cancelled">❌ Cancelled</span>';
+        }
+        if (html) container.innerHTML = html;
+      }
+
+      // Re-apply current filters so the row moves to/from the correct tab
+      applyFilters();
+      showToast('Order #' + data.order_number + ' → ' + newStatus, 'success');
+    });
+  });
+})();
 </script>
 {% endblock %}

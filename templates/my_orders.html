@@ -229,7 +229,12 @@
 {% block extra_js %}
 <script>
 (function(){
-  const POLL_MS = 15000;
+  // ── Socket.IO: register page-level handler so base.html's socket
+  //    can call this when an order_status_update event arrives ──────
+  window._pcOrderStatusUpdate = function(data) {
+    applyStatusUpdate(data.order_id, data.order_number, data.status);
+  };
+
   let _known = {};
   let _pendingCancelId  = null;
   let _pendingCancelNum = null;
@@ -392,52 +397,56 @@
     setTimeout(()=>{ t.style.opacity='0';t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); },4000);
   }
 
-  // ── Live poll ──────────────────────────────────────────
-  async function poll(){
-    try{
-      const res=await fetch('/api/orders/status',{cache:'no-store'});
-      const data=await res.json();
-      if(!data.orders)return;
+  // ── Socket.IO-driven live update ─────────────────────────────────
+  // Called by window._pcOrderStatusUpdate (registered in base.html socket listener)
+  function applyStatusUpdate(orderId, orderNum, status) {
+    const card = document.getElementById('order-card-' + orderId);
+    const prev = _known[orderId];
 
-      let needsReload=false;
-      data.orders.forEach(order=>{
-        const card=document.getElementById('order-card-'+order.id);
-        const prev=_known[order.id];
-        if(!card){
-          if(prev===undefined){ needsReload=true; }
-          _known[order.id]=order.status;
-          return;
-        }
-        if(prev!==undefined&&prev!==order.status){
-          card.dataset.status=order.status;
-          updateBadge(card,order.status);
-          updateProgress(card,order.status);
-          card.classList.remove('status-updated');
-          void card.offsetWidth;
-          card.classList.add('status-updated');
-          showToast(order.order_number,order.status);
-          // Hide cancel button if order moves to terminal state
-          if(order.status==='Cancelled'||order.status==='Delivered'){
-            const actions=card.querySelector('.oc-actions');
-            if(actions) actions.remove();
-          }
-        }
-        _known[order.id]=order.status;
-      });
+    if (!card) {
+      // New order appeared — reload to render it properly
+      if (prev === undefined) { location.reload(); }
+      _known[orderId] = status;
+      return;
+    }
 
-      if(needsReload){ location.reload(); return; }
+    if (prev !== undefined && prev !== status) {
+      card.dataset.status = status;
+      updateBadge(card, status);
+      updateProgress(card, status);
+      card.classList.remove('status-updated');
+      void card.offsetWidth;
+      card.classList.add('status-updated');
+      showToast(orderNum, status);
+      if (status === 'Cancelled' || status === 'Delivered') {
+        const actions = card.querySelector('.oc-actions');
+        if (actions) actions.remove();
+      }
 
-      const now=new Date();
-      const ts=now.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
-      const el=document.getElementById('lastUpdatedText');
-      if(el) el.textContent='Updated '+ts;
+      // Stamp last-updated time
+      const ts = new Date().toLocaleTimeString('en-PH', {hour:'2-digit', minute:'2-digit'});
+      const el  = document.getElementById('lastUpdatedText');
+      if (el) el.textContent = 'Updated ' + ts;
+    }
 
-    }catch(e){}
+    _known[orderId] = status;
   }
 
-  setTimeout(poll,2000);
-  setInterval(poll,POLL_MS);
-  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') poll(); });
+  // Expose for base.html to call when socket event fires
+  window._pcOrderStatusUpdate = applyStatusUpdate;
+
+  // Visibility-change: re-fetch order statuses via REST when user returns to tab
+  // (Socket.IO handles live pushes; this catches any events missed while hidden)
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') return;
+    fetch('/api/orders/status', {cache:'no-store'})
+      .then(r => r.json())
+      .then(data => {
+        if (!data.orders) return;
+        data.orders.forEach(order => applyStatusUpdate(order.id, order.order_number, order.status));
+      })
+      .catch(() => {});
+  });
 
   // Close modal on backdrop click
   document.getElementById('cancelModal').addEventListener('click', function(e){

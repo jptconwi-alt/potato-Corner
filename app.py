@@ -9,8 +9,11 @@ from init_db import init_database
 from flask_login import LoginManager, login_user
 from models import User
 from authlib.integrations.flask_client import OAuth
+from flask_socketio import SocketIO
 import os
 from dotenv import load_dotenv
+
+socketio = SocketIO()
 
 load_dotenv()
 login_manager = LoginManager()
@@ -95,9 +98,6 @@ def create_app():
     app.config['SECRET_KEY']                     = os.environ.get('SECRET_KEY', 'potato-corner-secret-2025')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['PERMANENT_SESSION_LIFETIME']      = timedelta(days=30)
-    app.config['SESSION_COOKIE_SAMESITE']         = 'Lax'   # survive normal navigation/refresh
-    app.config['REMEMBER_COOKIE_DURATION']        = timedelta(days=30)
-    app.config['REMEMBER_COOKIE_SAMESITE']        = 'Lax'
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
@@ -190,6 +190,11 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = None   # We handle redirects manually in decorators
     login_manager.login_message = ''
+    socketio.init_app(app, cors_allowed_origins='*', async_mode='gevent')
+
+    # Register Socket.IO event handlers (join/leave rooms, cart_updated)
+    from views import register_socketio_events
+    register_socketio_events(socketio)
 
     oauth = OAuth(app)
     google = None
@@ -307,8 +312,7 @@ def create_app():
             if not user.is_active:
                 flash('Your account has been disabled. Please contact support.', 'danger')
                 return redirect(url_for('login'))
-            login_user(user, remember=True)
-            session.permanent = True   # keep session alive across browser restarts
+            login_user(user, remember=False)
             session['user_id'] = user.id
 
             if is_new or not user.profile_complete:
@@ -332,4 +336,4 @@ app = create_app()
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Starting Potato Corner at http://0.0.0.0:{port}")
-    app.run(host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)

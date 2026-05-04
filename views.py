@@ -2,6 +2,7 @@ import os
 import uuid
 from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, current_user, logout_user
+from flask_socketio import emit, join_room, leave_room
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from models import ph_now
@@ -57,10 +58,8 @@ def register_routes(app):
         password = data.get('password', '')
         if not username or not password:
             return jsonify({'success': False, 'message': 'Username and password are required.'})
-        remember = data.get('remember', True)  # default True so cart/orders survive refresh
-        success, result = AuthController.login_user(username, password, remember)
+        success, result = AuthController.login_user(username, password, False)
         if success:
-            session.permanent = True   # keep session alive across browser restarts
             session['user_id'] = result.id
             sid = get_session_id()
             CartController.merge_carts(sid, result.id)
@@ -85,9 +84,8 @@ def register_routes(app):
         success, result = AuthController.register_user(username, email, password, full_name, phone)
         if success:
             # Auto-login after registration
-            success2, result2 = AuthController.login_user(username, password, True)
+            success2, result2 = AuthController.login_user(username, password, False)
             if success2:
-                session.permanent = True   # keep session alive across browser restarts
                 session['user_id'] = result2.id
             return jsonify({'success': True, 'full_name': full_name})
         return jsonify({'success': False, 'message': str(result)})
@@ -106,7 +104,6 @@ def register_routes(app):
                 return render_template('login.html')
             success, result = AuthController.login_user(username, password, remember)
             if success:
-                session.permanent = True   # keep session alive across browser restarts
                 session['user_id'] = result.id
                 sid = get_session_id()
                 CartController.merge_carts(sid, result.id)
@@ -597,12 +594,28 @@ def register_routes(app):
     @app.route('/admin/order/<int:order_id>/status', methods=['POST'])
     @admin_required
     def admin_update_order_status(order_id):
+        from app import socketio as _sio
         data = request.get_json()
         new_status = data.get('status')
-        valid = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled']
+        valid = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled', 'Confirmed']
         if new_status not in valid:
             return jsonify({'success': False, 'message': 'Invalid status'})
         success = OrderController.update_order_status(order_id, new_status)
+        if success:
+            order = Order.query.get(order_id)
+            if order:
+                # Emit to the order's user room so they get instant status update
+                _sio.emit('order_status_update', {
+                    'order_id':     order.id,
+                    'order_number': order.order_number,
+                    'status':       new_status,
+                }, room=f'user_{order.user_id}')
+                # Also broadcast to admin room for live order board sync
+                _sio.emit('admin_order_updated', {
+                    'order_id':     order.id,
+                    'order_number': order.order_number,
+                    'status':       new_status,
+                }, room='admin_orders')
         return jsonify({'success': success})
 
     # ── Admin AJAX: Update payment status ──────
@@ -1141,3 +1154,36 @@ def register_routes(app):
             return response
 
         return jsonify({'error': 'Unsupported format'}), 400
+
+# ── Socket.IO event handlers ─────────────────────────────────────────────────
+# Registered on the socketio instance (imported from app) so they work
+# regardless of which blueprint/module is active.
+
+def register_socketio_events(socketio):
+    """Call this once from app.py after socketio.init_app(app)."""
+
+    @socketio.on('join_user_room')
+    def on_join_user_room(data):
+        """Authenticated users join their personal room (user_<id>) to receive
+        order-status pushes without polling."""
+        room = data.get('room')
+        if room:
+            join_room(room)
+
+    @socketio.on('join_admin_orders')
+    def on_join_admin_orders(data):
+        """Admin clients join the shared admin_orders room to receive live
+        board updates when any order status changes."""
+        join_room('admin_orders')
+
+    @socketio.on('leave_user_room')
+    def on_leave_user_room(data):
+        room = data.get('room')
+        if room:
+            leave_room(room)
+
+    @socketio.on('cart_updated')
+    def on_cart_updated(data):
+        """Broadcast updated cart count back to the requesting socket so the
+        badge refreshes immediately after add/remove without a REST round-trip."""
+        emit('cart_count', {'count': data.get('count', 0)})

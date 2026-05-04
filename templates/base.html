@@ -382,8 +382,10 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Socket.IO — same CDN version used by NEMSU Marketplace -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script>
-  /* ── Cart Badge (updated via polling, no page refresh needed) ── */
+  /* ── Cart Badge helpers ── */
   function updateCartBadge(count) {
     const badge = document.getElementById('cartCount');
     const mobileBadge = document.getElementById('mobileCartCount');
@@ -404,98 +406,70 @@
       .catch(() => {});
   }
 
-  /* Poll cart count every 15s for real-time badge sync */
-  fetchCartCount();
-  setInterval(fetchCartCount, 15000);
+  /* ── Toast helper (shared by cart & order events) ── */
+  function showOrderToast(orderNum, status) {
+    const icons  = {'Confirmed':'✅','Preparing':'🍟','Ready':'🎉','Out for Delivery':'🛵','Delivered':'🎊','Cancelled':'❌'};
+    const labels = {'Confirmed':'Order Confirmed','Preparing':'Being Prepared','Ready':'Ready for Pickup','Out for Delivery':'Out for Delivery','Delivered':'Delivered!','Cancelled':'Order Cancelled'};
+    const icon  = icons[status]  || '📦';
+    const label = labels[status] || status;
+    const toast = document.createElement('div');
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:99999;background:#1b5e20;color:#fff;padding:12px 20px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:10px;max-width:340px;animation:slideUpToast .3s ease;';
+    toast.innerHTML = '<span style="font-size:1.3rem;">' + icon + '</span><div><div style="font-size:.78rem;opacity:.8;margin-bottom:2px;">Order #' + orderNum + '</div>' + label + '</div>';
+    document.body.appendChild(toast);
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(-50%) translateY(10px)';
+      toast.style.transition = 'all .3s ease';
+      setTimeout(function() { toast.remove(); }, 300);
+    }, 4000);
+  }
 
-  /* ── Real-time order status toasts (for authenticated users) ── */
-  {% if current_user.is_authenticated and not current_user.is_admin %}
-  (function() {
-    let _lastOrderStatuses = {};
+  if (!document.querySelector('#toastKeyframe')) {
+    var _ks = document.createElement('style');
+    _ks.id = 'toastKeyframe';
+    _ks.textContent = '@keyframes slideUpToast{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(_ks);
+  }
 
-    function checkOrderUpdates() {
-      fetch('/api/orders/status', {cache: 'no-store'})
-        .then(r => r.json())
-        .then(data => {
-          if (!data.orders) return;
-          data.orders.forEach(order => {
-            const prev = _lastOrderStatuses[order.id];
-            if (prev && prev !== order.status) {
-              showOrderToast(order.order_number, order.status);
-            }
-            _lastOrderStatuses[order.id] = order.status;
-          });
-          // Initialize on first load
-          if (Object.keys(_lastOrderStatuses).length === 0) {
-            data.orders.forEach(o => { _lastOrderStatuses[o.id] = o.status; });
-          }
-        }).catch(() => {});
-    }
+  /* ── Socket.IO realtime sync ── */
+  (function () {
+    var socket = io();
 
-    function showOrderToast(orderNum, status) {
-      const icons = {
-        'confirmed': '✅',
-        'preparing': '🍟',
-        'ready': '🎉',
-        'out_for_delivery': '🛵',
-        'delivered': '🎊',
-        'cancelled': '❌',
-      };
-      const labels = {
-        'confirmed': 'Order Confirmed',
-        'preparing': 'Being Prepared',
-        'ready': 'Ready for Pickup',
-        'out_for_delivery': 'Out for Delivery',
-        'delivered': 'Delivered!',
-        'cancelled': 'Order Cancelled',
-      };
-      const icon = icons[status] || '📦';
-      const label = labels[status] || status;
+    {% if current_user.is_authenticated %}
+    // Join personal room so the server can push order status changes directly
+    socket.emit('join_user_room', { room: 'user_{{ current_user.id }}' });
 
-      // Create toast
-      const toast = document.createElement('div');
-      toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:99999;background:#1b5e20;color:#fff;padding:12px 20px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:10px;max-width:340px;animation:slideUpToast .3s ease;';
-      toast.innerHTML = `<span style="font-size:1.3rem;">${icon}</span><div><div style="font-size:.78rem;opacity:.8;margin-bottom:2px;">Order #${orderNum}</div>${label}</div>`;
-      document.body.appendChild(toast);
-
-      // Also refresh order list if on orders page
-      if (window.location.pathname === '/orders') {
-        setTimeout(() => window.location.reload(), 1500);
+    // Receive real-time order status update pushed by admin
+    socket.on('order_status_update', function (data) {
+      showOrderToast(data.order_number, data.status);
+      // If the user is on the my-orders page, trigger its live updater
+      if (typeof window._pcOrderStatusUpdate === 'function') {
+        window._pcOrderStatusUpdate(data);
       }
+    });
+    {% endif %}
 
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(-50%) translateY(10px)';
-        toast.style.transition = 'all .3s ease';
-        setTimeout(() => toast.remove(), 300);
-      }, 4000);
-    }
+    // Keep cart badge in sync across tabs / actions
+    socket.on('cart_count', function (data) {
+      updateCartBadge(data.count || 0);
+    });
 
-    // Add toast animation keyframe
-    if (!document.querySelector('#toastKeyframe')) {
-      const style = document.createElement('style');
-      style.id = 'toastKeyframe';
-      style.textContent = '@keyframes slideUpToast{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
-      document.head.appendChild(style);
-    }
+    // Expose socket globally so cart add/remove can notify the server
+    window.pcSocket = socket;
 
-    // Poll every 20s for order updates
-    setTimeout(checkOrderUpdates, 2000);
-    setInterval(checkOrderUpdates, 60000);
+    // Initial cart count fetch on page load
+    fetchCartCount();
+
+    // Fallback: refresh cart badge on bfcache restore (browser back button)
+    window.addEventListener('pageshow', function (e) {
+      if (e.persisted) fetchCartCount();
+    });
   })();
-  {% endif %}
-
-  /* ── Prevent stale page on back-nav: always reload from server ── */
-  window.addEventListener('pageshow', function(e) {
-    if (e.persisted) {
-      fetchCartCount();
-    }
-  });
 
   /* ── Auto-dismiss flash messages ── */
-  setTimeout(() => {
-    document.querySelectorAll('.flash-alert').forEach(el => {
-      const bsAlert = bootstrap.Alert.getOrCreateInstance(el);
+  setTimeout(function () {
+    document.querySelectorAll('.flash-alert').forEach(function (el) {
+      var bsAlert = bootstrap.Alert.getOrCreateInstance(el);
       bsAlert.close();
     });
   }, 4000);
