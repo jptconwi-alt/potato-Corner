@@ -539,17 +539,44 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
 @media(max-width:600px){
   .hero-actions{flex-direction:column}
   .btn-hero-primary,.btn-hero-secondary{justify-content:center}
-  /* Single-column on all phones ≤600px — prevents 2-col squish */
-  .product-grid{grid-template-columns:1fr !important;gap:.75rem}
-  .product-card{display:flex !important;flex-direction:row !important;align-items:stretch;overflow:visible}
-  .product-img-wrap{width:120px;min-width:120px;height:auto !important;flex-shrink:0;border-radius:var(--radius-lg) 0 0 var(--radius-lg);overflow:hidden}
-  .product-size-tag{top:6px;left:6px}
-  .product-avail-badge{top:auto;bottom:6px;left:6px;font-size:.6rem;padding:.12rem .45rem}
-  .product-overlay{border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
-  .product-info{flex:1 !important;min-width:0;padding:.7rem .85rem .8rem;display:flex;flex-direction:column;justify-content:space-between;border-radius:0 var(--radius-lg) var(--radius-lg) 0;overflow:hidden}
-  .product-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .product-footer{margin-bottom:.45rem}
-  .btn-add-cart{font-size:.82rem;padding:.5rem .75rem;white-space:nowrap}
+
+  /* ── 2-column vertical card grid on mobile ── */
+  .product-grid{grid-template-columns:1fr 1fr !important;gap:.75rem}
+
+  /* Reset card to vertical (block) layout — undo any horizontal overrides */
+  .product-card{display:block !important;flex-direction:unset !important;overflow:hidden}
+
+  /* Image area */
+  .product-img-wrap{width:100% !important;min-width:unset !important;height:130px !important;
+    flex-shrink:unset !important;border-radius:var(--radius-lg) var(--radius-lg) 0 0 !important;overflow:hidden}
+
+  /* Badges */
+  .product-size-tag{top:7px;left:7px;font-size:.6rem;padding:.15rem .45rem}
+  .product-avail-badge{top:auto;bottom:7px;left:7px;font-size:.58rem;padding:.12rem .45rem}
+  .product-overlay{border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+
+  /* Info area */
+  .product-info{width:100% !important;min-width:unset !important;padding:.6rem .7rem .75rem !important;
+    display:block !important;border-radius:0 !important;overflow:visible !important}
+
+  /* Typography */
+  .product-flavor-chip{font-size:.6rem;padding:.1rem .45rem;margin-bottom:.3rem}
+  .product-name{font-size:.82rem;font-weight:700;line-height:1.25;margin-bottom:.2rem;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .product-desc{font-size:.68rem;margin-bottom:.4rem;-webkit-line-clamp:1}
+
+  /* Price row */
+  .product-footer{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;gap:.2rem}
+  .product-price{font-size:1rem}
+  .qty-btn{width:22px;height:22px;font-size:.85rem;flex-shrink:0}
+  .qty-val{font-size:.78rem;min-width:16px;text-align:center}
+
+  /* Add to Cart button */
+  .btn-add-cart{width:100%;padding:.48rem .5rem;font-size:.75rem;white-space:nowrap;
+    display:flex;align-items:center;justify-content:center;gap:.3rem}
+  .btn-add-cart .fa-shopping-cart,.btn-add-cart i{font-size:.75rem}
+
+  /* Other layout resets */
   .order-card-header{flex-direction:column;align-items:flex-start}
   .admin-stats-grid{grid-template-columns:1fr 1fr}
   .stat-card-val{font-size:1.3rem}
@@ -1219,26 +1246,14 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
   }
 
   /* ── PRODUCT GRID fine-tuning for very small phones (≤430px) ── */
-  /* Layout handled by ≤600px block; only tweak sizes here */
-  .product-img-wrap {
-    width: 110px;
-    min-width: 110px;
-  }
-  .product-name {
-    font-size: .85rem;
-  }
-  .product-price {
-    font-size: 1rem;
-  }
-  .qty-btn {
-    width: 22px;
-    height: 22px;
-    font-size: .85rem;
-  }
-  .btn-add-cart {
-    padding: .45rem .65rem;
-    font-size: .78rem;
-  }
+  .product-img-wrap { height: 110px !important; }
+  .product-name { font-size: .78rem; }
+  .product-price { font-size: .92rem; }
+  .qty-btn { width: 20px; height: 20px; font-size: .78rem; }
+  .qty-val { font-size: .72rem; }
+  .btn-add-cart { font-size: .7rem; padding: .42rem .4rem; }
+  .product-flavor-chip { font-size: .58rem; }
+  .product-info { padding: .5rem .55rem .6rem !important; }
 
   /* ── AUTH PAGES ── */
   .auth-page {
