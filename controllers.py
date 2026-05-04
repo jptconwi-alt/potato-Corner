@@ -210,47 +210,36 @@ class CartController:
     def clear_selected_items(session_id, user_id, item_ids):
         """Delete only the cart items that were ordered (by their IDs).
 
-        Uses a raw engine connection so commit() goes through
-        _LibSQLConnection.commit() which calls sync() to push deletes to Turso.
-        Deletes purely by primary key so items are always removed even if
-        ownership metadata is stale.
+        Uses the ORM session so all deletes are in the same transaction as the
+        rest of the request — no raw-engine/ORM split that caused items to
+        reappear on refresh. synchronize_session='fetch' updates the identity
+        map immediately so get_cart_items() returns 0 rows within this request.
         """
         if not item_ids:
             return
 
-        from sqlalchemy import text as _text
-
-        # Method 1: raw engine connection - guarantees _LibSQLConnection.commit()
-        # is called, which triggers conn.sync() to push deletes to Turso.
+        # Primary: ORM bulk delete in the same session/transaction
         try:
-            with db.engine.connect() as conn:
-                placeholders = ','.join([f':id{i}' for i in range(len(item_ids))])
-                params = {f'id{i}': v for i, v in enumerate(item_ids)}
-                conn.execute(_text(f'DELETE FROM cart_items WHERE id IN ({placeholders})'), params)
-                conn.commit()  # -> _LibSQLConnection.commit() -> sync()
-            # Expire ORM session so subsequent queries see the fresh state
-            db.session.expire_all()
+            deleted = CartItem.query.filter(
+                CartItem.id.in_(item_ids)
+            ).delete(synchronize_session='fetch')
+            db.session.commit()
+            print(f"✅ clear_selected_items deleted {deleted} rows")
             return
         except Exception as e:
-            print(f"⚠️  clear_selected_items raw delete failed: {e}")
-
-        # Method 2: ORM fallback
-        try:
-            CartItem.query.filter(CartItem.id.in_(item_ids)).delete(synchronize_session=False)
-            db.session.commit()
-            db.session.expire_all()
-        except Exception as e2:
             db.session.rollback()
-            print(f"⚠️  clear_selected_items ORM delete also failed: {e2}")
-            for iid in item_ids:
-                try:
-                    item = CartItem.query.get(iid)
-                    if item:
-                        db.session.delete(item)
-                        db.session.commit()
-                except Exception as inner_e:
-                    db.session.rollback()
-                    print(f"⚠️  Failed to delete cart item {iid}: {inner_e}")
+            print(f"⚠️  clear_selected_items bulk delete failed: {e}")
+
+        # Fallback: delete one-by-one
+        for iid in item_ids:
+            try:
+                item = CartItem.query.get(iid)
+                if item:
+                    db.session.delete(item)
+                    db.session.commit()
+            except Exception as inner_e:
+                db.session.rollback()
+                print(f"⚠️  Failed to delete cart item {iid}: {inner_e}")
     
     @staticmethod
     def get_cart_total(session_id, user_id=None):

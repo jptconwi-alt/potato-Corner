@@ -445,10 +445,6 @@ def register_routes(app):
             ordered_ids = [i.id for i in cart_items]
             CartController.clear_selected_items(sid, uid, ordered_ids)
 
-            # Expire ALL cached ORM objects so the next cart load hits the DB fresh
-            from models import db as _db
-            _db.session.expire_all()
-
             # Clear the checkout session data
             session.pop('checkout_item_ids', None)
             session.modified = True
