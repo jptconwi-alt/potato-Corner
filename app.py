@@ -53,7 +53,11 @@ class _LibSQLConnection:
         except Exception as e:
             print(f"⚠️  libsql sync after commit failed: {e}")
 
-    def rollback(self):                        return self._conn.rollback()
+    def rollback(self):
+        try:
+            return self._conn.rollback()
+        except Exception as e:
+            print(f"⚠️  libsql rollback failed (stale stream): {e}")
     def close(self):                           return self._conn.close()
     def sync(self):                            return self._conn.sync()
 
@@ -103,48 +107,75 @@ def create_app():
     if use_libsql:
         try:
             import libsql_experimental as libsql
+            import threading
 
             sync_url = (turso_url
                         .replace('libsql://', 'https://')
                         .replace('sqlite+libsql://', 'https://'))
 
-            # Use /tmp for the local replica — Vercel's /tmp is writable.
-            # :memory: causes "Read-only file system" because libsql needs
-            # to write a WAL temp file alongside the DB path.
+            # Use /tmp for the local replica — writable on Vercel.
+            # Each Vercel serverless instance gets its own /tmp, so each
+            # instance maintains its own local replica. Writes are pushed
+            # to Turso via sync() after every commit, reads pull fresh
+            # data via sync() before each request.
             _local_db_path = '/tmp/libsql_replica.db'
 
+            # Per-instance connection — created once per cold start.
+            # This avoids exceeding Turso's connection limit (which happens
+            # when using StaticPool with a singleton connection held open
+            # across all concurrent requests on the same instance).
+            _instance_conn = None
+            _instance_lock = threading.Lock()
+
+            def _get_instance_connection():
+                nonlocal _instance_conn
+                with _instance_lock:
+                    if _instance_conn is None:
+                        raw = libsql.connect(
+                            database=_local_db_path,
+                            sync_url=sync_url,
+                            auth_token=turso_token,
+                        )
+                        # Initial sync on cold start
+                        try:
+                            raw.sync()
+                            print("✅ libsql cold-start sync complete")
+                        except Exception as e:
+                            print(f"⚠️  libsql cold-start sync failed: {e}")
+                        _instance_conn = raw
+                    return _instance_conn
+
             def _creator():
-                raw = libsql.connect(
-                    database=_local_db_path,
-                    sync_url=sync_url,
-                    auth_token=turso_token,
-                )
-                # Pull the current remote state into local replica before
-                # handing this connection to SQLAlchemy.  Without this, the
-                # local DB is empty and every query gets
-                # "no such table: products".
-                # Use a thread with timeout so a slow/failing Turso doesn't
-                # hang the entire Vercel cold start.
-                import threading
-                sync_done = threading.Event()
-                def _sync():
-                    try:
-                        raw.sync()
-                    except Exception as e:
-                        print(f"⚠️  libsql initial sync failed: {e}")
-                    finally:
-                        sync_done.set()
-                t = threading.Thread(target=_sync, daemon=True)
-                t.start()
-                sync_done.wait(timeout=8)   # give Turso 8 s max
-                if not sync_done.is_set():
-                    print("⚠️  libsql sync timed out – continuing with local state")
+                raw = _get_instance_connection()
+                # Pull latest remote state before each request
+                try:
+                    raw.sync()
+                except Exception as e:
+                    print(f"⚠️  libsql pre-request sync failed: {e}")
+                    # Connection may be stale — recreate it
+                    nonlocal _instance_conn
+                    with _instance_lock:
+                        try:
+                            _instance_conn = libsql.connect(
+                                database=_local_db_path,
+                                sync_url=sync_url,
+                                auth_token=turso_token,
+                            )
+                            _instance_conn.sync()
+                            raw = _instance_conn
+                        except Exception as e2:
+                            print(f"⚠️  libsql reconnect failed: {e2}")
                 return _LibSQLConnection(raw)
 
-            # 'sqlite+pysqlite://' selects the SQLite dialect for SQL generation.
-            # All actual connections come from _creator() above.
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
-            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'creator': _creator}
+            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+                'creator': _creator,
+                # NullPool: don't pool connections — _creator() manages
+                # the instance-level connection lifetime itself, and pooling
+                # on top causes "stream not found" errors when Turso closes
+                # idle streams.
+                'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
+            }
 
         except ImportError:
             use_libsql = False

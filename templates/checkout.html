@@ -528,12 +528,10 @@
 
         <form method="POST" action="{{ url_for('checkout') }}{% if items_param %}?{{ items_param }}{% endif %}" class="checkout-form" id="checkoutForm" novalidate>
 
-          <!-- Pass selected item IDs through POST -->
-          {% if items_param %}
+          <!-- Pass selected item IDs through POST (always, not just when items_param is set) -->
           {% for item in cart_items %}
           <input type="hidden" name="items" value="{{ item.id }}">
           {% endfor %}
-          {% endif %}
 
           <!-- ── Delivery Information ── -->
           <div class="checkout-card">

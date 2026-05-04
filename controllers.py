@@ -124,10 +124,16 @@ class CartController:
     
     @staticmethod
     def get_cart_items(session_id, user_id=None):
-        """Get all items in cart"""
+        """Get all items in cart for the current user or session."""
         if user_id:
+            # Authenticated user: only return items explicitly linked to this user
             return CartItem.query.filter_by(user_id=user_id).all()
-        return CartItem.query.filter_by(session_id=session_id, user_id=None).all()
+        # Guest: return session items that have NO user attached
+        # (exclude items that belong to a logged-in user even if session matches)
+        return CartItem.query.filter(
+            CartItem.session_id == session_id,
+            CartItem.user_id == None  # noqa: E711
+        ).all()
     
     @staticmethod
     def add_to_cart(session_id, product_id, user_id=None, quantity=1):
@@ -136,13 +142,17 @@ class CartController:
         if user_id:
             cart_item = CartItem.query.filter_by(product_id=product_id, user_id=user_id).first()
         else:
-            cart_item = CartItem.query.filter_by(product_id=product_id, session_id=session_id).first()
+            cart_item = CartItem.query.filter(
+                CartItem.product_id == product_id,
+                CartItem.session_id == session_id,
+                CartItem.user_id == None  # noqa: E711
+            ).first()
         
         if cart_item:
             cart_item.quantity += quantity
         else:
             cart_item = CartItem(
-                session_id=session_id,
+                session_id=session_id if not user_id else None,
                 user_id=user_id,
                 product_id=product_id,
                 quantity=quantity
@@ -198,20 +208,49 @@ class CartController:
     
     @staticmethod
     def clear_selected_items(session_id, user_id, item_ids):
-        """Delete only the cart items that were ordered (by their IDs)."""
+        """Delete only the cart items that were ordered (by their IDs).
+
+        Uses a raw engine connection so commit() goes through
+        _LibSQLConnection.commit() which calls sync() to push deletes to Turso.
+        Deletes purely by primary key so items are always removed even if
+        ownership metadata is stale.
+        """
         if not item_ids:
             return
+
+        from sqlalchemy import text as _text
+
+        # Method 1: raw engine connection - guarantees _LibSQLConnection.commit()
+        # is called, which triggers conn.sync() to push deletes to Turso.
+        try:
+            with db.engine.connect() as conn:
+                placeholders = ','.join([f':id{i}' for i in range(len(item_ids))])
+                params = {f'id{i}': v for i, v in enumerate(item_ids)}
+                conn.execute(_text(f'DELETE FROM cart_items WHERE id IN ({placeholders})'), params)
+                conn.commit()  # -> _LibSQLConnection.commit() -> sync()
+            # Expire ORM session so subsequent queries see the fresh state
+            db.session.expire_all()
+            return
+        except Exception as e:
+            print(f"⚠️  clear_selected_items raw delete failed: {e}")
+
+        # Method 2: ORM fallback
         try:
             CartItem.query.filter(CartItem.id.in_(item_ids)).delete(synchronize_session=False)
             db.session.commit()
-        except Exception as e:
+            db.session.expire_all()
+        except Exception as e2:
             db.session.rollback()
-            # Fallback: delete one by one
+            print(f"⚠️  clear_selected_items ORM delete also failed: {e2}")
             for iid in item_ids:
-                item = CartItem.query.get(iid)
-                if item:
-                    db.session.delete(item)
-            db.session.commit()
+                try:
+                    item = CartItem.query.get(iid)
+                    if item:
+                        db.session.delete(item)
+                        db.session.commit()
+                except Exception as inner_e:
+                    db.session.rollback()
+                    print(f"⚠️  Failed to delete cart item {iid}: {inner_e}")
     
     @staticmethod
     def get_cart_total(session_id, user_id=None):
@@ -293,6 +332,9 @@ class OrderController:
             )
             db.session.add(order_item)
         
+        # Commit everything in one transaction. For libsql/Turso, the
+        # _LibSQLConnection.commit() wrapper calls conn.sync() automatically
+        # so the write is pushed to Turso before we redirect.
         db.session.commit()
         return order
     

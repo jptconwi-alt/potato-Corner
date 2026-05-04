@@ -406,7 +406,7 @@
 
   /* Poll cart count every 15s for real-time badge sync */
   fetchCartCount();
-  setInterval(fetchCartCount, 15000);
+  setInterval(fetchCartCount, 60000);
 
   /* ── Real-time order status toasts (for authenticated users) ── */
   {% if current_user.is_authenticated and not current_user.is_admin %}
@@ -481,7 +481,7 @@
 
     // Poll every 20s for order updates
     setTimeout(checkOrderUpdates, 2000);
-    setInterval(checkOrderUpdates, 20000);
+    setInterval(checkOrderUpdates, 60000);
   })();
   {% endif %}
 

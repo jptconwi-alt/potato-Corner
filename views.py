@@ -154,17 +154,14 @@ def register_routes(app):
 
     @app.route('/logout')
     def logout():
-        # Re-attach the user's cart items to the session so they survive logout
-        if current_user.is_authenticated:
-            sid = get_session_id()
-            from models import CartItem
-            user_items = CartItem.query.filter_by(user_id=current_user.id).all()
-            for item in user_items:
-                item.session_id = sid
-                item.user_id = None
-            from models import db
-            db.session.commit()
-
+        # Do NOT re-assign cart items to the session on logout.
+        # Doing so causes a critical bug: after a user places an order,
+        # clear_selected_items() removes the ordered cart rows by ID.
+        # If logout then re-attaches the (already-deleted) rows — or any
+        # leftover rows — to the session, those items reappear in the cart
+        # on the next page refresh even though the order was placed.
+        # Cart items stay linked to user_id; they will be restored when the
+        # user logs back in via merge_carts().
         logout_user()          # Flask-Login: clears user, queues remember cookie deletion
         session.pop('user_id', None)   # remove only our custom key, NOT session.clear()
         session.modified = True
@@ -341,24 +338,47 @@ def register_routes(app):
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
 
-        # Respect selected item IDs passed from cart (checkboxes)
-        selected_ids_raw = request.args.getlist('items') or request.form.getlist('items')
-        selected_ids = [int(x) for x in selected_ids_raw if x.isdigit()]
-
         all_cart_items = CartController.get_cart_items(sid, uid)
         if not all_cart_items:
             flash('Your cart is empty', 'warning')
             return redirect(url_for('cart'))
 
-        # Filter to selected items only (if IDs provided); fall back to all items
-        if selected_ids:
-            cart_items = [i for i in all_cart_items if i.id in selected_ids]
-        else:
-            cart_items = all_cart_items
+        if request.method == 'GET':
+            # Read selected item IDs from query string (sent by cart page)
+            selected_ids_raw = request.args.getlist('items')
+            selected_ids = [int(x) for x in selected_ids_raw if x.isdigit()]
 
-        if not cart_items:
-            flash('No items selected. Please select items to order.', 'warning')
-            return redirect(url_for('cart'))
+            if selected_ids:
+                cart_items = [i for i in all_cart_items if i.id in selected_ids]
+            else:
+                cart_items = all_cart_items
+
+            if not cart_items:
+                flash('No items selected. Please select items to order.', 'warning')
+                return redirect(url_for('cart'))
+
+            # Persist the selected IDs in the session so the POST handler
+            # can reliably read them even if the query string is lost.
+            session['checkout_item_ids'] = [i.id for i in cart_items]
+            session.modified = True
+
+        else:  # POST
+            # Prefer IDs from query string, then session fallback
+            selected_ids_raw = request.args.getlist('items') or request.form.getlist('items')
+            selected_ids = [int(x) for x in selected_ids_raw if x.isdigit()]
+
+            if not selected_ids:
+                # Fallback: use what was stored in session during GET
+                selected_ids = session.get('checkout_item_ids', [])
+
+            if selected_ids:
+                cart_items = [i for i in all_cart_items if i.id in selected_ids]
+            else:
+                cart_items = all_cart_items
+
+            if not cart_items:
+                flash('Your cart is empty or items were already ordered.', 'warning')
+                return redirect(url_for('cart'))
 
         subtotal = sum(i.product.price * i.quantity for i in cart_items)
         delivery_fee = 0 if subtotal >= 500 else 50
@@ -385,7 +405,16 @@ def register_routes(app):
             order = OrderController.create_order(sid, customer_data, cart_items, uid, delivery_fee)
 
             # Clear ONLY the ordered items (not unselected items left in cart)
-            CartController.clear_selected_items(sid, uid, [i.id for i in cart_items])
+            ordered_ids = [i.id for i in cart_items]
+            CartController.clear_selected_items(sid, uid, ordered_ids)
+
+            # Expire ALL cached ORM objects so the next cart load hits the DB fresh
+            from models import db as _db
+            _db.session.expire_all()
+
+            # Clear the checkout session data
+            session.pop('checkout_item_ids', None)
+            session.modified = True
 
             return redirect(url_for('order_confirmation', order_number=order.order_number))
 
