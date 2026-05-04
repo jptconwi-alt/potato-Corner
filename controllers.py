@@ -8,19 +8,13 @@ from flask_login import login_user, logout_user, current_user
 def _turso_sync():
     """Force-sync the libsql replica to Turso remote after a write.
 
-    Calls sync() directly on the singleton raw connection — never uses
-    raw_connection()+close() which destroys the singleton and breaks
-    all subsequent queries on Vercel's stateless containers.
+    Uses the _LibSQLConnection wrapper's .sync() which already handles
+    stream-not-found by calling _heal() / _reconnect() internally.
     """
     try:
-        # _creator() calls _get_instance_connection() and wraps it in
-        # _LibSQLConnection. Calling .sync() on the wrapper calls the
-        # raw libsql sync without touching .close().
-        wrapper = db.engine.pool._creator()
-        inner = getattr(wrapper, '_conn', wrapper)
-        if hasattr(inner, 'sync'):
-            inner.sync()
-            print("✅ _turso_sync complete")
+        wrapper = db.engine.pool._creator()   # _LibSQLConnection with heal support
+        wrapper.sync()                         # auto-heals on stream not found
+        print("✅ _turso_sync complete")
     except Exception as e:
         print(f"⚠️  _turso_sync failed (non-fatal): {e}")
 

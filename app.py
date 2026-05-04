@@ -17,42 +17,102 @@ login_manager = LoginManager()
 
 
 class _LibSQLConnection:
-    """Wrapper around libsql_experimental.Connection for Vercel + Turso."""
+    """Wrapper around libsql_experimental.Connection for Vercel + Turso.
 
-    __slots__ = ('_conn',)
+    Holds a reference to the global reconnect function so it can
+    self-heal whenever the Turso Hrana stream expires (stream not found).
+    """
 
-    def __init__(self, conn):
+    __slots__ = ('_conn', '_reconnect')
+
+    # Sentinel strings that indicate the remote stream has been closed
+    _STREAM_ERRORS = ('stream not found', 'hrana', 'status=404', 'stream expired')
+
+    def __init__(self, conn, reconnect_fn=None):
         self._conn = conn
+        self._reconnect = reconnect_fn  # callable() → new raw libsql conn
 
-    def cursor(self):                          return self._conn.cursor()
-    def execute(self, *a, **kw):               return self._conn.execute(*a, **kw)
-    def executemany(self, *a, **kw):           return self._conn.executemany(*a, **kw)
-    def executescript(self, *a, **kw):         return self._conn.executescript(*a, **kw)
+    def _is_stream_error(self, exc):
+        msg = str(exc).lower()
+        return any(k in msg for k in self._STREAM_ERRORS)
+
+    def _heal(self):
+        """Replace the dead raw connection with a fresh one."""
+        if self._reconnect:
+            try:
+                self._conn = self._reconnect()
+                print("✅ libsql stream healed — new connection established")
+            except Exception as e:
+                print(f"⚠️  libsql heal failed: {e}")
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def execute(self, *a, **kw):
+        try:
+            return self._conn.execute(*a, **kw)
+        except Exception as e:
+            if self._is_stream_error(e):
+                self._heal()
+                return self._conn.execute(*a, **kw)
+            raise
+
+    def executemany(self, *a, **kw):
+        return self._conn.executemany(*a, **kw)
+
+    def executescript(self, *a, **kw):
+        return self._conn.executescript(*a, **kw)
 
     def commit(self):
-        self._conn.commit()
+        try:
+            self._conn.commit()
+        except Exception as e:
+            if self._is_stream_error(e):
+                self._heal()
+            else:
+                raise
         try:
             self._conn.sync()
         except Exception as e:
-            print(f"⚠️  libsql sync after commit failed: {e}")
+            if not self._is_stream_error(e):
+                print(f"⚠️  libsql sync after commit failed: {e}")
 
     def rollback(self):
         try:
-            return self._conn.rollback()
+            self._conn.rollback()
         except Exception as e:
-            print(f"⚠️  libsql rollback failed (stale stream): {e}")
+            if self._is_stream_error(e):
+                # Stream is dead — heal silently; nothing to roll back on a dead stream
+                self._heal()
+            else:
+                print(f"⚠️  libsql rollback failed: {e}")
 
-    def close(self):                           pass  # singleton — never close the raw connection
-    def sync(self):                            return self._conn.sync()
+    def close(self):
+        pass  # singleton — never close; stream errors are handled by _heal()
+
+    def sync(self):
+        try:
+            return self._conn.sync()
+        except Exception as e:
+            if self._is_stream_error(e):
+                self._heal()
+                return self._conn.sync()
+            raise
 
     @property
-    def in_transaction(self):                  return self._conn.in_transaction
+    def in_transaction(self):
+        try:
+            return self._conn.in_transaction
+        except Exception:
+            return False
 
     @property
-    def isolation_level(self):                 return self._conn.isolation_level
+    def isolation_level(self):
+        return self._conn.isolation_level
 
     @isolation_level.setter
-    def isolation_level(self, value):          pass
+    def isolation_level(self, value):
+        pass
 
     def create_function(self, *a, **kw):       pass
     def create_aggregate(self, *a, **kw):      pass
@@ -93,42 +153,46 @@ def create_app():
             _instance_conn = None
             _instance_lock = threading.Lock()
 
+            def _make_raw_conn():
+                """Create a fresh libsql connection and sync it."""
+                c = libsql.connect(
+                    database=_local_db_path,
+                    sync_url=sync_url,
+                    auth_token=turso_token,
+                )
+                c.sync()
+                return c
+
+            def _reconnect():
+                """Replace the singleton with a brand-new connection.
+                Called by _LibSQLConnection._heal() when stream not found."""
+                nonlocal _instance_conn
+                with _instance_lock:
+                    try:
+                        _instance_conn = _make_raw_conn()
+                        print("✅ libsql reconnected — fresh stream")
+                        return _instance_conn
+                    except Exception as e:
+                        print(f"⚠️  libsql reconnect failed: {e}")
+                        raise
+
             def _get_instance_connection():
                 nonlocal _instance_conn
                 with _instance_lock:
                     if _instance_conn is None:
-                        raw = libsql.connect(
-                            database=_local_db_path,
-                            sync_url=sync_url,
-                            auth_token=turso_token,
-                        )
                         try:
-                            raw.sync()
+                            _instance_conn = _make_raw_conn()
                             print("✅ libsql cold-start sync complete")
                         except Exception as e:
                             print(f"⚠️  libsql cold-start sync failed: {e}")
-                        _instance_conn = raw
+                            raise
                     return _instance_conn
 
             def _creator():
+                """Called by SQLAlchemy NullPool for every new connection request."""
                 raw = _get_instance_connection()
-                try:
-                    raw.sync()
-                except Exception as e:
-                    print(f"⚠️  libsql pre-request sync failed: {e}")
-                    nonlocal _instance_conn
-                    with _instance_lock:
-                        try:
-                            _instance_conn = libsql.connect(
-                                database=_local_db_path,
-                                sync_url=sync_url,
-                                auth_token=turso_token,
-                            )
-                            _instance_conn.sync()
-                            raw = _instance_conn
-                        except Exception as e2:
-                            print(f"⚠️  libsql reconnect failed: {e2}")
-                return _LibSQLConnection(raw)
+                # Pass _reconnect so the wrapper can self-heal on stream errors
+                return _LibSQLConnection(raw, reconnect_fn=_reconnect)
 
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -192,7 +256,11 @@ def create_app():
                 raw = _get_instance_connection()
                 raw.sync()
             except Exception:
-                pass
+                # Stream expired — reconnect so the next DB op works
+                try:
+                    _reconnect()
+                except Exception:
+                    pass
 
     register_routes(app)
 
