@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}My Orders — Potato Corner{% endblock %}
+
+{% block extra_css %}
+<style>
+.orders-page { padding: 2rem 0 6rem; }
+.live-badge { display:inline-flex;align-items:center;gap:6px;background:#d1fae5;color:#065f46;font-size:.72rem;font-weight:700;letter-spacing:.5px;padding:.25rem .7rem;border-radius:50px;text-transform:uppercase; }
+.live-dot { width:8px;height:8px;border-radius:50%;background:#10b981;animation:pulse-dot 1.5s infinite; }
+@keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.75)} }
+.order-card { background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);border:1.5px solid #e5e7eb;margin-bottom:1.1rem;overflow:hidden;transition:border-color .2s,box-shadow .2s; }
+.order-card:hover { border-color:#43a047;box-shadow:0 4px 20px rgba(46,125,50,.12); }
+.order-card.status-updated { animation:flashCard .6s ease; }
+@keyframes flashCard { 0%{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.15)} 100%{border-color:#43a047;box-shadow:0 4px 20px rgba(46,125,50,.12)} }
+.oc-header { display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.6rem;background:#f9fafb;padding:.9rem 1.1rem;border-bottom:1px solid #f3f4f6; }
+.oc-num { font-family:'Fredoka One',cursive;font-size:1rem;color:#1b5e20; }
+.oc-date { font-size:.74rem;color:#6b7280;margin-top:2px; }
+.oc-right { display:flex;align-items:center;gap:.65rem;flex-wrap:wrap; }
+.status-badge { display:inline-flex;align-items:center;gap:5px;padding:.3rem .85rem;border-radius:50px;font-size:.76rem;font-weight:700;white-space:nowrap; }
+.s-pending        { background:#fef3c7;color:#92400e; }
+.s-confirmed      { background:#dbeafe;color:#1e3a8a; }
+.s-preparing      { background:#fed7aa;color:#9a3412; }
+.s-ready          { background:#d1fae5;color:#065f46; }
+.s-out_for_delivery,.s-out-for-delivery { background:#e0e7ff;color:#3730a3; }
+.s-delivered      { background:#d1fae5;color:#065f46; }
+.s-cancelled      { background:#fee2e2;color:#991b1b; }
+.oc-total { font-family:'Fredoka One',cursive;font-size:1.05rem;color:#2e7d32; }
+.oc-body { padding:.85rem 1.1rem; }
+.oc-items { margin-bottom:.65rem; }
+.oc-item { display:flex;align-items:center;gap:.6rem;font-size:.86rem;padding:.28rem 0;border-bottom:1px dashed #f3f4f6; }
+.oc-item:last-child { border-bottom:none; }
+.oc-item-name { flex:1;color:#374151; }
+.oc-item-qty { color:#9ca3af;font-size:.8rem;min-width:32px; }
+.oc-item-sub { font-weight:600;color:#2e7d32;min-width:52px;text-align:right; }
+.oc-footer { display:flex;gap:1rem;flex-wrap:wrap;font-size:.77rem;color:#6b7280;padding-top:.5rem;border-top:1px solid #f3f4f6;margin-top:.5rem; }
+.oc-footer span { display:flex;align-items:center;gap:5px; }
+.order-progress { display:flex;align-items:flex-start;gap:0;overflow-x:auto;padding:.75rem 1.1rem .6rem;background:#f0fdf4;border-top:1px solid #e5e7eb; }
+.prog-step { display:flex;flex-direction:column;align-items:center;min-width:60px;position:relative;font-size:.64rem;color:#9ca3af;font-weight:600;text-align:center;flex:1; }
+.prog-step.done .prog-dot { background:#2e7d32;border-color:#2e7d32; }
+.prog-step.active .prog-dot { background:#f59e0b;border-color:#f59e0b;box-shadow:0 0 0 4px rgba(245,158,11,.2); }
+.prog-step.done .prog-label,.prog-step.active .prog-label { color:#374151; }
+.prog-dot { width:18px;height:18px;border-radius:50%;background:#e5e7eb;border:2px solid #e5e7eb;margin-bottom:4px;position:relative;z-index:1;transition:all .3s; }
+.prog-line { position:absolute;top:9px;left:50%;right:-50%;height:2px;background:#e5e7eb;z-index:0; }
+.prog-step.done .prog-line { background:#2e7d32; }
+.prog-step:last-child .prog-line { display:none; }
+.empty-orders { text-align:center;padding:4rem 1rem;color:#9ca3af; }
+.empty-orders .empty-icon { font-size:4rem;margin-bottom:1rem; }
+.empty-orders h3 { color:#374151;font-size:1.3rem;margin-bottom:.5rem; }
+.last-updated-text { font-size:.72rem;color:#9ca3af;margin-left:auto; }
+@media(max-width:480px){
+  .oc-header,.oc-body{padding:.75rem .9rem;}
+  .oc-num{font-size:.92rem;}
+  .prog-step{min-width:46px;font-size:.58rem;}
+  .prog-dot{width:14px;height:14px;}
+  .prog-line{top:7px;}
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header-section">
+  <div class="container">
+    <div class="page-header-inner">
+      <h1 class="page-title"><i class="fas fa-box me-2"></i>My Orders</h1>
+      <p class="page-sub">Live order tracking — updates automatically</p>
+    </div>
+  </div>
+</div>
+
+<section class="orders-page">
+  <div class="container">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+      <span class="live-badge"><span class="live-dot"></span>Live</span>
+      <span id="lastUpdatedText" class="last-updated-text">Checking…</span>
+    </div>
+
+    <div id="ordersContainer">
+    {% if orders %}
+      {% for order in orders %}
+      {% set steps = ['Pending','Confirmed','Preparing','Ready','Out for Delivery'] %}
+      {% set step_labels = ['Placed','Confirmed','Preparing','Ready','On the way'] %}
+      {% set cur_idx = steps.index(order.status) if order.status in steps else 0 %}
+      {% set icons = {'Pending':'⏳','Confirmed':'✅','Preparing':'🍟','Ready':'🎉','Out for Delivery':'🛵','Delivered':'🎊','Cancelled':'❌'} %}
+      {% set badge_map = {'Pending':'s-pending','Confirmed':'s-confirmed','Preparing':'s-preparing','Ready':'s-ready','Out for Delivery':'s-out_for_delivery','Delivered':'s-delivered','Cancelled':'s-cancelled'} %}
+      <div class="order-card" id="order-card-{{ order.id }}" data-status="{{ order.status }}">
+        <div class="oc-header">
+          <div>
+            <div class="oc-num">{{ order.order_number }}</div>
+            <div class="oc-date"><i class="fas fa-clock me-1"></i>{{ order.order_date.strftime('%b %d, %Y · %I:%M %p') }}</div>
+          </div>
+          <div class="oc-right">
+            <span class="status-badge {{ badge_map.get(order.status, 's-pending') }}">
+              {{ icons.get(order.status, '📦') }} {{ order.status }}
+            </span>
+            <span class="oc-total">₱{{ "%.0f"|format(order.total_amount) }}</span>
+          </div>
+        </div>
+        <div class="oc-body">
+          <div class="oc-items">
+            {% for item in order.items %}
+            <div class="oc-item">
+              <span class="oc-item-name">🍟 {{ item.product_name }}</span>
+              <span class="oc-item-qty">×{{ item.quantity }}</span>
+              <span class="oc-item-sub">₱{{ "%.0f"|format(item.subtotal) }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="oc-footer">
+            {% if order.delivery_address %}
+            <span><i class="fas fa-map-marker-alt"></i>{{ order.delivery_address[:55] }}{% if order.delivery_address|length > 55 %}…{% endif %}</span>
+            {% endif %}
+            <span><i class="fas fa-wallet"></i>{{ order.payment_method }}</span>
+            <span><i class="fas fa-credit-card"></i>Payment: <strong style="{{ 'color:#16a34a' if order.payment_status == 'Paid' else 'color:#d97706' }}">{{ order.payment_status }}</strong></span>
+          </div>
+        </div>
+        {% if order.status not in ['Delivered','Cancelled'] %}
+        <div class="order-progress">
+          {% for i in range(steps|length) %}
+          <div class="prog-step {% if i < cur_idx %}done{% elif i == cur_idx %}active{% endif %}">
+            <div class="prog-dot"></div>
+            {% if not loop.last %}<div class="prog-line"></div>{% endif %}
+            <span class="prog-label">{{ step_labels[i] }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <div class="empty-orders" id="emptyState">
+      <div class="empty-icon">📦</div>
+      <h3>No orders yet</h3>
+      <p>Start ordering your favorite Potato Corner fries!</p>
+      <a href="{{ url_for('index') }}" class="btn-auth-submit" style="max-width:200px;margin:0 auto;display:flex;">
+        <i class="fas fa-utensils me-2"></i>Order Now
+      </a>
+    </div>
+    {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const POLL_MS = 15000;
+  let _known = {};
+
+  document.querySelectorAll('[id^="order-card-"]').forEach(el => {
+    const id = el.id.replace('order-card-','');
+    _known[id] = el.dataset.status || '';
+  });
+
+  function statusClass(s){
+    return 's-'+(s||'').toLowerCase().replace(/\s+/g,'_');
+  }
+  function statusIcon(s){
+    const m={'Pending':'⏳','Confirmed':'✅','Preparing':'🍟','Ready':'🎉','Out for Delivery':'🛵','Delivered':'🎊','Cancelled':'❌'};
+    return m[s]||'📦';
+  }
+  function updateBadge(card,status){
+    const badge=card.querySelector('.status-badge');
+    if(!badge)return;
+    badge.className=badge.className.replace(/\bs-\S+/g,'').trim();
+    badge.classList.add('status-badge',statusClass(status));
+    badge.textContent=statusIcon(status)+' '+status;
+  }
+  function updateProgress(card,status){
+    const steps=['Pending','Confirmed','Preparing','Ready','Out for Delivery'];
+    const cur=steps.indexOf(status);
+    card.querySelectorAll('.prog-step').forEach((step,i)=>{
+      step.classList.remove('done','active');
+      if(i<cur) step.classList.add('done');
+      else if(i===cur) step.classList.add('active');
+    });
+    const prog=card.querySelector('.order-progress');
+    if(prog) prog.style.display=(status==='Delivered'||status==='Cancelled')?'none':'';
+  }
+  function showToast(orderNum,status){
+    const m={'Confirmed':'✅','Preparing':'🍟','Ready':'🎉','Out for Delivery':'🛵','Delivered':'🎊','Cancelled':'❌'};
+    const t=document.createElement('div');
+    t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:99999;background:#1b5e20;color:#fff;padding:12px 20px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:10px;max-width:320px;animation:slideUpToast .3s ease;white-space:nowrap;';
+    t.innerHTML=`<span style="font-size:1.3rem">${m[status]||'📦'}</span><div><div style="font-size:.72rem;opacity:.8;margin-bottom:2px">Order #${orderNum}</div>${status}</div>`;
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.style.opacity='0';t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); },4000);
+  }
+
+  async function poll(){
+    try{
+      const res=await fetch('/api/orders/status',{cache:'no-store'});
+      const data=await res.json();
+      if(!data.orders)return;
+
+      const emptyState=document.getElementById('emptyState');
+      if(data.orders.length>0&&emptyState) emptyState.style.display='none';
+
+      let needsReload=false;
+      data.orders.forEach(order=>{
+        const card=document.getElementById('order-card-'+order.id);
+        const prev=_known[order.id];
+        if(!card){
+          if(prev===undefined){ needsReload=true; }
+          _known[order.id]=order.status;
+          return;
+        }
+        if(prev!==undefined&&prev!==order.status){
+          card.dataset.status=order.status;
+          updateBadge(card,order.status);
+          updateProgress(card,order.status);
+          card.classList.remove('status-updated');
+          void card.offsetWidth;
+          card.classList.add('status-updated');
+          showToast(order.order_number,order.status);
+        }
+        _known[order.id]=order.status;
+      });
+
+      if(needsReload){ location.reload(); return; }
+
+      const now=new Date();
+      const ts=now.toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+      const el=document.getElementById('lastUpdatedText');
+      if(el) el.textContent='Updated '+ts;
+
+    }catch(e){}
+  }
+
+  setTimeout(poll,2000);
+  setInterval(poll,POLL_MS);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') poll(); });
+})();
+</script>
+{% endblock %}

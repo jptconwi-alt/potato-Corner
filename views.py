@@ -219,13 +219,12 @@ def register_routes(app):
     @login_required
     def orders():
         user_orders = OrderController.get_user_orders(current_user.id)
-        return render_template('orders.html', orders=user_orders)
+        return render_template('my_orders.html', orders=user_orders)
 
     @app.route('/my-orders')
     @login_required
     def my_orders():
-        user_orders = OrderController.get_user_orders(current_user.id)
-        return render_template('my_orders.html', orders=user_orders)
+        return redirect(url_for('orders'))
 
     @app.route('/track-order')
     def track_order():
@@ -290,6 +289,48 @@ def register_routes(app):
         cart_items = CartController.get_cart_items(sid, uid)
         total = sum(i.quantity for i in cart_items)
         return jsonify({'count': total})
+
+    @app.route('/api/cart/items')
+    def api_cart_items():
+        sid = get_session_id()
+        uid = current_user.id if current_user.is_authenticated else None
+        cart_items = CartController.get_cart_items(sid, uid)
+        items = []
+        for i in cart_items:
+            items.append({
+                'id': i.id,
+                'product_id': i.product_id,
+                'product_name': i.product.name,
+                'product_price': float(i.product.price),
+                'quantity': i.quantity,
+                'subtotal': float(i.product.price * i.quantity),
+            })
+        subtotal = sum(i['subtotal'] for i in items)
+        delivery_fee = 0 if subtotal >= 500 else 50
+        return jsonify({
+            'items': items,
+            'count': sum(i['quantity'] for i in items),
+            'subtotal': subtotal,
+            'delivery_fee': delivery_fee,
+            'total': subtotal + delivery_fee,
+        })
+
+    @app.route('/api/orders/status')
+    def api_orders_status():
+        if not current_user.is_authenticated:
+            return jsonify({'orders': []})
+        user_orders = OrderController.get_user_orders(current_user.id)
+        orders = []
+        for o in user_orders:
+            orders.append({
+                'id': o.id,
+                'order_number': o.order_number,
+                'status': o.status,
+                'total': float(o.total_amount),
+                'created_at': o.order_date.isoformat() if o.order_date else None,
+                'items_count': sum(i.quantity for i in o.items),
+            })
+        return jsonify({'orders': orders})
 
     # ─────────────────────────────────────────
     # CHECKOUT & ORDERS

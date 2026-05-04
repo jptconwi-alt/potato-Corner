@@ -353,7 +353,7 @@
         quantities[productId] = 1;
         const qtyEl = document.getElementById('qty-' + productId);
         if (qtyEl) qtyEl.textContent = 1;
-        updateCartBadge();
+        if (typeof fetchCartCount === "function") fetchCartCount(); else if (typeof updateCartBadge === "function") updateCartBadge();
         setTimeout(() => {
           btn.innerHTML = original;
           btn.classList.remove('btn-success-state');

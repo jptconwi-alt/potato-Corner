@@ -531,7 +531,7 @@ function updateCart(itemId, newQty) {
         itemPrices[itemId].qty = newQty;
         subtotalEl.textContent = '₱' + Math.round(itemPrices[itemId].price * newQty);
       }
-      if (typeof updateCartBadge === 'function') updateCartBadge();
+      if (typeof fetchCartCount === "function") fetchCartCount(); else if (typeof updateCartBadge === "function") updateCartBadge();
       recalcSummary();
     }
   });
@@ -547,8 +547,33 @@ function removeItem(itemId) {
   .then(r => r.json()).then(d => {
     if (d.success) {
       const card = document.getElementById('cart-item-' + itemId);
-      if (card) { card.style.opacity = '0'; card.style.transform = 'translateX(20px)'; setTimeout(() => location.reload(), 300); }
-      if (typeof updateCartBadge === 'function') updateCartBadge();
+      if (card) {
+        card.style.transition = 'all .3s ease';
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(20px)';
+        card.style.maxHeight = card.offsetHeight + 'px';
+        setTimeout(() => {
+          card.style.maxHeight = '0';
+          card.style.margin = '0';
+          card.style.padding = '0';
+          card.style.overflow = 'hidden';
+          setTimeout(() => {
+            card.remove();
+            // Remove from itemPrices
+            delete itemPrices[itemId];
+            // Check if cart is empty now
+            const remaining = document.querySelectorAll('[id^="cart-item-"]');
+            if (remaining.length === 0) {
+              // Reload to show empty cart state
+              location.reload();
+            } else {
+              recalcSummary();
+            }
+          }, 300);
+        }, 300);
+      }
+      // Update badge via polling
+      fetchCartCount();
     }
   });
 }

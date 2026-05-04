@@ -197,7 +197,7 @@ def create_app():
     def google_login():
         if google is None:
             flash('Google login is not configured. Please use email/password.', 'warning')
-            return redirect(url_for('admin_login'))
+            return redirect(url_for('login'))
         redirect_uri = url_for('google_authorize', _external=True)
         return google.authorize_redirect(redirect_uri)
 
@@ -205,7 +205,7 @@ def create_app():
     def google_authorize():
         if google is None:
             flash('Google login is not configured.', 'danger')
-            return redirect(url_for('admin_login'))
+            return redirect(url_for('login'))
         try:
             token = google.authorize_access_token()
             try:
@@ -219,7 +219,7 @@ def create_app():
 
             if not email:
                 flash('Could not retrieve email from Google.', 'danger')
-                return redirect(url_for('admin_login'))
+                return redirect(url_for('login'))
 
             user = User.query.filter_by(email=email).first()
             if not user and google_id:
@@ -266,7 +266,7 @@ def create_app():
 
         except Exception as e:
             flash(f'Google login failed: {str(e)}', 'danger')
-            return redirect(url_for('admin_login'))
+            return redirect(url_for('login'))
 
     return app
 

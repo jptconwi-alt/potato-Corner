@@ -1529,3 +1529,178 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
     animation: none !important;
   }
 }
+
+/* ============================================================
+   FIX: Login / Auth page overlapping & color issues
+   ============================================================ */
+
+/* Ensure auth page sits above bg particles, no overlap */
+.auth-page {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+}
+
+/* Fix auth card z-index so bg art circles don't bleed through */
+.auth-card {
+  position: relative;
+  z-index: 3;
+}
+
+/* Fix auth-bg-art circles not overlapping the card */
+.auth-bg-art {
+  z-index: 1;
+}
+
+/* Fix form input text color — ensure it is always readable */
+.form-control-custom {
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+}
+
+/* Fix autofill background color changing the text unreadable */
+.form-control-custom:-webkit-autofill,
+.form-control-custom:-webkit-autofill:hover,
+.form-control-custom:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #f9fafb inset !important;
+  -webkit-text-fill-color: #1f2937 !important;
+  border-color: #e5e7eb !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Fix btn-eye overlapping text in password field */
+.input-icon-wrap .form-control-custom[type="password"],
+.input-icon-wrap .form-control-custom[type="text"] {
+  padding-right: 2.6rem;
+}
+
+/* Fix auth-divider text not showing over the line */
+.auth-divider {
+  z-index: 1;
+  position: relative;
+}
+.auth-divider span {
+  background: #ffffff;
+  padding: 0 .85rem;
+  position: relative;
+  z-index: 2;
+}
+
+/* Fix Google btn contrast */
+.btn-google-auth {
+  background: #fff !important;
+  color: #1f2937 !important;
+  border: 1.5px solid #d1d5db !important;
+}
+.btn-google-auth:hover {
+  border-color: #4285F4 !important;
+  box-shadow: 0 2px 10px rgba(66,133,244,.15) !important;
+  color: #1f2937 !important;
+}
+
+/* Auth title color fix on green header */
+.auth-title {
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0,0,0,.2);
+}
+.auth-sub {
+  color: rgba(255,255,255,.85) !important;
+}
+
+/* Fix auth card body labels and switch link color */
+.form-label-custom {
+  color: #374151 !important;
+}
+.auth-switch {
+  color: #6b7280 !important;
+}
+.auth-switch a {
+  color: #2e7d32 !important;
+  font-weight: 700;
+}
+
+/* ── Mobile: Fix overlapping on small screens ────────── */
+@media (max-width: 480px) {
+  .auth-page {
+    padding: 1rem 0 5rem;
+    min-height: 100svh;
+  }
+  .auth-wrapper {
+    padding: 0 .5rem;
+  }
+  .auth-card {
+    border-radius: 16px;
+    margin: 0;
+  }
+  .auth-card-header {
+    padding: 1.25rem 1rem 1rem !important;
+  }
+  .auth-icon {
+    font-size: 1.8rem !important;
+    margin-bottom: .4rem !important;
+  }
+  .auth-title {
+    font-size: 1.4rem !important;
+  }
+  .auth-sub {
+    font-size: .8rem !important;
+  }
+  .auth-card-body {
+    padding: 1.1rem 1rem 1.25rem !important;
+  }
+  .form-control-custom {
+    font-size: .88rem !important;
+    padding: .65rem .8rem .65rem 2.25rem !important;
+  }
+  .form-label-custom {
+    font-size: .78rem !important;
+  }
+  .btn-auth-submit {
+    padding: .78rem !important;
+    font-size: .9rem !important;
+  }
+  .btn-google-auth {
+    font-size: .85rem !important;
+    padding: .68rem !important;
+  }
+  /* Prevent auth emoji from overlapping card */
+  .auth-emoji {
+    display: none;
+  }
+  .auth-circle {
+    opacity: .2;
+  }
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: .75rem;
+  }
+}
+
+/* ============================================================
+   FIX: Global auth modal — mobile overlap
+   ============================================================ */
+#globalAuthOverlay {
+  padding: 12px !important;
+}
+#globalAuthOverlay > div {
+  max-height: 96svh !important;
+  border-radius: 16px !important;
+}
+@media (max-width: 480px) {
+  #globalAuthOverlay > div {
+    border-radius: 12px !important;
+    max-height: 94svh !important;
+  }
+  #globalAuthOverlay input {
+    font-size: 16px !important; /* prevent iOS zoom */
+  }
+}
+
+/* ============================================================
+   FIX: Order status badge colors readable on all backgrounds
+   ============================================================ */
+.order-status-badge,
+.badge-status {
+  font-weight: 600 !important;
+  letter-spacing: .3px;
+}
