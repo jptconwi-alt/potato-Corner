@@ -1,4 +1,5 @@
 import warnings
+import threading
 from datetime import timedelta
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
 
@@ -143,7 +144,6 @@ def create_app():
     if use_libsql:
         try:
             import libsql_experimental as libsql
-            import threading
 
             sync_url = (turso_url
                         .replace('libsql://', 'https://')
@@ -154,28 +154,44 @@ def create_app():
             _instance_lock = threading.Lock()
 
             def _make_raw_conn():
-                """Create a fresh libsql connection and sync it (15 s timeout)."""
-                import concurrent.futures
-                def _connect():
-                    c = libsql.connect(
-                        database=_local_db_path,
-                        sync_url=sync_url,
-                        auth_token=turso_token,
-                    )
-                    c.sync()
-                    return c
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                    future = ex.submit(_connect)
-                    return future.result(timeout=15)
+                """Open a local libsql replica — no network sync on connect.
+
+                libsql.connect() with a local db path opens instantly from
+                the local file. sync() is only called after writes, not here.
+                """
+                c = libsql.connect(
+                    database=_local_db_path,
+                    sync_url=sync_url,
+                    auth_token=turso_token,
+                )
+                # Pull latest from remote — but don't block forever.
+                # If sync fails (dead stream, cold network) we still return
+                # the local connection so the app can serve requests.
+                try:
+                    import signal, platform
+                    if platform.system() != 'Windows':
+                        def _timeout_handler(signum, frame):
+                            raise TimeoutError("libsql sync timed out")
+                        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+                        signal.alarm(8)
+                        try:
+                            c.sync()
+                        finally:
+                            signal.alarm(0)
+                            signal.signal(signal.SIGALRM, old_handler)
+                    else:
+                        c.sync()
+                except Exception as e:
+                    print(f"⚠️  libsql initial sync skipped: {e}")
+                return c
 
             def _reconnect():
-                """Replace the singleton with a brand-new connection.
-                Called by _LibSQLConnection._heal() when stream not found."""
+                """Replace the singleton with a brand-new connection."""
                 nonlocal _instance_conn
                 with _instance_lock:
                     try:
                         _instance_conn = _make_raw_conn()
-                        print("✅ libsql reconnected — fresh stream")
+                        print("✅ libsql reconnected")
                         return _instance_conn
                     except Exception as e:
                         print(f"⚠️  libsql reconnect failed: {e}")
@@ -185,18 +201,13 @@ def create_app():
                 nonlocal _instance_conn
                 with _instance_lock:
                     if _instance_conn is None:
-                        try:
-                            _instance_conn = _make_raw_conn()
-                            print("✅ libsql cold-start sync complete")
-                        except Exception as e:
-                            print(f"⚠️  libsql cold-start sync failed: {e}")
-                            raise
+                        _instance_conn = _make_raw_conn()
+                        print("✅ libsql connection ready")
                     return _instance_conn
 
             def _creator():
-                """Called by SQLAlchemy NullPool for every new connection request."""
+                """Called by SQLAlchemy NullPool for every connection request."""
                 raw = _get_instance_connection()
-                # Pass _reconnect so the wrapper can self-heal on stream errors
                 return _LibSQLConnection(raw, reconnect_fn=_reconnect)
 
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
@@ -235,24 +246,39 @@ def create_app():
             db.session.rollback()
             return None
 
-    with app.app_context():
-        if use_libsql:
+    # Patch dialect immediately (no DB calls needed)
+    if use_libsql:
+        with app.app_context():
             _patch_dialect_for_libsql(db.engine)
-        try:
-            db.metadata.create_all(bind=db.engine, checkfirst=True)
-            from init_db import run_migrations
-            run_migrations(db.engine)
-            init_database()
-        except Exception as e:
-            print(f"❌ DB init error: {e}")
-            import traceback; traceback.print_exc()
+
+    # DB schema init runs lazily on the first real request, not at import time.
+    # This prevents Vercel cold-start hangs caused by blocking Turso network calls.
+    _db_initialized = False
+    _db_init_lock = threading.Lock()
+
+    def _ensure_db_initialized():
+        nonlocal _db_initialized
+        if _db_initialized:
+            return
+        with _db_init_lock:
+            if _db_initialized:
+                return
+            try:
+                db.metadata.create_all(bind=db.engine, checkfirst=True)
+                from init_db import run_migrations
+                run_migrations(db.engine)
+                init_database()
+                _db_initialized = True
+                print("✅ DB initialized on first request")
+            except Exception as e:
+                print(f"❌ DB init error: {e}")
+                import traceback; traceback.print_exc()
 
     @app.before_request
     def expire_session_on_request():
-        # Expire stale ORM cache so every request re-reads from the local replica.
-        # We do NOT call raw.sync() here — that makes a blocking network call to
-        # Turso on every request and causes 504 timeouts when the stream is slow.
-        # Post-write syncs in _turso_sync() are enough to keep the replica fresh.
+        # Initialize DB schema on first request (lazy — avoids cold-start block).
+        _ensure_db_initialized()
+        # Expire stale ORM identity map so reads always hit the local replica.
         try:
             db.session.expire_all()
         except Exception:

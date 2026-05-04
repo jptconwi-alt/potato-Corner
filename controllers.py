@@ -8,8 +8,7 @@ from flask_login import login_user, logout_user, current_user
 def _turso_sync():
     """Fire-and-forget sync to Turso remote after a write.
 
-    Runs in a background thread with a 10 s timeout so it NEVER blocks
-    the response — a slow or dead Turso stream cannot cause a 504 timeout.
+    Runs in a daemon thread — never blocks the HTTP response.
     """
     import threading
 
@@ -21,10 +20,7 @@ def _turso_sync():
         except Exception as e:
             print(f"⚠️  _turso_sync failed (non-fatal): {e}")
 
-    t = threading.Thread(target=_do_sync, daemon=True)
-    t.start()
-    # Wait max 10 s — if Turso is slow we don't block the HTTP response
-    t.join(timeout=10)
+    threading.Thread(target=_do_sync, daemon=True).start()
 
 class AuthController:
     """Handles authentication operations"""
