@@ -6,17 +6,25 @@ from flask_login import login_user, logout_user, current_user
 
 
 def _turso_sync():
-    """Force-sync the libsql replica to Turso remote after a write.
+    """Fire-and-forget sync to Turso remote after a write.
 
-    Uses the _LibSQLConnection wrapper's .sync() which already handles
-    stream-not-found by calling _heal() / _reconnect() internally.
+    Runs in a background thread with a 10 s timeout so it NEVER blocks
+    the response — a slow or dead Turso stream cannot cause a 504 timeout.
     """
-    try:
-        wrapper = db.engine.pool._creator()   # _LibSQLConnection with heal support
-        wrapper.sync()                         # auto-heals on stream not found
-        print("✅ _turso_sync complete")
-    except Exception as e:
-        print(f"⚠️  _turso_sync failed (non-fatal): {e}")
+    import threading
+
+    def _do_sync():
+        try:
+            wrapper = db.engine.pool._creator()
+            wrapper.sync()
+            print("✅ _turso_sync complete")
+        except Exception as e:
+            print(f"⚠️  _turso_sync failed (non-fatal): {e}")
+
+    t = threading.Thread(target=_do_sync, daemon=True)
+    t.start()
+    # Wait max 10 s — if Turso is slow we don't block the HTTP response
+    t.join(timeout=10)
 
 class AuthController:
     """Handles authentication operations"""

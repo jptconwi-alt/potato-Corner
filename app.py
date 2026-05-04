@@ -154,14 +154,19 @@ def create_app():
             _instance_lock = threading.Lock()
 
             def _make_raw_conn():
-                """Create a fresh libsql connection and sync it."""
-                c = libsql.connect(
-                    database=_local_db_path,
-                    sync_url=sync_url,
-                    auth_token=turso_token,
-                )
-                c.sync()
-                return c
+                """Create a fresh libsql connection and sync it (15 s timeout)."""
+                import concurrent.futures
+                def _connect():
+                    c = libsql.connect(
+                        database=_local_db_path,
+                        sync_url=sync_url,
+                        auth_token=turso_token,
+                    )
+                    c.sync()
+                    return c
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                    future = ex.submit(_connect)
+                    return future.result(timeout=15)
 
             def _reconnect():
                 """Replace the singleton with a brand-new connection.
@@ -244,23 +249,14 @@ def create_app():
 
     @app.before_request
     def expire_session_on_request():
+        # Expire stale ORM cache so every request re-reads from the local replica.
+        # We do NOT call raw.sync() here — that makes a blocking network call to
+        # Turso on every request and causes 504 timeouts when the stream is slow.
+        # Post-write syncs in _turso_sync() are enough to keep the replica fresh.
         try:
             db.session.expire_all()
         except Exception:
             pass
-        # Pull latest data from Turso remote before serving — sync the
-        # singleton connection directly, never via raw_connection() which
-        # would create a wrapper whose .close() risks destroying the singleton.
-        if use_libsql:
-            try:
-                raw = _get_instance_connection()
-                raw.sync()
-            except Exception:
-                # Stream expired — reconnect so the next DB op works
-                try:
-                    _reconnect()
-                except Exception:
-                    pass
 
     register_routes(app)
 
