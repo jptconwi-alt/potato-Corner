@@ -459,18 +459,16 @@ def register_routes(app):
 
             order = OrderController.create_order(sid, customer_data, cart_items, uid, delivery_fee)
 
-            # Clear ONLY the ordered items (not unselected items left in cart)
+            # Clear ONLY the ordered items (not unselected items left in cart).
+            # clear_selected_items: soft-deletes (is_ordered=True), hard-deletes,
+            # and calls db.session.expire_all() to flush any stale ORM cache.
             ordered_ids = [i.id for i in cart_items]
             CartController.clear_selected_items(sid, uid, ordered_ids)
 
-            # Store ordered IDs in session as a blacklist so every subsequent
-            # cart read filters them out even if Turso replication lag causes
-            # the DB to return stale rows on the next few requests.
+            # Session-level blacklist as an extra safety net for replication lag.
+            import time as _time
             existing_blacklist = session.get('ordered_item_ids', [])
             session['ordered_item_ids'] = list(set(existing_blacklist + ordered_ids))
-            # Record when blacklist was created so it can expire after 5 minutes
-            # even if Turso replication lag never fully resolves.
-            import time as _time
             session['ordered_item_ids_ts'] = _time.time()
             session.pop('checkout_item_ids', None)
             session.modified = True

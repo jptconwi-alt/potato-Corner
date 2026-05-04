@@ -16,6 +16,25 @@
 .admin-table-wrap { overflow-x: hidden !important; }
 .status-select { font-size: .75rem !important; padding: .3rem .4rem !important; max-width: 130px; }
 .btn-payment-toggle { font-size: .72rem !important; padding: .25rem .5rem !important; white-space: nowrap; }
+
+/* 1-click status action buttons */
+.order-status-btns { display:flex; flex-direction:column; gap:4px; }
+.status-action-btn {
+  border: none; border-radius: 6px; padding: 4px 10px;
+  font-size: .72rem; font-weight: 700; cursor: pointer;
+  white-space: nowrap; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 3px;
+}
+.status-action-btn:disabled { opacity:.5; cursor:not-allowed; }
+.status-action-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+.status-action-btn.preparing  { background:#f59e0b; color:#1e293b; }
+.status-action-btn.delivering { background:#3b82f6; color:#fff; }
+.status-action-btn.delivered  { background:#16a34a; color:#fff; }
+.status-action-btn.cancel     { background:#fee2e2; color:#dc2626; }
+.status-badge-done { font-size:.73rem; font-weight:700; padding:3px 8px; border-radius:20px; display:inline-block; }
+.status-badge-done.delivered  { background:#dcfce7; color:#16a34a; }
+.status-badge-done.cancelled  { background:#fee2e2; color:#dc2626; }
+.status-current-label { font-size:.68rem; color:#94a3b8; margin-top:2px; }
 .btn-view-map {
   color: #fff;
   border: none;
@@ -336,15 +355,25 @@
                     </button>
                   </td>
                   <td>
-                    <select class="status-select status-{{ order.status.lower().replace(' ', '-') }}"
-                            onchange="updateStatus({{ order.id }}, this)"
-                            data-original="{{ order.status }}">
-                      <option value="Pending" {% if order.status == 'Pending' %}selected{% endif %}>⏳ Pending</option>
-                      <option value="Preparing" {% if order.status == 'Preparing' %}selected{% endif %}>🔥 Preparing</option>
-                      <option value="Out for Delivery" {% if order.status == 'Out for Delivery' %}selected{% endif %}>🚚 On the Way</option>
-                      <option value="Delivered" {% if order.status == 'Delivered' %}selected{% endif %}>✅ Delivered</option>
-                      <option value="Cancelled" {% if order.status == 'Cancelled' %}selected{% endif %}>❌ Cancelled</option>
-                    </select>
+                    <div class="order-status-btns" id="status-btns-{{ order.id }}">
+                      {% if order.status == 'Pending' %}
+                        <button class="status-action-btn preparing" onclick="setStatus({{ order.id }}, 'Preparing', this)">🔥 Prepare</button>
+                        <button class="status-action-btn cancel" onclick="setStatus({{ order.id }}, 'Cancelled', this)">✕ Cancel</button>
+                      {% elif order.status == 'Preparing' %}
+                        <button class="status-action-btn delivering" onclick="setStatus({{ order.id }}, 'Out for Delivery', this)">🚚 Dispatch</button>
+                        <button class="status-action-btn cancel" onclick="setStatus({{ order.id }}, 'Cancelled', this)">✕ Cancel</button>
+                      {% elif order.status == 'Out for Delivery' %}
+                        <button class="status-action-btn delivered" onclick="setStatus({{ order.id }}, 'Delivered', this)">✅ Delivered</button>
+                        <button class="status-action-btn cancel" onclick="setStatus({{ order.id }}, 'Cancelled', this)">✕ Cancel</button>
+                      {% elif order.status == 'Delivered' %}
+                        <span class="status-badge-done delivered">✅ Delivered</span>
+                      {% elif order.status == 'Cancelled' %}
+                        <span class="status-badge-done cancelled">❌ Cancelled</span>
+                      {% else %}
+                        <span class="status-badge-done">{{ order.status }}</span>
+                      {% endif %}
+                    </div>
+                    <div class="status-current-label" id="status-label-{{ order.id }}">{{ order.status }}</div>
                   </td>
                   <td><span class="admin-date-small">{{ order.order_date.strftime('%b %d') }}<br>{{ order.order_date.strftime('%I:%M %p') }}</span></td>
                   <td>
@@ -417,58 +446,70 @@ function toggleSidebar() {
 
 // Status filter tabs are handled in the date filter section below
 
-function updateStatus(orderId, sel) {
-  const newStatus = sel.value;
-  const original = sel.dataset.original;
-  sel.disabled = true;
+function setStatus(orderId, newStatus, btn) {
+  // Disable all buttons in this row during the request
+  const container = document.getElementById('status-btns-' + orderId);
+  const btns = container ? container.querySelectorAll('button') : [];
+  btns.forEach(b => { b.disabled = true; });
+
   fetch('/admin/order/' + orderId + '/status', {
     method: 'POST',
     credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({status: newStatus})
   })
-  .then(r => {
-    if (!r.ok) throw new Error('Server error ' + r.status);
-    return r.json();
-  })
+  .then(r => { if (!r.ok) throw new Error('Server error ' + r.status); return r.json(); })
   .then(d => {
-    sel.disabled = false;
     if (d.success) {
-      sel.className = 'status-select status-' + newStatus.toLowerCase().replace(/ /g, '-');
-      sel.dataset.original = newStatus;
+      // Update row data-status for filter logic
       const row = document.getElementById('order-row-' + orderId);
       if (row) row.dataset.status = newStatus.toLowerCase().replace(/ /g, '-');
-      showToast('Order status updated to ' + newStatus, 'success');
+
+      // Re-render the button container to reflect new status
+      if (container) {
+        let html = '';
+        if (newStatus === 'Preparing') {
+          html = '<button class="status-action-btn delivering" onclick="setStatus(' + orderId + ', "Out for Delivery", this)">🚚 Dispatch</button>' +
+                 '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', "Cancelled", this)">✕ Cancel</button>';
+        } else if (newStatus === 'Out for Delivery') {
+          html = '<button class="status-action-btn delivered" onclick="setStatus(' + orderId + ', "Delivered", this)">✅ Delivered</button>' +
+                 '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', "Cancelled", this)">✕ Cancel</button>';
+        } else if (newStatus === 'Delivered') {
+          html = '<span class="status-badge-done delivered">✅ Delivered</span>';
+          // Also update quick-deliver button
+          const actionCell = row ? row.querySelector('.admin-action-btns') : null;
+          if (actionCell) actionCell.innerHTML = '<span class="delivered-check"><i class="fas fa-check-circle text-success"></i></span>';
+        } else if (newStatus === 'Cancelled') {
+          html = '<span class="status-badge-done cancelled">❌ Cancelled</span>';
+        }
+        container.innerHTML = html;
+      }
+      // Update current label
+      const label = document.getElementById('status-label-' + orderId);
+      if (label) label.textContent = newStatus;
+      showToast('Status updated → ' + newStatus, 'success');
     } else {
-      sel.value = original;
+      btns.forEach(b => { b.disabled = false; });
       showToast(d.message || 'Failed to update status', 'error');
     }
   })
   .catch(err => {
-    sel.disabled = false;
-    sel.value = original;
-    showToast('Network error — please refresh and try again.', 'error');
-    console.error('updateStatus error:', err);
+    btns.forEach(b => { b.disabled = false; });
+    showToast('Network error — please try again.', 'error');
+    console.error('setStatus error:', err);
   });
+}
+
+// Legacy alias kept so quickDeliver still works
+function updateStatus(orderId, sel) {
+  const newStatus = sel ? sel.value : 'Delivered';
+  setStatus(orderId, newStatus, sel);
 }
 
 function quickDeliver(orderId, btn) {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
   btn.disabled = true;
-  fetch('/admin/order/' + orderId + '/status', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({status: 'Delivered'})
-  }).then(r => r.json()).then(d => {
-    if (d.success) {
-      const sel = document.querySelector('#order-row-' + orderId + ' .status-select');
-      if (sel) { sel.value = 'Delivered'; sel.className = 'status-select status-delivered'; }
-      btn.closest('td').innerHTML = '<span class="delivered-check"><i class="fas fa-check-circle text-success"></i></span>';
-      const row = document.getElementById('order-row-' + orderId);
-      if (row) row.dataset.status = 'delivered';
-    }
-  });
+  setStatus(orderId, 'Delivered', btn);
 }
 
 function togglePayment(orderId, btn) {

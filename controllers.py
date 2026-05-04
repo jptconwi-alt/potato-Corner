@@ -148,14 +148,20 @@ class CartController:
     @staticmethod
     def add_to_cart(session_id, product_id, user_id=None, quantity=1):
         """Add item to cart"""
-        # Check if item already in cart
+        # IMPORTANT: only match rows that have NOT been ordered yet.
+        # Without is_ordered=False, a re-add of the same product could
+        # accidentally merge into an already-ordered (soft-deleted) row,
+        # making it reappear in the cart even though it was cleared.
         if user_id:
-            cart_item = CartItem.query.filter_by(product_id=product_id, user_id=user_id).first()
+            cart_item = CartItem.query.filter_by(
+                product_id=product_id, user_id=user_id, is_ordered=False
+            ).first()
         else:
             cart_item = CartItem.query.filter(
                 CartItem.product_id == product_id,
                 CartItem.session_id == session_id,
-                CartItem.user_id == None  # noqa: E711
+                CartItem.user_id == None,       # noqa: E711
+                CartItem.is_ordered == False    # noqa: E712
             ).first()
         
         if cart_item:
@@ -256,6 +262,7 @@ class CartController:
                 CartItem.id.in_(item_ids)
             ).delete(synchronize_session='fetch')
             db.session.commit()
+            db.session.expire_all()
             print(f"✅ clear_selected_items hard-deleted {len(item_ids)} rows")
         except Exception as e:
             db.session.rollback()
@@ -286,9 +293,16 @@ class CartController:
     
     @staticmethod
     def merge_carts(session_id, user_id):
-        """Merge session cart with user cart on login"""
-        session_items = CartItem.query.filter_by(session_id=session_id, user_id=None).all()
-        user_items = CartItem.query.filter_by(user_id=user_id).all()
+        """Merge session cart with user cart on login.
+        Only processes rows where is_ordered=False — ordered rows must never
+        be revived or re-merged even if they still exist in the DB.
+        """
+        session_items = CartItem.query.filter_by(
+            session_id=session_id, user_id=None, is_ordered=False
+        ).all()
+        user_items = CartItem.query.filter_by(
+            user_id=user_id, is_ordered=False
+        ).all()
         
         # Create dict of user items for quick lookup
         user_items_dict = {item.product_id: item for item in user_items}
