@@ -1,6 +1,9 @@
 import warnings
 import threading
+import sqlite3
+import os
 from datetime import timedelta
+
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
 
 from flask import Flask, redirect, url_for, session, flash
@@ -10,119 +13,81 @@ from init_db import init_database
 from flask_login import LoginManager, login_user
 from models import User
 from authlib.integrations.flask_client import OAuth
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
 login_manager = LoginManager()
 
+# ── Turso background sync ─────────────────────────────────────────────────────
+# All reads/writes go through plain sqlite3 on the local replica file.
+# After every write we fire a background thread that opens a libsql connection,
+# pushes the local changes to Turso remote, then closes it. This means:
+#   • Zero network calls in the request/response path → no 504 timeouts
+#   • Data is eventually consistent with Turso remote (usually within 1–2 s)
 
-class _LibSQLConnection:
-    """Wrapper around libsql_experimental.Connection for Vercel + Turso.
+_LOCAL_DB = '/tmp/potato_corner_replica.db'
+_turso_sync_lock = threading.Lock()
 
-    Holds a reference to the global reconnect function so it can
-    self-heal whenever the Turso Hrana stream expires (stream not found).
-    """
 
-    __slots__ = ('_conn', '_reconnect')
+def turso_push_sync():
+    """Push the local sqlite3 DB to Turso remote in a background thread.
+    Called after every write. Never blocks the HTTP response."""
+    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    if not (turso_url and turso_token):
+        return  # local-only mode, nothing to sync
 
-    # Sentinel strings that indicate the remote stream has been closed
-    _STREAM_ERRORS = ('stream not found', 'hrana', 'status=404', 'stream expired')
-
-    def __init__(self, conn, reconnect_fn=None):
-        self._conn = conn
-        self._reconnect = reconnect_fn  # callable() → new raw libsql conn
-
-    def _is_stream_error(self, exc):
-        msg = str(exc).lower()
-        return any(k in msg for k in self._STREAM_ERRORS)
-
-    def _heal(self):
-        """Replace the dead raw connection with a fresh one."""
-        if self._reconnect:
+    def _do():
+        with _turso_sync_lock:
             try:
-                self._conn = self._reconnect()
-                print("✅ libsql stream healed — new connection established")
+                import libsql_experimental as libsql
+                sync_url = (turso_url
+                            .replace('libsql://', 'https://')
+                            .replace('sqlite+libsql://', 'https://'))
+                conn = libsql.connect(
+                    database=_LOCAL_DB,
+                    sync_url=sync_url,
+                    auth_token=turso_token,
+                )
+                conn.sync()
+                conn.close()
+                print('✅ Turso push sync complete')
             except Exception as e:
-                print(f"⚠️  libsql heal failed: {e}")
+                print(f'⚠️  Turso push sync failed (non-fatal): {e}')
 
-    def cursor(self):
-        return self._conn.cursor()
+    threading.Thread(target=_do, daemon=True).start()
 
-    def execute(self, *a, **kw):
+
+def turso_pull_sync():
+    """Pull latest data from Turso remote into the local replica.
+    Called once at cold start in a background thread.
+    Never blocks the request path."""
+    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    if not (turso_url and turso_token):
+        return
+
+    def _do():
         try:
-            return self._conn.execute(*a, **kw)
+            import libsql_experimental as libsql
+            sync_url = (turso_url
+                        .replace('libsql://', 'https://')
+                        .replace('sqlite+libsql://', 'https://'))
+            conn = libsql.connect(
+                database=_LOCAL_DB,
+                sync_url=sync_url,
+                auth_token=turso_token,
+            )
+            conn.sync()
+            conn.close()
+            print('✅ Turso pull sync complete (cold start)')
         except Exception as e:
-            if self._is_stream_error(e):
-                self._heal()
-                return self._conn.execute(*a, **kw)
-            raise
+            print(f'⚠️  Turso pull sync failed: {e}')
 
-    def executemany(self, *a, **kw):
-        return self._conn.executemany(*a, **kw)
-
-    def executescript(self, *a, **kw):
-        return self._conn.executescript(*a, **kw)
-
-    def commit(self):
-        try:
-            self._conn.commit()
-        except Exception as e:
-            if self._is_stream_error(e):
-                self._heal()
-            else:
-                raise
-        try:
-            self._conn.sync()
-        except Exception as e:
-            if not self._is_stream_error(e):
-                print(f"⚠️  libsql sync after commit failed: {e}")
-
-    def rollback(self):
-        try:
-            self._conn.rollback()
-        except Exception as e:
-            if self._is_stream_error(e):
-                # Stream is dead — heal silently; nothing to roll back on a dead stream
-                self._heal()
-            else:
-                print(f"⚠️  libsql rollback failed: {e}")
-
-    def close(self):
-        pass  # singleton — never close; stream errors are handled by _heal()
-
-    def sync(self):
-        try:
-            return self._conn.sync()
-        except Exception as e:
-            if self._is_stream_error(e):
-                self._heal()
-                return self._conn.sync()
-            raise
-
-    @property
-    def in_transaction(self):
-        try:
-            return self._conn.in_transaction
-        except Exception:
-            return False
-
-    @property
-    def isolation_level(self):
-        return self._conn.isolation_level
-
-    @isolation_level.setter
-    def isolation_level(self, value):
-        pass
-
-    def create_function(self, *a, **kw):       pass
-    def create_aggregate(self, *a, **kw):      pass
-    def set_authorizer(self, *a, **kw):        pass
-    def set_trace_callback(self, *a, **kw):    pass
-    def set_progress_handler(self, *a, **kw):  pass
+    threading.Thread(target=_do, daemon=True).start()
 
 
-def _patch_dialect_for_libsql(engine):
+def _patch_dialect(engine):
     engine.dialect.get_isolation_level         = lambda conn: 'SERIALIZABLE'
     engine.dialect.get_default_isolation_level = lambda conn: 'SERIALIZABLE'
 
@@ -135,94 +100,46 @@ def create_app():
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # ── Database ──────────────────────────────────────────────────────────────
-    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    # ── Database: plain sqlite3 on local replica file ─────────────────────────
+    # We always use sqlite3 directly — fast, no network, works on Vercel.
+    # Turso sync happens in background threads after writes (turso_push_sync).
+    use_turso = bool(os.environ.get('TURSO_DATABASE_URL') and os.environ.get('TURSO_AUTH_TOKEN'))
 
-    use_libsql = bool(turso_url and turso_token)
+    # Use the local replica file for Turso, or a simple local db otherwise
+    db_path = _LOCAL_DB if use_turso else '/tmp/potato_corner.db'
 
-    if use_libsql:
-        try:
-            import libsql_experimental as libsql
+    def _creator():
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA synchronous=NORMAL')
+        return conn
 
-            sync_url = (turso_url
-                        .replace('libsql://', 'https://')
-                        .replace('sqlite+libsql://', 'https://'))
-
-            _local_db_path = '/tmp/libsql_replica.db'
-            _instance_conn = None
-            _instance_lock = threading.Lock()
-
-            def _make_raw_conn():
-                """Open a local libsql replica — no network sync on connect.
-
-                libsql.connect() with a local db path opens instantly from
-                the local file. sync() is only called after writes, not here.
-                """
-                c = libsql.connect(
-                    database=_local_db_path,
-                    sync_url=sync_url,
-                    auth_token=turso_token,
-                )
-                # Pull latest from remote — but don't block forever.
-                # If sync fails (dead stream, cold network) we still return
-                # the local connection so the app can serve requests.
-                try:
-                    import signal, platform
-                    if platform.system() != 'Windows':
-                        def _timeout_handler(signum, frame):
-                            raise TimeoutError("libsql sync timed out")
-                        old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-                        signal.alarm(8)
-                        try:
-                            c.sync()
-                        finally:
-                            signal.alarm(0)
-                            signal.signal(signal.SIGALRM, old_handler)
-                    else:
-                        c.sync()
-                except Exception as e:
-                    print(f"⚠️  libsql initial sync skipped: {e}")
-                return c
-
-            def _reconnect():
-                """Replace the singleton with a brand-new connection."""
-                nonlocal _instance_conn
-                with _instance_lock:
-                    try:
-                        _instance_conn = _make_raw_conn()
-                        print("✅ libsql reconnected")
-                        return _instance_conn
-                    except Exception as e:
-                        print(f"⚠️  libsql reconnect failed: {e}")
-                        raise
-
-            def _get_instance_connection():
-                nonlocal _instance_conn
-                with _instance_lock:
-                    if _instance_conn is None:
-                        _instance_conn = _make_raw_conn()
-                        print("✅ libsql connection ready")
-                    return _instance_conn
-
-            def _creator():
-                """Called by SQLAlchemy NullPool for every connection request."""
-                raw = _get_instance_connection()
-                return _LibSQLConnection(raw, reconnect_fn=_reconnect)
-
-            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
-            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                'creator': _creator,
-                'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
-            }
-
-        except ImportError:
-            use_libsql = False
-
-    if not use_libsql:
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///'
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'creator': _creator,
+        'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
+    }
 
     db.init_app(app)
+
+    with app.app_context():
+        _patch_dialect(db.engine)
+        # Initialize schema immediately — sqlite3 is instant, no network
+        try:
+            db.metadata.create_all(bind=db.engine, checkfirst=True)
+            from init_db import run_migrations
+            run_migrations(db.engine)
+            init_database()
+            print('✅ DB schema ready')
+        except Exception as e:
+            print(f'❌ DB init error: {e}')
+            import traceback; traceback.print_exc()
+
+    # Pull latest from Turso in background after cold start
+    if use_turso:
+        turso_pull_sync()
+
     login_manager.init_app(app)
     login_manager.login_view = None
     login_manager.login_message = ''
@@ -246,39 +163,8 @@ def create_app():
             db.session.rollback()
             return None
 
-    # Patch dialect immediately (no DB calls needed)
-    if use_libsql:
-        with app.app_context():
-            _patch_dialect_for_libsql(db.engine)
-
-    # DB schema init runs lazily on the first real request, not at import time.
-    # This prevents Vercel cold-start hangs caused by blocking Turso network calls.
-    _db_initialized = False
-    _db_init_lock = threading.Lock()
-
-    def _ensure_db_initialized():
-        nonlocal _db_initialized
-        if _db_initialized:
-            return
-        with _db_init_lock:
-            if _db_initialized:
-                return
-            try:
-                db.metadata.create_all(bind=db.engine, checkfirst=True)
-                from init_db import run_migrations
-                run_migrations(db.engine)
-                init_database()
-                _db_initialized = True
-                print("✅ DB initialized on first request")
-            except Exception as e:
-                print(f"❌ DB init error: {e}")
-                import traceback; traceback.print_exc()
-
     @app.before_request
-    def expire_session_on_request():
-        # Initialize DB schema on first request (lazy — avoids cold-start block).
-        _ensure_db_initialized()
-        # Expire stale ORM identity map so reads always hit the local replica.
+    def before_each_request():
         try:
             db.session.expire_all()
         except Exception:
@@ -365,10 +251,9 @@ def create_app():
     return app
 
 
-# Create the global app instance for Gunicorn / Vercel
 app = create_app()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"🚀 Starting Potato Corner at http://0.0.0.0:{port}")
+    print(f'🚀 Starting Potato Corner at http://0.0.0.0:{port}')
     app.run(host='0.0.0.0', port=port, debug=False)

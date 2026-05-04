@@ -6,21 +6,13 @@ from flask_login import login_user, logout_user, current_user
 
 
 def _turso_sync():
-    """Fire-and-forget sync to Turso remote after a write.
-
-    Runs in a daemon thread — never blocks the HTTP response.
-    """
-    import threading
-
-    def _do_sync():
-        try:
-            wrapper = db.engine.pool._creator()
-            wrapper.sync()
-            print("✅ _turso_sync complete")
-        except Exception as e:
-            print(f"⚠️  _turso_sync failed (non-fatal): {e}")
-
-    threading.Thread(target=_do_sync, daemon=True).start()
+    """Push local sqlite3 writes to Turso remote in a background thread.
+    Never blocks the HTTP response."""
+    try:
+        from app import turso_push_sync
+        turso_push_sync()
+    except Exception as e:
+        print(f"⚠️  _turso_sync import failed: {e}")
 
 class AuthController:
     """Handles authentication operations"""
