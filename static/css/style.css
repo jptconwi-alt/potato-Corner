@@ -540,7 +540,16 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
 @media(max-width:480px){
   .hero-actions{flex-direction:column}
   .btn-hero-primary,.btn-hero-secondary{justify-content:center}
-  .product-grid{grid-template-columns:1fr 1fr}
+  /* Single-column on small phones so Add to Cart button always shows */
+  .product-grid{grid-template-columns:1fr}
+  .product-card{display:flex;flex-direction:row;align-items:stretch}
+  .product-img-wrap{width:130px;min-width:130px;height:auto;flex-shrink:0;border-radius:0}
+  .product-size-tag{top:8px;left:8px}
+  .product-avail-badge{top:auto;bottom:8px;left:8px;font-size:.62rem;padding:.15rem .5rem}
+  .product-overlay{border-radius:0}
+  .product-info{flex:1;padding:.75rem .9rem .85rem;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+  .product-footer{margin-bottom:.5rem}
+  .btn-add-cart{font-size:.82rem;padding:.55rem .8rem}
   .order-card-header{flex-direction:column;align-items:flex-start}
   .admin-stats-grid{grid-template-columns:1fr 1fr}
   .stat-card-val{font-size:1.3rem}
