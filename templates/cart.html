@@ -399,9 +399,9 @@
           <span class="summary-total-amount" id="summaryTotal">₱0</span>
         </div>
 
-        <a href="{{ url_for('checkout') }}" id="btnProceed" class="btn-proceed disabled">
+        <button type="button" id="btnProceed" class="btn-proceed disabled" onclick="proceedToCheckout()">
           <i class="fas fa-credit-card"></i> Proceed to Order
-        </a>
+        </button>
         <p class="selected-count-note" id="proceedNote">Select items to proceed</p>
       </div>
 
@@ -579,5 +579,20 @@ function removeItem(itemId) {
 }
 
 recalcSummary();
+
+function proceedToCheckout() {
+  const btn = document.getElementById('btnProceed');
+  if (btn && btn.classList.contains('disabled')) return;
+  // Collect checked item IDs
+  const selected = [];
+  document.querySelectorAll('.item-checkbox:checked').forEach(chk => {
+    selected.push(chk.dataset.itemId);
+  });
+  if (selected.length === 0) return;
+  // Navigate with selected IDs as query param
+  const params = new URLSearchParams();
+  selected.forEach(id => params.append('items', id));
+  window.location.href = '{{ url_for("checkout") }}?' + params.toString();
+}
 </script>
 {% endblock %}

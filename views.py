@@ -340,13 +340,32 @@ def register_routes(app):
     def checkout():
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
-        cart_items = CartController.get_cart_items(sid, uid)
-        if not cart_items:
+
+        # Respect selected item IDs passed from cart (checkboxes)
+        selected_ids_raw = request.args.getlist('items') or request.form.getlist('items')
+        selected_ids = [int(x) for x in selected_ids_raw if x.isdigit()]
+
+        all_cart_items = CartController.get_cart_items(sid, uid)
+        if not all_cart_items:
             flash('Your cart is empty', 'warning')
             return redirect(url_for('cart'))
+
+        # Filter to selected items only (if IDs provided); fall back to all items
+        if selected_ids:
+            cart_items = [i for i in all_cart_items if i.id in selected_ids]
+        else:
+            cart_items = all_cart_items
+
+        if not cart_items:
+            flash('No items selected. Please select items to order.', 'warning')
+            return redirect(url_for('cart'))
+
         subtotal = sum(i.product.price * i.quantity for i in cart_items)
         delivery_fee = 0 if subtotal >= 500 else 50
         total = subtotal + delivery_fee
+
+        # Carry selected IDs into the POST form so the POST handler knows which to clear
+        items_param = '&'.join(f'items={i.id}' for i in cart_items)
 
         if request.method == 'POST':
             customer_data = {
@@ -360,13 +379,18 @@ def register_routes(app):
             }
             if not all([customer_data['name'], customer_data['email'], customer_data['phone'], customer_data['address']]):
                 flash('Please fill in all required fields', 'danger')
-                return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal, delivery_fee=delivery_fee, total=total)
+                return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal,
+                                       delivery_fee=delivery_fee, total=total, items_param=items_param)
 
             order = OrderController.create_order(sid, customer_data, cart_items, uid, delivery_fee)
-            CartController.clear_cart(sid, uid)
+
+            # Clear ONLY the ordered items (not unselected items left in cart)
+            CartController.clear_selected_items(sid, uid, [i.id for i in cart_items])
+
             return redirect(url_for('order_confirmation', order_number=order.order_number))
 
-        return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal, delivery_fee=delivery_fee, total=total)
+        return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal,
+                               delivery_fee=delivery_fee, total=total, items_param=items_param)
 
     @app.route('/order/confirmation/<order_number>')
     def order_confirmation(order_number):

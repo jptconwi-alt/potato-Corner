@@ -189,12 +189,29 @@ class CartController:
     
     @staticmethod
     def clear_cart(session_id, user_id=None):
-        """Clear all items from cart"""
+        """Clear ALL items from cart"""
         if user_id:
             CartItem.query.filter_by(user_id=user_id).delete()
         else:
             CartItem.query.filter_by(session_id=session_id).delete()
         db.session.commit()
+    
+    @staticmethod
+    def clear_selected_items(session_id, user_id, item_ids):
+        """Delete only the cart items that were ordered (by their IDs)."""
+        if not item_ids:
+            return
+        try:
+            CartItem.query.filter(CartItem.id.in_(item_ids)).delete(synchronize_session=False)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            # Fallback: delete one by one
+            for iid in item_ids:
+                item = CartItem.query.get(iid)
+                if item:
+                    db.session.delete(item)
+            db.session.commit()
     
     @staticmethod
     def get_cart_total(session_id, user_id=None):
