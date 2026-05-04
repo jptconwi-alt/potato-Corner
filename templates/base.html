@@ -433,7 +433,7 @@
 
   /* ── Socket.IO realtime sync ── */
   (function () {
-    var socket = io();
+    var socket = io({ transports: ['polling'], upgrade: false });
 
     {% if current_user.is_authenticated %}
     // Join personal room so the server can push order status changes directly

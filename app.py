@@ -193,7 +193,16 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = None   # We handle redirects manually in decorators
     login_manager.login_message = ''
-    socketio.init_app(app, cors_allowed_origins='*', async_mode='eventlet')
+    socketio.init_app(
+        app,
+        cors_allowed_origins='*',
+        async_mode='eventlet',
+        allow_upgrades=False,        # stay on polling; avoids "invalid transport" errors
+        ping_timeout=60,
+        ping_interval=25,
+        logger=False,
+        engineio_logger=False,
+    )
 
     # Register Socket.IO event handlers (join/leave rooms, cart_updated)
     from views import register_socketio_events
