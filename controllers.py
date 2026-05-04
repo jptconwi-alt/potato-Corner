@@ -124,18 +124,20 @@ class CartController:
     
     @staticmethod
     def get_cart_items(session_id, user_id=None, exclude_ids=None):
-        """Get all items in cart for the current user or session.
+        """Get all active (non-ordered) cart items for the current user/session.
 
-        exclude_ids: set/list of CartItem PKs to filter out — used to suppress
-        stale rows that the DB returns due to Turso replication lag after a
-        delete. Callers pass session['ordered_item_ids'] here.
+        is_ordered=True items are permanently hidden — this is the primary guard
+        against Turso replication lag causing ordered items to reappear.
+        exclude_ids is kept as a secondary session-level blacklist for the brief
+        window before the DB write fully propagates.
         """
         if user_id:
-            items = CartItem.query.filter_by(user_id=user_id).all()
+            items = CartItem.query.filter_by(user_id=user_id, is_ordered=False).all()
         else:
             items = CartItem.query.filter(
                 CartItem.session_id == session_id,
-                CartItem.user_id == None  # noqa: E711
+                CartItem.user_id == None,  # noqa: E711
+                CartItem.is_ordered == False  # noqa: E712
             ).all()
 
         if exclude_ids:
@@ -225,41 +227,41 @@ class CartController:
     
     @staticmethod
     def clear_selected_items(session_id, user_id, item_ids):
-        """Delete only the cart items that were ordered (by their IDs).
+        """Mark ordered cart items as is_ordered=True, then hard-DELETE them.
 
-        Uses the ORM session so all deletes are in the same transaction.
-        After committing, tries a second raw-engine delete + sync to push
-        the change to Turso immediately, minimising the replication window
-        that causes ghost items to reappear on subsequent requests.
+        Two-phase approach:
+        1. Soft-delete (is_ordered=True) commits immediately — get_cart_items
+           always filters these out, so items NEVER reappear even if Turso
+           replication lag delays the hard DELETE propagation.
+        2. Hard DELETE cleans up the rows for real.
         """
         if not item_ids:
             return
 
-        # Step 1: ORM bulk delete — updates identity map so this request
-        # sees 0 rows for these IDs immediately.
+        # Phase 1: Soft-delete — set is_ordered=True so the rows are
+        # permanently invisible to get_cart_items even under replication lag.
         try:
-            deleted = CartItem.query.filter(
+            CartItem.query.filter(
+                CartItem.id.in_(item_ids)
+            ).update({'is_ordered': True}, synchronize_session='fetch')
+            db.session.commit()
+            print(f"✅ clear_selected_items soft-deleted {len(item_ids)} rows")
+        except Exception as e:
+            db.session.rollback()
+            print(f"⚠️  clear_selected_items soft-delete failed: {e}")
+
+        # Phase 2: Hard DELETE — remove the rows permanently.
+        try:
+            CartItem.query.filter(
                 CartItem.id.in_(item_ids)
             ).delete(synchronize_session='fetch')
             db.session.commit()
-            print(f"✅ clear_selected_items ORM deleted {deleted} rows")
+            print(f"✅ clear_selected_items hard-deleted {len(item_ids)} rows")
         except Exception as e:
             db.session.rollback()
-            print(f"⚠️  clear_selected_items bulk delete failed: {e}")
-            # Fallback: one-by-one
-            for iid in item_ids:
-                try:
-                    item = CartItem.query.get(iid)
-                    if item:
-                        db.session.delete(item)
-                        db.session.commit()
-                except Exception as inner_e:
-                    db.session.rollback()
-                    print(f"⚠️  Failed to delete cart item {iid}: {inner_e}")
+            print(f"⚠️  clear_selected_items hard delete failed: {e}")
 
-        # Step 2: Raw engine delete + explicit sync to push to Turso NOW.
-        # This second pass ensures the remote DB is updated before the next
-        # request's sync() pull, closing the replication-lag window.
+        # Phase 3: Raw engine DELETE + sync to push to Turso remote NOW.
         try:
             from sqlalchemy import text as _text
             with db.engine.connect() as conn:
@@ -268,7 +270,7 @@ class CartController:
                 conn.execute(_text(
                     f'DELETE FROM cart_items WHERE id IN ({placeholders})'
                 ), params)
-                conn.commit()   # _LibSQLConnection.commit() calls sync()
+                conn.commit()
             print(f"✅ clear_selected_items raw+sync push complete")
         except Exception as e:
             print(f"⚠️  clear_selected_items raw sync push failed (non-fatal): {e}")

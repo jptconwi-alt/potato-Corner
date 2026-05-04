@@ -25,6 +25,7 @@ def run_migrations(engine):
         "ALTER TABLE orders ADD COLUMN delivery_lat REAL",
         "ALTER TABLE orders ADD COLUMN delivery_lng REAL",
         "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1",
+        "ALTER TABLE cart_items ADD COLUMN is_ordered BOOLEAN NOT NULL DEFAULT 0",
     ]
     with engine.connect() as conn:
         for sql in migrations:

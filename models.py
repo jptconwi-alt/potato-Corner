@@ -140,4 +140,7 @@ class CartItem(db.Model):
     product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
     quantity   = db.Column(db.Integer, nullable=False, default=1)
     added_at   = db.Column(db.DateTime, default=ph_now)
+    # Soft-delete flag: set True when item is ordered so it never reappears
+    # even if Turso replication lag serves stale rows after a hard DELETE.
+    is_ordered = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     product    = db.relationship('Product', backref='cart_items')
