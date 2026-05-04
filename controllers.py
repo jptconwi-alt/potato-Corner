@@ -4,6 +4,30 @@ from datetime import datetime
 from models import db, User, Product, Order, OrderItem, CartItem, ph_now
 from flask_login import login_user, logout_user, current_user
 
+
+def _turso_sync():
+    """Force-sync the libsql replica to Turso remote after a write.
+
+    This is a no-op for standard SQLite. For Turso/libsql it pushes the
+    committed write to the remote server so the next request (which may
+    hit a fresh connection) sees the new data immediately.
+    """
+    try:
+        # Use the raw engine to get a DBAPI connection and call sync()
+        # db.engine.raw_connection() bypasses SQLAlchemy's ORM session
+        # and returns the DBAPI-level connection (_LibSQLConnection wrapper).
+        raw_dbapi = db.engine.raw_connection()
+        conn = raw_dbapi  # may be _LibSQLConnection or a pool proxy
+        # Unwrap pool proxy layers to reach our _LibSQLConnection
+        if hasattr(conn, 'connection'):
+            conn = conn.connection
+        if hasattr(conn, 'sync'):
+            conn.sync()
+            print("✅ _turso_sync complete")
+        raw_dbapi.close()
+    except Exception as e:
+        print(f"⚠️  _turso_sync failed (non-fatal): {e}")
+
 class AuthController:
     """Handles authentication operations"""
     
@@ -233,19 +257,18 @@ class CartController:
     
     @staticmethod
     def clear_selected_items(session_id, user_id, item_ids):
-        """Mark ordered cart items as is_ordered=True, then hard-DELETE them.
+        """Hard-delete the ordered cart rows and sync to Turso remote.
 
-        Two-phase approach:
-        1. Soft-delete (is_ordered=True) commits immediately — get_cart_items
-           always filters these out, so items NEVER reappear even if Turso
-           replication lag delays the hard DELETE propagation.
-        2. Hard DELETE cleans up the rows for real.
+        Steps:
+        1. Mark is_ordered=True  — immediately hides items from get_cart_items
+           even if the hard DELETE is delayed by replication.
+        2. Hard DELETE           — removes the rows permanently.
+        3. _turso_sync()         — pushes both writes to the Turso remote so
+                                   the next request always sees a clean cart.
         """
         if not item_ids:
             return
 
-        # Phase 1: Soft-delete — set is_ordered=True so the rows are
-        # permanently invisible to get_cart_items even under replication lag.
         try:
             CartItem.query.filter(
                 CartItem.id.in_(item_ids)
@@ -255,8 +278,8 @@ class CartController:
         except Exception as e:
             db.session.rollback()
             print(f"⚠️  clear_selected_items soft-delete failed: {e}")
+            return
 
-        # Phase 2: Hard DELETE — remove the rows permanently.
         try:
             CartItem.query.filter(
                 CartItem.id.in_(item_ids)
@@ -268,19 +291,8 @@ class CartController:
             db.session.rollback()
             print(f"⚠️  clear_selected_items hard delete failed: {e}")
 
-        # Phase 3: Raw engine DELETE + sync to push to Turso remote NOW.
-        try:
-            from sqlalchemy import text as _text
-            with db.engine.connect() as conn:
-                placeholders = ','.join([f':id{i}' for i in range(len(item_ids))])
-                params = {f'id{i}': v for i, v in enumerate(item_ids)}
-                conn.execute(_text(
-                    f'DELETE FROM cart_items WHERE id IN ({placeholders})'
-                ), params)
-                conn.commit()
-            print(f"✅ clear_selected_items raw+sync push complete")
-        except Exception as e:
-            print(f"⚠️  clear_selected_items raw sync push failed (non-fatal): {e}")
+        # Push both writes to Turso remote immediately.
+        _turso_sync()
     
     @staticmethod
     def get_cart_total(session_id, user_id=None):
@@ -386,6 +398,7 @@ class OrderController:
         # _LibSQLConnection.commit() wrapper calls conn.sync() automatically
         # so the write is pushed to Turso before we redirect.
         db.session.commit()
+        _turso_sync()   # force push to Turso remote — makes order visible immediately
         return order
     
     @staticmethod
@@ -410,5 +423,6 @@ class OrderController:
         if order:
             order.status = status
             db.session.commit()
+            _turso_sync()   # push status change to Turso remote immediately
             return True
         return False

@@ -184,6 +184,19 @@ def create_app():
             db.session.expire_all()
         except Exception:
             pass
+        # Pull latest data from Turso remote before serving — ensures reads
+        # always see writes committed by other requests/instances.
+        if use_libsql:
+            try:
+                raw_dbapi = db.engine.raw_connection()
+                conn = raw_dbapi
+                if hasattr(conn, 'connection'):
+                    conn = conn.connection
+                if hasattr(conn, 'sync'):
+                    conn.sync()
+                raw_dbapi.close()
+            except Exception:
+                pass
 
     register_routes(app)
 
