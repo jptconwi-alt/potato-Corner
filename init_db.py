@@ -26,6 +26,14 @@ def run_migrations(engine):
         "ALTER TABLE orders ADD COLUMN delivery_lng REAL",
         "ALTER TABLE users ADD COLUMN is_active BOOLEAN DEFAULT 1",
         "ALTER TABLE cart_items ADD COLUMN is_ordered BOOLEAN NOT NULL DEFAULT 0",
+        """CREATE TABLE IF NOT EXISTS order_ratings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL UNIQUE REFERENCES orders(id),
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            stars INTEGER NOT NULL,
+            comment TEXT,
+            created_at DATETIME
+        )""",
     ]
     with engine.connect() as conn:
         for sql in migrations:

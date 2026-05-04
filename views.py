@@ -6,7 +6,7 @@ from flask_socketio import emit, join_room, leave_room
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from models import ph_now
-from models import db, User, Product, Order, OrderItem, CartItem
+from models import db, User, Product, Order, OrderItem, CartItem, OrderRating
 from controllers import AuthController, ProductController, CartController, OrderController
 from auth_decorator import admin_required
 
@@ -623,7 +623,6 @@ def register_routes(app):
     @app.route('/admin/order/<int:order_id>/payment', methods=['POST'])
     @admin_required
     def admin_update_payment_status(order_id):
-        from models import Order
         data = request.get_json()
         new_status = data.get('payment_status')
         if new_status not in ['Paid', 'Unpaid']:
@@ -634,6 +633,36 @@ def register_routes(app):
         order.payment_status = new_status
         db.session.commit()
         return jsonify({'success': True})
+
+    # ── User: Submit order rating ────────────
+    @app.route('/order/<int:order_id>/rate', methods=['POST'])
+    @login_required
+    def submit_order_rating(order_id):
+        order = Order.query.get_or_404(order_id)
+        # Only the owner can rate and only after delivery
+        if order.user_id != current_user.id:
+            return jsonify({'success': False, 'message': 'Not authorized'})
+        if order.status != 'Delivered':
+            return jsonify({'success': False, 'message': 'You can only rate delivered orders'})
+        if order.rating:
+            return jsonify({'success': False, 'message': 'You have already rated this order'})
+        data = request.get_json()
+        stars = int(data.get('stars', 0))
+        if stars < 1 or stars > 5:
+            return jsonify({'success': False, 'message': 'Rating must be between 1 and 5 stars'})
+        comment = (data.get('comment') or '').strip()[:500]
+        rating = OrderRating(order_id=order_id, user_id=current_user.id, stars=stars, comment=comment or None)
+        db.session.add(rating)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Thank you for your rating!'})
+
+    # ── Admin: View all ratings ─────────────
+    @app.route('/admin/ratings')
+    @admin_required
+    def admin_ratings():
+        ratings = OrderRating.query.order_by(OrderRating.created_at.desc()).all()
+        avg = round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else 0
+        return render_template('admin/ratings.html', ratings=ratings, avg=avg, total=len(ratings))
 
     # ── Admin AJAX: Get user orders ─────────
 

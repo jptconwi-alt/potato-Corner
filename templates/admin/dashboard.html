@@ -33,6 +33,9 @@
       <a href="{{ url_for('admin_sales_report') }}" class="admin-nav-item {% if request.endpoint == 'admin_sales_report' %}active{% endif %}">
         <i class="fas fa-chart-line"></i><span>Sales Report</span>
       </a>
+      <a href="{{ url_for('admin_ratings') }}" class="admin-nav-item {% if request.endpoint == 'admin_ratings' %}active{% endif %}">
+        <i class="fas fa-star"></i><span>Ratings</span>
+      </a>
       <hr class="admin-nav-divider">
       <a href="{{ url_for('index') }}" class="admin-nav-item">
         <i class="fas fa-store"></i><span>View Store</span>

@@ -144,3 +144,26 @@ class CartItem(db.Model):
     # even if Turso replication lag serves stale rows after a hard DELETE.
     is_ordered = db.Column(db.Boolean, nullable=False, default=False, server_default='0')
     product    = db.relationship('Product', backref='cart_items')
+
+class OrderRating(db.Model):
+    __tablename__ = 'order_ratings'
+    id         = db.Column(db.Integer, primary_key=True)
+    order_id   = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False, unique=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    stars      = db.Column(db.Integer, nullable=False)   # 1–5
+    comment    = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=ph_now)
+    order      = db.relationship('Order', backref=db.backref('rating', uselist=False))
+    user       = db.relationship('User', foreign_keys=[user_id])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'user_id': self.user_id,
+            'stars': self.stars,
+            'comment': self.comment,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M'),
+            'user_name': self.user.full_name if self.user else 'Unknown',
+            'order_number': self.order.order_number if self.order else '',
+        }

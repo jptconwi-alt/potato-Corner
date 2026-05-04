@@ -59,6 +59,14 @@
 .history-card:hover { opacity:1; }
 .cancel-modal-overlay { display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);align-items:center;justify-content:center; }
 .cancel-modal-overlay.active { display:flex; }
+.oc-rating-section { padding:.6rem 1.1rem .8rem;border-top:1px solid #f3f4f6;background:#fffbeb; }
+.rating-prompt { display:flex;flex-direction:column;gap:.3rem; }
+.star-picker { display:flex;gap:.2rem;margin-top:.2rem; }
+.star { font-size:1.5rem;cursor:pointer;color:#d1d5db;transition:color .15s; }
+.star.selected,.star:hover { color:#f59e0b; }
+.btn-rate { margin-top:.4rem;align-self:flex-start;background:#1b5e20;color:#fff;border:none;border-radius:8px;padding:.4rem 1rem;font-size:.83rem;font-weight:700;cursor:pointer; }
+.btn-rate:hover { background:#2e7d32; }
+.rating-submitted { display:flex;flex-wrap:wrap;align-items:center;gap:.3rem;font-size:.9rem; }
 @media(max-width:480px){
   .oc-header,.oc-body{padding:.75rem .9rem;}
   .oc-num{font-size:.92rem;}
@@ -201,6 +209,26 @@
               <span style="color:#dc2626;font-weight:600;"><i class="fas fa-ban"></i>Cancelled</span>
               {% endif %}
             </div>
+            {% if order.status == 'Delivered' %}
+            <div class="oc-rating-section" id="rating-section-{{ order.id }}">
+              {% if order.rating %}
+              <div class="rating-submitted">
+                <span style="color:#f59e0b;">{% for i in range(order.rating.stars) %}★{% endfor %}{% for i in range(5 - order.rating.stars) %}☆{% endfor %}</span>
+                <span style="font-size:.82rem;color:#6b7280;margin-left:.4rem;">You rated this order</span>
+                {% if order.rating.comment %}<div style="font-size:.82rem;color:#374151;margin-top:.25rem;font-style:italic;">"{{ order.rating.comment }}"</div>{% endif %}
+              </div>
+              {% else %}
+              <div class="rating-prompt">
+                <span style="font-size:.85rem;color:#374151;font-weight:600;">Rate your order:</span>
+                <div class="star-picker" id="stars-{{ order.id }}" data-order="{{ order.id }}">
+                  {% for i in range(1,6) %}<span class="star" data-val="{{ i }}" onclick="selectStar({{ order.id }}, {{ i }})">☆</span>{% endfor %}
+                </div>
+                <textarea id="comment-{{ order.id }}" placeholder="Leave a comment (optional)" maxlength="500" style="width:100%;margin-top:.4rem;border-radius:8px;border:1px solid #e5e7eb;padding:.4rem .6rem;font-size:.83rem;resize:vertical;min-height:50px;"></textarea>
+                <button onclick="submitRating({{ order.id }})" class="btn-rate" id="rate-btn-{{ order.id }}">Submit Rating</button>
+              </div>
+              {% endif %}
+            </div>
+            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -421,6 +449,60 @@
       if (status === 'Cancelled' || status === 'Delivered') {
         const actions = card.querySelector('.oc-actions');
         if (actions) actions.remove();
+        // Move to history if not already there
+        if (!card.classList.contains('history-card')) {
+          card.classList.add('history-card');
+          let historySection = document.getElementById('historySection');
+          let historyList = document.getElementById('historyList');
+          if (!historySection) {
+            historySection = document.createElement('div');
+            historySection.className = 'history-section';
+            historySection.id = 'historySection';
+            historySection.innerHTML =
+              '<button class="history-toggle" id="historyToggle" onclick="toggleHistory()">' +
+              '<i class="fas fa-history"></i>Order History' +
+              '<span class="history-count" id="historyCount">0</span>' +
+              '<i class="fas fa-chevron-down ms-auto" id="historyChevron"></i>' +
+              '</button>' +
+              '<div class="history-list" id="historyList"></div>';
+            document.getElementById('ordersContainer').appendChild(historySection);
+            historyList = document.getElementById('historyList');
+            historyList.style.display = 'block';
+            const ch = document.getElementById('historyChevron');
+            if (ch) ch.style.transform = 'rotate(180deg)';
+          }
+          historyList.insertBefore(card, historyList.firstChild);
+          const countEl = document.getElementById('historyCount');
+          if (countEl) countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+          // If delivered, show rating prompt
+          if (status === 'Delivered') {
+            const footer = card.querySelector('.oc-footer');
+            if (footer && !document.getElementById('rating-section-' + orderId)) {
+              const ratingDiv = document.createElement('div');
+              ratingDiv.className = 'oc-rating-section';
+              ratingDiv.id = 'rating-section-' + orderId;
+              ratingDiv.innerHTML = '<div class="rating-prompt"><span style="font-size:.85rem;color:#374151;font-weight:600;">Rate your order:</span>' +
+                '<div class="star-picker" id="stars-' + orderId + '">' +
+                '<span class="star" data-val="1" onclick="selectStar(' + orderId + ',1)">☆</span>' +
+                '<span class="star" data-val="2" onclick="selectStar(' + orderId + ',2)">☆</span>' +
+                '<span class="star" data-val="3" onclick="selectStar(' + orderId + ',3)">☆</span>' +
+                '<span class="star" data-val="4" onclick="selectStar(' + orderId + ',4)">☆</span>' +
+                '<span class="star" data-val="5" onclick="selectStar(' + orderId + ',5)">☆</span>' +
+                '</div><textarea id="comment-' + orderId + '" placeholder="Leave a comment (optional)" maxlength="500" style="width:100%;margin-top:.4rem;border-radius:8px;border:1px solid #e5e7eb;padding:.4rem .6rem;font-size:.83rem;resize:vertical;min-height:50px;"></textarea>' +
+                '<button onclick="submitRating(' + orderId + ')" class="btn-rate" id="rate-btn-' + orderId + '">Submit Rating</button></div>';
+              card.appendChild(ratingDiv);
+            }
+          }
+          // Show empty state if no more active orders
+          const remaining = document.querySelectorAll('#ordersContainer > .order-card:not(.history-card)');
+          if (remaining.length === 0 && !document.getElementById('emptyState')) {
+            const div = document.createElement('div');
+            div.className = 'empty-orders';
+            div.id = 'emptyState';
+            div.innerHTML = '<div class="empty-icon">📦</div><h3>No active orders</h3><p>Check your order history below.</p>';
+            document.getElementById('ordersContainer').insertBefore(div, historySection);
+          }
+        }
       }
 
       // Stamp last-updated time
@@ -432,7 +514,7 @@
     _known[orderId] = status;
   }
 
-  // Expose for base.html to call when socket event fires
+  // Expose for base.html to call when socket event fires (overridden below by rating handler)
   window._pcOrderStatusUpdate = applyStatusUpdate;
 
   // Visibility-change: re-fetch order statuses via REST when user returns to tab
@@ -452,6 +534,63 @@
   document.getElementById('cancelModal').addEventListener('click', function(e){
     if(e.target===this) closeCancelModal();
   });
+
+  // ── Rating ─────────────────────────────────────────────────────────
+  var _selectedStars = {};
+
+  window.selectStar = function(orderId, val) {
+    _selectedStars[orderId] = val;
+    const picker = document.getElementById('stars-' + orderId);
+    if (!picker) return;
+    picker.querySelectorAll('.star').forEach(function(s, i){
+      s.classList.toggle('selected', i < val);
+      s.textContent = i < val ? '★' : '☆';
+    });
+  };
+
+  window.submitRating = async function(orderId) {
+    const stars = _selectedStars[orderId] || 0;
+    if (!stars) { alert('Please select a star rating first.'); return; }
+    const comment = (document.getElementById('comment-' + orderId) || {}).value || '';
+    const btn = document.getElementById('rate-btn-' + orderId);
+    if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+    try {
+      const res = await fetch('/order/' + orderId + '/rate', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify({stars: stars, comment: comment})
+      });
+      const data = await res.json();
+      if (data.success) {
+        const section = document.getElementById('rating-section-' + orderId);
+        if (section) {
+          const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+          section.innerHTML = '<div class="rating-submitted"><span style="color:#f59e0b;">' + starStr + '</span><span style="font-size:.82rem;color:#6b7280;margin-left:.4rem;">You rated this order</span>' +
+            (comment ? '<div style="font-size:.82rem;color:#374151;margin-top:.25rem;font-style:italic;">"' + comment + '"</div>' : '') + '</div>';
+        }
+      } else {
+        alert(data.message || 'Could not submit rating.');
+        if (btn) { btn.disabled = false; btn.textContent = 'Submit Rating'; }
+      }
+    } catch(e) {
+      alert('Network error. Please try again.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit Rating'; }
+    }
+  };
+
+  // When admin marks order as Delivered, show rating prompt via socket
+  var _origStatusUpdate = window._pcOrderStatusUpdate;
+  window._pcOrderStatusUpdate = function(data) {
+    if (_origStatusUpdate) _origStatusUpdate(data);
+    if (data.status === 'Delivered') {
+      var section = document.getElementById('rating-section-' + data.order_id);
+      if (!section) {
+        // rating section not present yet (card was active) - show after brief delay
+        setTimeout(function() { location.reload(); }, 3000);
+      }
+    }
+  };
 })();
 </script>
 {% endblock %}

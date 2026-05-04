@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import warnings
 from datetime import timedelta
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
@@ -190,7 +193,7 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = None   # We handle redirects manually in decorators
     login_manager.login_message = ''
-    socketio.init_app(app, cors_allowed_origins='*', async_mode='gevent')
+    socketio.init_app(app, cors_allowed_origins='*', async_mode='eventlet')
 
     # Register Socket.IO event handlers (join/leave rooms, cart_updated)
     from views import register_socketio_events

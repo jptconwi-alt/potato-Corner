@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Customer Ratings — Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+.ratings-wrap { max-width:900px;margin:0 auto;padding:1.5rem 1rem; }
+.ratings-summary { display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem; }
+.summary-card { background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.08);padding:1.2rem 1.8rem;flex:1;min-width:180px;text-align:center; }
+.summary-card .big { font-size:2.4rem;font-family:'Fredoka One',cursive;color:#1b5e20; }
+.summary-card .lbl { font-size:.82rem;color:#6b7280;margin-top:.2rem; }
+.rating-card { background:#fff;border-radius:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);padding:1rem 1.25rem;margin-bottom:.85rem; }
+.rc-header { display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem; }
+.rc-order { font-weight:700;color:#1b5e20;font-size:.92rem; }
+.rc-user { font-size:.82rem;color:#6b7280; }
+.rc-date { font-size:.78rem;color:#9ca3af; }
+.stars { color:#f59e0b;font-size:1.2rem;letter-spacing:2px; }
+.rc-comment { font-size:.85rem;color:#374151;margin-top:.4rem;font-style:italic;background:#f9fafb;border-radius:8px;padding:.4rem .7rem; }
+.no-ratings { text-align:center;padding:3rem;color:#9ca3af;font-size:1rem; }
+.admin-back-btn { display:inline-flex;align-items:center;gap:.4rem;color:#1b5e20;font-weight:600;font-size:.88rem;text-decoration:none;margin-bottom:1rem; }
+.admin-back-btn:hover { color:#2e7d32; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ratings-wrap">
+  <a href="{{ url_for('admin_orders') }}" class="admin-back-btn"><i class="fas fa-arrow-left"></i> Back to Orders</a>
+  <h2 style="font-family:'Fredoka One',cursive;color:#1b5e20;margin-bottom:1rem;"><i class="fas fa-star me-2"></i>Customer Ratings</h2>
+
+  <div class="ratings-summary">
+    <div class="summary-card">
+      <div class="big">{{ avg }}</div>
+      <div class="lbl">⭐ Average Rating</div>
+    </div>
+    <div class="summary-card">
+      <div class="big">{{ total }}</div>
+      <div class="lbl">Total Reviews</div>
+    </div>
+    {% set five_stars = ratings | selectattr('stars', 'equalto', 5) | list | length %}
+    <div class="summary-card">
+      <div class="big">{{ five_stars }}</div>
+      <div class="lbl">★★★★★ Five-Star Reviews</div>
+    </div>
+  </div>
+
+  {% if ratings %}
+    {% for r in ratings %}
+    <div class="rating-card">
+      <div class="rc-header">
+        <div>
+          <div class="rc-order">Order #{{ r.order.order_number if r.order else r.order_id }}</div>
+          <div class="rc-user"><i class="fas fa-user me-1"></i>{{ r.user.full_name if r.user else 'Unknown' }}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="stars">{% for i in range(r.stars) %}★{% endfor %}{% for i in range(5 - r.stars) %}☆{% endfor %}</div>
+          <div class="rc-date">{{ r.created_at.strftime('%b %d, %Y · %I:%M %p') }}</div>
+        </div>
+      </div>
+      {% if r.comment %}
+      <div class="rc-comment">"{{ r.comment }}"</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+  <div class="no-ratings">
+    <div style="font-size:3rem;margin-bottom:.5rem;">⭐</div>
+    <p>No ratings yet. Ratings will appear here once customers rate their delivered orders.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
