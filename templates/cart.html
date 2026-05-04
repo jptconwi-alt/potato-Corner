@@ -439,8 +439,12 @@ function recalcSummary() {
   checkboxes.forEach(chk => {
     const id = parseInt(chk.dataset.itemId);
     const card = document.getElementById('cart-item-' + id);
+    // Always read qty from the live DOM element (not stale itemPrices.qty)
+    const qtyEl = document.getElementById('qty-display-' + id);
+    const liveQty = qtyEl ? parseInt(qtyEl.textContent) || 1 : (itemPrices[id] ? itemPrices[id].qty : 1);
+    if (itemPrices[id]) itemPrices[id].qty = liveQty; // keep in sync
     if (chk.checked) {
-      subtotal += itemPrices[id].price * itemPrices[id].qty;
+      subtotal += itemPrices[id].price * liveQty;
       selectedCount++;
       if (card) card.classList.remove('deselected');
     } else {
