@@ -4,39 +4,21 @@ warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
 
 from flask import Flask, redirect, url_for, session, flash
 from models import db
-from views import register_routes
+from extensions import socketio
+from views import register_routes, register_socketio_events
 from init_db import init_database
 from flask_login import LoginManager, login_user
 from models import User
 from authlib.integrations.flask_client import OAuth
-from flask_socketio import SocketIO
 import os
 from dotenv import load_dotenv
-
-socketio = SocketIO()
 
 load_dotenv()
 login_manager = LoginManager()
 
 
 class _LibSQLConnection:
-    """Wrapper around libsql_experimental.Connection for Vercel + Turso.
-
-    Three problems solved here:
-
-    1. Immutable C-extension type: libsql_experimental.Connection attributes
-       can't be set directly, so we can't monkey-patch sqlite3 compat methods
-       onto it.  This wrapper is a plain Python object — attributes are free.
-
-    2. sqlite3 compat stubs: Vercel's vendored pysqlite dialect calls
-       create_function(), set_authorizer(), etc. on every new connection.
-       We stub them as no-ops.
-
-    3. Local-first sync: libsql_experimental works in a local-first mode.
-       Each connection starts as an in-memory SQLite DB.  We must call
-       sync() after connecting to PULL the remote Turso state locally, and
-       after every commit() to PUSH local writes back to Turso.
-    """
+    """Wrapper around libsql_experimental.Connection for Vercel + Turso."""
 
     __slots__ = ('_conn',)
 
@@ -50,7 +32,6 @@ class _LibSQLConnection:
 
     def commit(self):
         self._conn.commit()
-        # Push local writes to remote Turso after every commit
         try:
             self._conn.sync()
         except Exception as e:
@@ -61,6 +42,7 @@ class _LibSQLConnection:
             return self._conn.rollback()
         except Exception as e:
             print(f"⚠️  libsql rollback failed (stale stream): {e}")
+
     def close(self):                           return self._conn.close()
     def sync(self):                            return self._conn.sync()
 
@@ -71,9 +53,8 @@ class _LibSQLConnection:
     def isolation_level(self):                 return self._conn.isolation_level
 
     @isolation_level.setter
-    def isolation_level(self, value):          pass   # libsql manages this itself
+    def isolation_level(self, value):          pass
 
-    # sqlite3-compat stubs that pysqlite's post-connect hooks try to call
     def create_function(self, *a, **kw):       pass
     def create_aggregate(self, *a, **kw):      pass
     def set_authorizer(self, *a, **kw):        pass
@@ -82,13 +63,6 @@ class _LibSQLConnection:
 
 
 def _patch_dialect_for_libsql(engine):
-    """Stop the pysqlite dialect from running PRAGMA read_uncommitted.
-
-    During first_connect, SQLAlchemy calls get_default_isolation_level()
-    which executes PRAGMA read_uncommitted.  On a libsql connection with a
-    remote sync_url this triggers a WAL write that fails with
-    'wal_insert_begin failed'.  Returning a fixed string skips the PRAGMA.
-    """
     engine.dialect.get_isolation_level         = lambda conn: 'SERIALIZABLE'
     engine.dialect.get_default_isolation_level = lambda conn: 'SERIALIZABLE'
 
@@ -116,17 +90,7 @@ def create_app():
                         .replace('libsql://', 'https://')
                         .replace('sqlite+libsql://', 'https://'))
 
-            # Use /tmp for the local replica — writable on Vercel.
-            # Each Vercel serverless instance gets its own /tmp, so each
-            # instance maintains its own local replica. Writes are pushed
-            # to Turso via sync() after every commit, reads pull fresh
-            # data via sync() before each request.
             _local_db_path = '/tmp/libsql_replica.db'
-
-            # Per-instance connection — created once per cold start.
-            # This avoids exceeding Turso's connection limit (which happens
-            # when using StaticPool with a singleton connection held open
-            # across all concurrent requests on the same instance).
             _instance_conn = None
             _instance_lock = threading.Lock()
 
@@ -139,7 +103,6 @@ def create_app():
                             sync_url=sync_url,
                             auth_token=turso_token,
                         )
-                        # Initial sync on cold start
                         try:
                             raw.sync()
                             print("✅ libsql cold-start sync complete")
@@ -150,12 +113,10 @@ def create_app():
 
             def _creator():
                 raw = _get_instance_connection()
-                # Pull latest remote state before each request
                 try:
                     raw.sync()
                 except Exception as e:
                     print(f"⚠️  libsql pre-request sync failed: {e}")
-                    # Connection may be stale — recreate it
                     nonlocal _instance_conn
                     with _instance_lock:
                         try:
@@ -173,10 +134,6 @@ def create_app():
             app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite://'
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
                 'creator': _creator,
-                # NullPool: don't pool connections — _creator() manages
-                # the instance-level connection lifetime itself, and pooling
-                # on top causes "stream not found" errors when Turso closes
-                # idle streams.
                 'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
             }
 
@@ -188,8 +145,14 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
-    login_manager.login_view = None   # We handle redirects manually in decorators
+    login_manager.login_view = None
     login_manager.login_message = ''
+
+    # ── Socket.IO ─────────────────────────────────────────────────────────────
+    # async_mode='threading' works with gunicorn sync+threads workers and
+    # needs NO monkey patching — fully stable, no RLock greening warnings.
+    # allow_upgrades=False + client transports:['polling'] keeps it on
+    # long-polling only, which is perfectly reliable for order status pushes.
     socketio.init_app(
         app,
         cors_allowed_origins='*',
@@ -201,8 +164,6 @@ def create_app():
         engineio_logger=False,
     )
 
-    # Register Socket.IO event handlers (join/leave rooms, cart_updated)
-    from views import register_socketio_events
     register_socketio_events(socketio)
 
     oauth = OAuth(app)
@@ -221,8 +182,6 @@ def create_app():
         try:
             return User.query.get(int(user_id))
         except Exception:
-            # Column mismatch (e.g. is_active not yet migrated on this env)
-            # Return None so Flask-Login marks session unauthenticated instead of 500
             db.session.rollback()
             return None
 
@@ -240,19 +199,6 @@ def create_app():
 
     @app.before_request
     def expire_session_on_request():
-        """Expire all ORM-cached objects at the start of every request.
-
-        libsql works in local-first mode: _creator() calls sync() before each
-        request to pull the latest remote state into the local replica.  But
-        SQLAlchemy's identity-map (session cache) still holds Python objects
-        from a previous request.  Those cached objects shadow the freshly-
-        synced DB rows, causing the 'refresh toggle' bug where cart items
-        reappear or orders disappear on the first refresh after checkout.
-
-        expire_all() invalidates every cached ORM object so the *next* attribute
-        access for each object issues a fresh SELECT against the already-synced
-        local replica.  This is cheap (no SQL yet) and fixes the stale-read bug.
-        """
         try:
             db.session.expire_all()
         except Exception:

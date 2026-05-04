@@ -9,6 +9,7 @@ from models import ph_now
 from models import db, User, Product, Order, OrderItem, CartItem, OrderRating
 from controllers import AuthController, ProductController, CartController, OrderController
 from auth_decorator import admin_required
+from extensions import socketio as _socketio
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 UPLOAD_FOLDER = os.path.join('static', 'images', 'uploads')
@@ -594,7 +595,6 @@ def register_routes(app):
     @app.route('/admin/order/<int:order_id>/status', methods=['POST'])
     @admin_required
     def admin_update_order_status(order_id):
-        from app import socketio as _sio
         data = request.get_json()
         new_status = data.get('status')
         valid = ['Pending', 'Preparing', 'Out for Delivery', 'Delivered', 'Cancelled', 'Confirmed']
@@ -605,13 +605,13 @@ def register_routes(app):
             order = Order.query.get(order_id)
             if order:
                 # Emit to the order's user room so they get instant status update
-                _sio.emit('order_status_update', {
+                _socketio.emit('order_status_update', {
                     'order_id':     order.id,
                     'order_number': order.order_number,
                     'status':       new_status,
                 }, room=f'user_{order.user_id}')
                 # Also broadcast to admin room for live order board sync
-                _sio.emit('admin_order_updated', {
+                _socketio.emit('admin_order_updated', {
                     'order_id':     order.id,
                     'order_number': order.order_number,
                     'status':       new_status,

@@ -1,1 +1,1 @@
-from app import app, socketio  # noqa
+from app import app  # noqa — imports socketio via extensions, no monkey patching needed
