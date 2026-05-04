@@ -526,8 +526,7 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
   .hero-title{font-size:2.2rem}
   .hero-stats{gap:1.25rem}
   .form-row-2{grid-template-columns:1fr}
-  .product-grid{grid-template-columns:repeat(auto-fill,minmax(165px,1fr));gap:1rem}
-  .product-img-wrap{height:140px}
+  /* product-grid handled by ≤600px block below */
   .admin-stats-grid{grid-template-columns:repeat(2,1fr)}
   .auth-card-body{padding:1.25rem}
   .auth-card-header{padding:1.5rem 1.25rem 1.25rem}
@@ -537,17 +536,17 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
   .users-grid{grid-template-columns:1fr}
   .admin-products-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
 }
-@media(max-width:480px){
+@media(max-width:600px){
   .hero-actions{flex-direction:column}
   .btn-hero-primary,.btn-hero-secondary{justify-content:center}
-  /* Single-column on small phones so Add to Cart button always shows */
-  .product-grid{grid-template-columns:1fr}
-  .product-card{display:flex;flex-direction:row;align-items:stretch}
-  .product-img-wrap{width:120px;min-width:120px;height:auto;flex-shrink:0;border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
+  /* Single-column on all phones ≤600px — prevents 2-col squish */
+  .product-grid{grid-template-columns:1fr !important;gap:.75rem}
+  .product-card{display:flex !important;flex-direction:row !important;align-items:stretch}
+  .product-img-wrap{width:120px;min-width:120px;height:auto !important;flex-shrink:0;border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
   .product-size-tag{top:6px;left:6px}
   .product-avail-badge{top:auto;bottom:6px;left:6px;font-size:.6rem;padding:.12rem .45rem}
   .product-overlay{border-radius:var(--radius-lg) 0 0 var(--radius-lg)}
-  .product-info{flex:1;min-width:0;padding:.7rem .85rem .8rem;display:flex;flex-direction:column;justify-content:space-between}
+  .product-info{flex:1 !important;min-width:0;padding:.7rem .85rem .8rem;display:flex;flex-direction:column;justify-content:space-between}
   .product-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .product-footer{margin-bottom:.45rem}
   .btn-add-cart{font-size:.82rem;padding:.5rem .75rem;white-space:nowrap}
@@ -1219,93 +1218,26 @@ input:checked+.toggle-slider::before{transform:translateX(16px)}
     font-size: .88rem;
   }
 
-  /* ── PRODUCT GRID — single-column horizontal cards on small phones ── */
-  .product-grid {
-    grid-template-columns: 1fr;
-    gap: .65rem;
-  }
-  /* Horizontal card: image left, info right */
-  .product-card {
-    display: flex;
-    flex-direction: row;
-    align-items: stretch;
-  }
+  /* ── PRODUCT GRID fine-tuning for very small phones (≤430px) ── */
+  /* Layout handled by ≤600px block; only tweak sizes here */
   .product-img-wrap {
-    width: 120px;
-    min-width: 120px;
-    height: auto;
-    flex-shrink: 0;
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-  }
-  .product-overlay {
-    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
-  }
-  .product-size-tag {
-    top: 6px;
-    left: 6px;
-    font-size: .58rem;
-    padding: .12rem .4rem;
-  }
-  .product-avail-badge {
-    top: auto;
-    bottom: 6px;
-    left: 6px;
-    font-size: .58rem;
-    padding: .12rem .45rem;
-  }
-  .product-info {
-    flex: 1;
-    min-width: 0;
-    padding: .7rem .85rem .8rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-  }
-  .product-flavor-chip {
-    font-size: .62rem;
-    padding: .1rem .45rem;
-    margin-bottom: .28rem;
-    display: inline-block;
-    width: fit-content;
+    width: 110px;
+    min-width: 110px;
   }
   .product-name {
-    font-size: .88rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .product-desc {
-    font-size: .72rem;
-    margin-bottom: .45rem;
-    -webkit-line-clamp: 1;
-  }
-  .product-footer {
-    margin-bottom: .45rem;
+    font-size: .85rem;
   }
   .product-price {
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
   .qty-btn {
-    width: 24px;
-    height: 24px;
-    font-size: .9rem;
-  }
-  .qty-val {
-    font-size: .8rem;
-    min-width: 18px;
+    width: 22px;
+    height: 22px;
+    font-size: .85rem;
   }
   .btn-add-cart {
-    padding: .5rem .75rem;
-    font-size: .82rem;
-    white-space: nowrap;
-  }
-  .flavor-btn {
+    padding: .45rem .65rem;
     font-size: .78rem;
-    padding: .35rem .8rem;
-  }
-  .size-btn {
-    font-size: .75rem;
-    padding: .28rem .7rem;
   }
 
   /* ── AUTH PAGES ── */
