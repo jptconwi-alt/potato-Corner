@@ -57,8 +57,10 @@ def register_routes(app):
         password = data.get('password', '')
         if not username or not password:
             return jsonify({'success': False, 'message': 'Username and password are required.'})
-        success, result = AuthController.login_user(username, password, False)
+        remember = data.get('remember', True)  # default True so cart/orders survive refresh
+        success, result = AuthController.login_user(username, password, remember)
         if success:
+            session.permanent = True   # keep session alive across browser restarts
             session['user_id'] = result.id
             sid = get_session_id()
             CartController.merge_carts(sid, result.id)
@@ -83,8 +85,9 @@ def register_routes(app):
         success, result = AuthController.register_user(username, email, password, full_name, phone)
         if success:
             # Auto-login after registration
-            success2, result2 = AuthController.login_user(username, password, False)
+            success2, result2 = AuthController.login_user(username, password, True)
             if success2:
+                session.permanent = True   # keep session alive across browser restarts
                 session['user_id'] = result2.id
             return jsonify({'success': True, 'full_name': full_name})
         return jsonify({'success': False, 'message': str(result)})
@@ -103,6 +106,7 @@ def register_routes(app):
                 return render_template('login.html')
             success, result = AuthController.login_user(username, password, remember)
             if success:
+                session.permanent = True   # keep session alive across browser restarts
                 session['user_id'] = result.id
                 sid = get_session_id()
                 CartController.merge_carts(sid, result.id)
