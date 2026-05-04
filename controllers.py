@@ -8,23 +8,19 @@ from flask_login import login_user, logout_user, current_user
 def _turso_sync():
     """Force-sync the libsql replica to Turso remote after a write.
 
-    This is a no-op for standard SQLite. For Turso/libsql it pushes the
-    committed write to the remote server so the next request (which may
-    hit a fresh connection) sees the new data immediately.
+    Calls sync() directly on the singleton raw connection — never uses
+    raw_connection()+close() which destroys the singleton and breaks
+    all subsequent queries on Vercel's stateless containers.
     """
     try:
-        # Use the raw engine to get a DBAPI connection and call sync()
-        # db.engine.raw_connection() bypasses SQLAlchemy's ORM session
-        # and returns the DBAPI-level connection (_LibSQLConnection wrapper).
-        raw_dbapi = db.engine.raw_connection()
-        conn = raw_dbapi  # may be _LibSQLConnection or a pool proxy
-        # Unwrap pool proxy layers to reach our _LibSQLConnection
-        if hasattr(conn, 'connection'):
-            conn = conn.connection
-        if hasattr(conn, 'sync'):
-            conn.sync()
+        # _creator() calls _get_instance_connection() and wraps it in
+        # _LibSQLConnection. Calling .sync() on the wrapper calls the
+        # raw libsql sync without touching .close().
+        wrapper = db.engine.pool._creator()
+        inner = getattr(wrapper, '_conn', wrapper)
+        if hasattr(inner, 'sync'):
+            inner.sync()
             print("✅ _turso_sync complete")
-        raw_dbapi.close()
     except Exception as e:
         print(f"⚠️  _turso_sync failed (non-fatal): {e}")
 

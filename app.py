@@ -42,7 +42,7 @@ class _LibSQLConnection:
         except Exception as e:
             print(f"⚠️  libsql rollback failed (stale stream): {e}")
 
-    def close(self):                           return self._conn.close()
+    def close(self):                           pass  # singleton — never close the raw connection
     def sync(self):                            return self._conn.sync()
 
     @property
@@ -184,17 +184,13 @@ def create_app():
             db.session.expire_all()
         except Exception:
             pass
-        # Pull latest data from Turso remote before serving — ensures reads
-        # always see writes committed by other requests/instances.
+        # Pull latest data from Turso remote before serving — sync the
+        # singleton connection directly, never via raw_connection() which
+        # would create a wrapper whose .close() risks destroying the singleton.
         if use_libsql:
             try:
-                raw_dbapi = db.engine.raw_connection()
-                conn = raw_dbapi
-                if hasattr(conn, 'connection'):
-                    conn = conn.connection
-                if hasattr(conn, 'sync'):
-                    conn.sync()
-                raw_dbapi.close()
+                raw = _get_instance_connection()
+                raw.sync()
             except Exception:
                 pass
 
