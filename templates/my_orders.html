@@ -257,8 +257,8 @@
 {% block extra_js %}
 <script>
 (function(){
-  // ── Socket.IO: register page-level handler so base.html's socket
-  //    can call this when an order_status_update event arrives ──────
+  // ── Order status polling: register page-level handler so base.html's
+  //    poll loop can call this when a status change is detected ──────
   window._pcOrderStatusUpdate = function(data) {
     applyStatusUpdate(data.order_id, data.order_number, data.status);
   };
@@ -425,8 +425,8 @@
     setTimeout(()=>{ t.style.opacity='0';t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); },4000);
   }
 
-  // ── Socket.IO-driven live update ─────────────────────────────────
-  // Called by window._pcOrderStatusUpdate (registered in base.html socket listener)
+  // ── Polling-driven live update ───────────────────────────────────
+  // Called by window._pcOrderStatusUpdate (registered in base.html poll loop)
   function applyStatusUpdate(orderId, orderNum, status) {
     const card = document.getElementById('order-card-' + orderId);
     const prev = _known[orderId];
@@ -514,11 +514,11 @@
     _known[orderId] = status;
   }
 
-  // Expose for base.html to call when socket event fires (overridden below by rating handler)
+  // Expose for base.html poll loop to call (overridden below by rating handler)
   window._pcOrderStatusUpdate = applyStatusUpdate;
 
   // Visibility-change: re-fetch order statuses via REST when user returns to tab
-  // (Socket.IO handles live pushes; this catches any events missed while hidden)
+  // (base.html poll loop handles this; visibility-change re-poll is a belt-and-suspenders fallback)
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState !== 'visible') return;
     fetch('/api/orders/status', {cache:'no-store'})
@@ -579,7 +579,7 @@
     }
   };
 
-  // When admin marks order as Delivered, show rating prompt via socket
+  // When admin marks order as Delivered, show rating prompt via poll
   var _origStatusUpdate = window._pcOrderStatusUpdate;
   window._pcOrderStatusUpdate = function(data) {
     if (_origStatusUpdate) _origStatusUpdate(data);

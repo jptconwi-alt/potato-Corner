@@ -4,8 +4,7 @@ warnings.filterwarnings('ignore', category=DeprecationWarning, module='authlib')
 
 from flask import Flask, redirect, url_for, session, flash
 from models import db
-from extensions import socketio
-from views import register_routes, register_socketio_events
+from views import register_routes
 from init_db import init_database
 from flask_login import LoginManager, login_user
 from models import User
@@ -148,24 +147,6 @@ def create_app():
     login_manager.login_view = None
     login_manager.login_message = ''
 
-    # ── Socket.IO ─────────────────────────────────────────────────────────────
-    # async_mode='threading' works with gunicorn sync+threads workers and
-    # needs NO monkey patching — fully stable, no RLock greening warnings.
-    # allow_upgrades=False + client transports:['polling'] keeps it on
-    # long-polling only, which is perfectly reliable for order status pushes.
-    socketio.init_app(
-        app,
-        cors_allowed_origins='*',
-        async_mode='threading',
-        allow_upgrades=False,
-        ping_timeout=60,
-        ping_interval=25,
-        logger=False,
-        engineio_logger=False,
-    )
-
-    register_socketio_events(socketio)
-
     oauth = OAuth(app)
     google = None
     if app.config['GOOGLE_CLIENT_ID'] and app.config['GOOGLE_CLIENT_SECRET']:
@@ -291,4 +272,4 @@ app = create_app()
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"🚀 Starting Potato Corner at http://0.0.0.0:{port}")
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False)

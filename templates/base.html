@@ -382,8 +382,6 @@
 {% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Socket.IO — same CDN version used by NEMSU Marketplace -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 <script>
   /* ── Cart Badge helpers ── */
   function updateCartBadge(count) {
@@ -431,40 +429,59 @@
     document.head.appendChild(_ks);
   }
 
-  /* ── Socket.IO realtime sync ── */
+  /* ── Order status polling (replaces Socket.IO) ── */
+  {% if current_user.is_authenticated and not current_user.is_admin %}
   (function () {
-    var socket = io({ transports: ['polling'], upgrade: false });
+    var _knownStatuses = {};
+    var _pollTimer = null;
 
-    {% if current_user.is_authenticated %}
-    // Join personal room so the server can push order status changes directly
-    socket.emit('join_user_room', { room: 'user_{{ current_user.id }}' });
+    function pollOrderStatus() {
+      fetch('/api/orders/status', {cache: 'no-store'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (!data.orders) return;
+          data.orders.forEach(function(order) {
+            var prev = _knownStatuses[order.id];
+            if (prev !== undefined && prev !== order.status) {
+              // Status changed — show toast and notify page handler
+              showOrderToast(order.order_number, order.status);
+              if (typeof window._pcOrderStatusUpdate === 'function') {
+                window._pcOrderStatusUpdate({
+                  order_id: order.id,
+                  order_number: order.order_number,
+                  status: order.status
+                });
+              }
+            }
+            _knownStatuses[order.id] = order.status;
+          });
+        })
+        .catch(function() {});
+    }
 
-    // Receive real-time order status update pushed by admin
-    socket.on('order_status_update', function (data) {
-      showOrderToast(data.order_number, data.status);
-      // If the user is on the my-orders page, trigger its live updater
-      if (typeof window._pcOrderStatusUpdate === 'function') {
-        window._pcOrderStatusUpdate(data);
-      }
+    // Poll every 5 seconds while page is visible; pause when hidden
+    function startPolling() {
+      if (_pollTimer) return;
+      pollOrderStatus(); // immediate first call
+      _pollTimer = setInterval(pollOrderStatus, 5000);
+    }
+    function stopPolling() {
+      if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    }
+
+    document.addEventListener('visibilitychange', function() {
+      document.visibilityState === 'visible' ? startPolling() : stopPolling();
     });
-    {% endif %}
-
-    // Keep cart badge in sync across tabs / actions
-    socket.on('cart_count', function (data) {
-      updateCartBadge(data.count || 0);
-    });
-
-    // Expose socket globally so cart add/remove can notify the server
-    window.pcSocket = socket;
-
-    // Initial cart count fetch on page load
-    fetchCartCount();
-
-    // Fallback: refresh cart badge on bfcache restore (browser back button)
-    window.addEventListener('pageshow', function (e) {
-      if (e.persisted) fetchCartCount();
-    });
+    startPolling();
   })();
+  {% endif %}
+
+  /* ── Cart badge polling ── */
+  fetchCartCount();
+  setInterval(fetchCartCount, 10000);
+  window.addEventListener('pageshow', function(e) {
+    if (e.persisted) fetchCartCount();
+  });
 
   /* ── Auto-dismiss flash messages ── */
   setTimeout(function () {

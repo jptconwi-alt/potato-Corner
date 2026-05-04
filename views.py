@@ -2,14 +2,12 @@ import os
 import uuid
 from flask import render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import login_required, current_user, logout_user
-from flask_socketio import emit, join_room, leave_room
 from datetime import datetime
 from werkzeug.utils import secure_filename
 from models import ph_now
 from models import db, User, Product, Order, OrderItem, CartItem, OrderRating
 from controllers import AuthController, ProductController, CartController, OrderController
 from auth_decorator import admin_required
-from extensions import socketio as _socketio
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 UPLOAD_FOLDER = os.path.join('static', 'images', 'uploads')
@@ -385,6 +383,19 @@ def register_routes(app):
             })
         return jsonify({'orders': orders})
 
+    @app.route('/api/admin/orders/poll')
+    @admin_required
+    def api_admin_orders_poll():
+        """Admin long-poll endpoint — returns current status of all orders.
+        The admin orders page calls this every 4 s to stay in sync across
+        browser tabs without Socket.IO."""
+        orders = Order.query.order_by(Order.order_date.desc()).all()
+        return jsonify({'orders': [
+            {'id': o.id, 'order_number': o.order_number, 'status': o.status,
+             'payment_status': o.payment_status}
+            for o in orders
+        ]})
+
     # ─────────────────────────────────────────
     # CHECKOUT & ORDERS
     # ─────────────────────────────────────────
@@ -602,20 +613,7 @@ def register_routes(app):
             return jsonify({'success': False, 'message': 'Invalid status'})
         success = OrderController.update_order_status(order_id, new_status)
         if success:
-            order = Order.query.get(order_id)
-            if order:
-                # Emit to the order's user room so they get instant status update
-                _socketio.emit('order_status_update', {
-                    'order_id':     order.id,
-                    'order_number': order.order_number,
-                    'status':       new_status,
-                }, room=f'user_{order.user_id}')
-                # Also broadcast to admin room for live order board sync
-                _socketio.emit('admin_order_updated', {
-                    'order_id':     order.id,
-                    'order_number': order.order_number,
-                    'status':       new_status,
-                }, room='admin_orders')
+            pass  # clients poll /api/orders/status and /api/admin/orders/poll
         return jsonify({'success': success})
 
     # ── Admin AJAX: Update payment status ──────
@@ -1183,36 +1181,3 @@ def register_routes(app):
             return response
 
         return jsonify({'error': 'Unsupported format'}), 400
-
-# ── Socket.IO event handlers ─────────────────────────────────────────────────
-# Registered on the socketio instance (imported from app) so they work
-# regardless of which blueprint/module is active.
-
-def register_socketio_events(socketio):
-    """Call this once from app.py after socketio.init_app(app)."""
-
-    @socketio.on('join_user_room')
-    def on_join_user_room(data):
-        """Authenticated users join their personal room (user_<id>) to receive
-        order-status pushes without polling."""
-        room = data.get('room')
-        if room:
-            join_room(room)
-
-    @socketio.on('join_admin_orders')
-    def on_join_admin_orders(data):
-        """Admin clients join the shared admin_orders room to receive live
-        board updates when any order status changes."""
-        join_room('admin_orders')
-
-    @socketio.on('leave_user_room')
-    def on_leave_user_room(data):
-        room = data.get('room')
-        if room:
-            leave_room(room)
-
-    @socketio.on('cart_updated')
-    def on_cart_updated(data):
-        """Broadcast updated cart count back to the requesting socket so the
-        badge refreshes immediately after add/remove without a REST round-trip."""
-        emit('cart_count', {'count': data.get('count', 0)})

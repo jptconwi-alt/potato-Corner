@@ -10,4 +10,3 @@ requests
 libsql-experimental
 reportlab
 python-docx
-flask-socketio==5.3.6

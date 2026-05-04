@@ -726,58 +726,76 @@ function showToast(msg, type) {
 restoreTabHighlights();
 applyFilters();
 
-// ── Socket.IO: live order board sync ─────────────────────────────────────────
-// Join the shared admin_orders room so every open admin tab reflects status
-// changes made by any other admin tab — without a page refresh.
+// ── HTTP polling: live order board sync (replaces Socket.IO) ─────────────────
+// Polls /api/admin/orders/poll every 4 s so multiple admin tabs or devices
+// stay in sync without needing WebSockets or server-sent events.
 (function () {
-  // Reuse the global socket created in base.html; wait for it to be ready.
-  function waitForSocket(cb) {
-    if (window.pcSocket) { cb(window.pcSocket); return; }
-    var t = setInterval(function () {
-      if (window.pcSocket) { clearInterval(t); cb(window.pcSocket); }
-    }, 100);
+  var _knownStatuses = {};
+
+  // Seed known statuses from the rendered rows so we only react to *changes*
+  document.querySelectorAll('[id^="order-row-"]').forEach(function(row) {
+    var id = row.id.replace('order-row-', '');
+    _knownStatuses[id] = row.dataset.status || '';
+  });
+
+  function pollAdminOrders() {
+    fetch('/api/admin/orders/poll', {cache: 'no-store'})
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.orders) return;
+        data.orders.forEach(function(order) {
+          var prev = _knownStatuses[order.id];
+          if (prev === undefined) {
+            // New order arrived — reload to render it properly
+            _knownStatuses[order.id] = order.status;
+            location.reload();
+            return;
+          }
+          if (prev === order.status) return; // no change
+
+          _knownStatuses[order.id] = order.status;
+          var orderId   = order.id;
+          var newStatus = order.status;
+          var row       = document.getElementById('order-row-' + orderId);
+          if (!row) return;
+
+          row.dataset.status = newStatus.toLowerCase().replace(/ /g, '-');
+
+          var label = document.getElementById('status-label-' + orderId);
+          if (label) label.textContent = newStatus;
+
+          var container = document.getElementById('status-btns-' + orderId);
+          if (container) {
+            var html = '';
+            if (newStatus === 'Preparing') {
+              html = '<button class="status-action-btn delivering" onclick="setStatus(' + orderId + ', \'Out for Delivery\', this)">🚚 Dispatch</button>' +
+                     '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', \'Cancelled\', this)">✕ Cancel</button>';
+            } else if (newStatus === 'Out for Delivery') {
+              html = '<button class="status-action-btn delivered" onclick="setStatus(' + orderId + ', \'Delivered\', this)">✅ Delivered</button>' +
+                     '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', \'Cancelled\', this)">✕ Cancel</button>';
+            } else if (newStatus === 'Delivered') {
+              html = '<span class="status-badge-done delivered">✅ Delivered</span>';
+            } else if (newStatus === 'Cancelled') {
+              html = '<span class="status-badge-done cancelled">❌ Cancelled</span>';
+            }
+            if (html) container.innerHTML = html;
+          }
+
+          applyFilters();
+          showToast('Order #' + order.order_number + ' → ' + newStatus, 'success');
+        });
+      })
+      .catch(function() {});
   }
 
-  waitForSocket(function (socket) {
-    socket.emit('join_admin_orders', {});
-
-    // Another admin (or this same admin on another tab) just changed a status
-    socket.on('admin_order_updated', function (data) {
-      var orderId   = data.order_id;
-      var newStatus = data.status;
-      var row       = document.getElementById('order-row-' + orderId);
-      if (!row) return;   // order not visible in current filter
-
-      // Update data-status for filter logic
-      row.dataset.status = newStatus.toLowerCase().replace(/ /g, '-');
-
-      // Update the status label badge
-      var label = document.getElementById('status-label-' + orderId);
-      if (label) label.textContent = newStatus;
-
-      // Update the action button area to match new status
-      var container = document.getElementById('status-btns-' + orderId);
-      if (container) {
-        var html = '';
-        if (newStatus === 'Preparing') {
-          html = '<button class="status-action-btn delivering" onclick="setStatus(' + orderId + ', \'Out for Delivery\', this)">🚚 Dispatch</button>' +
-                 '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', \'Cancelled\', this)">✕ Cancel</button>';
-        } else if (newStatus === 'Out for Delivery') {
-          html = '<button class="status-action-btn delivered" onclick="setStatus(' + orderId + ', \'Delivered\', this)">✅ Delivered</button>' +
-                 '<button class="status-action-btn cancel" onclick="setStatus(' + orderId + ', \'Cancelled\', this)">✕ Cancel</button>';
-        } else if (newStatus === 'Delivered') {
-          html = '<span class="status-badge-done delivered">✅ Delivered</span>';
-        } else if (newStatus === 'Cancelled') {
-          html = '<span class="status-badge-done cancelled">❌ Cancelled</span>';
-        }
-        if (html) container.innerHTML = html;
-      }
-
-      // Re-apply current filters so the row moves to/from the correct tab
-      applyFilters();
-      showToast('Order #' + data.order_number + ' → ' + newStatus, 'success');
-    });
+  // Poll every 4 s while tab is visible
+  var _timer = null;
+  function startPoll() { if (!_timer) { pollAdminOrders(); _timer = setInterval(pollAdminOrders, 4000); } }
+  function stopPoll()  { if (_timer)  { clearInterval(_timer); _timer = null; } }
+  document.addEventListener('visibilitychange', function() {
+    document.visibilityState === 'visible' ? startPoll() : stopPoll();
   });
+  startPoll();
 })();
 </script>
 {% endblock %}
