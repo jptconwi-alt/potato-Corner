@@ -241,7 +241,12 @@ def register_routes(app):
     def cart():
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
-        cart_items = CartController.get_cart_items(sid, uid)
+        blacklist = session.get('ordered_item_ids', [])
+        cart_items = CartController.get_cart_items(sid, uid, exclude_ids=blacklist)
+        # If DB returned no stale rows, we can clear the blacklist
+        if blacklist and not any(i.id in set(blacklist) for i in cart_items):
+            session.pop('ordered_item_ids', None)
+            session.modified = True
         subtotal = sum(i.product.price * i.quantity for i in cart_items)
         delivery_fee = 0 if subtotal >= 500 else 50
         total = subtotal + delivery_fee
@@ -320,7 +325,8 @@ def register_routes(app):
                 for s in stale:
                     db.session.delete(s)
                 db.session.commit()
-        cart_items = CartController.get_cart_items(sid, uid)
+        blacklist = session.get('ordered_item_ids', [])
+        cart_items = CartController.get_cart_items(sid, uid, exclude_ids=blacklist)
         total = sum(i.quantity for i in cart_items)
         return jsonify({'count': total})
 
@@ -328,7 +334,8 @@ def register_routes(app):
     def api_cart_items():
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
-        cart_items = CartController.get_cart_items(sid, uid)
+        blacklist = session.get('ordered_item_ids', [])
+        cart_items = CartController.get_cart_items(sid, uid, exclude_ids=blacklist)
         items = []
         for i in cart_items:
             items.append({
@@ -375,7 +382,8 @@ def register_routes(app):
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
 
-        all_cart_items = CartController.get_cart_items(sid, uid)
+        blacklist = session.get('ordered_item_ids', [])
+        all_cart_items = CartController.get_cart_items(sid, uid, exclude_ids=blacklist)
         if not all_cart_items:
             flash('Your cart is empty', 'warning')
             return redirect(url_for('cart'))
@@ -445,7 +453,11 @@ def register_routes(app):
             ordered_ids = [i.id for i in cart_items]
             CartController.clear_selected_items(sid, uid, ordered_ids)
 
-            # Clear the checkout session data
+            # Store ordered IDs in session as a blacklist so every subsequent
+            # cart read filters them out even if Turso replication lag causes
+            # the DB to return stale rows on the next few requests.
+            existing_blacklist = session.get('ordered_item_ids', [])
+            session['ordered_item_ids'] = list(set(existing_blacklist + ordered_ids))
             session.pop('checkout_item_ids', None)
             session.modified = True
 

@@ -123,17 +123,25 @@ class CartController:
     """Handles shopping cart operations"""
     
     @staticmethod
-    def get_cart_items(session_id, user_id=None):
-        """Get all items in cart for the current user or session."""
+    def get_cart_items(session_id, user_id=None, exclude_ids=None):
+        """Get all items in cart for the current user or session.
+
+        exclude_ids: set/list of CartItem PKs to filter out — used to suppress
+        stale rows that the DB returns due to Turso replication lag after a
+        delete. Callers pass session['ordered_item_ids'] here.
+        """
         if user_id:
-            # Authenticated user: only return items explicitly linked to this user
-            return CartItem.query.filter_by(user_id=user_id).all()
-        # Guest: return session items that have NO user attached
-        # (exclude items that belong to a logged-in user even if session matches)
-        return CartItem.query.filter(
-            CartItem.session_id == session_id,
-            CartItem.user_id == None  # noqa: E711
-        ).all()
+            items = CartItem.query.filter_by(user_id=user_id).all()
+        else:
+            items = CartItem.query.filter(
+                CartItem.session_id == session_id,
+                CartItem.user_id == None  # noqa: E711
+            ).all()
+
+        if exclude_ids:
+            ex = set(exclude_ids)
+            items = [i for i in items if i.id not in ex]
+        return items
     
     @staticmethod
     def add_to_cart(session_id, product_id, user_id=None, quantity=1):
@@ -210,36 +218,51 @@ class CartController:
     def clear_selected_items(session_id, user_id, item_ids):
         """Delete only the cart items that were ordered (by their IDs).
 
-        Uses the ORM session so all deletes are in the same transaction as the
-        rest of the request — no raw-engine/ORM split that caused items to
-        reappear on refresh. synchronize_session='fetch' updates the identity
-        map immediately so get_cart_items() returns 0 rows within this request.
+        Uses the ORM session so all deletes are in the same transaction.
+        After committing, tries a second raw-engine delete + sync to push
+        the change to Turso immediately, minimising the replication window
+        that causes ghost items to reappear on subsequent requests.
         """
         if not item_ids:
             return
 
-        # Primary: ORM bulk delete in the same session/transaction
+        # Step 1: ORM bulk delete — updates identity map so this request
+        # sees 0 rows for these IDs immediately.
         try:
             deleted = CartItem.query.filter(
                 CartItem.id.in_(item_ids)
             ).delete(synchronize_session='fetch')
             db.session.commit()
-            print(f"✅ clear_selected_items deleted {deleted} rows")
-            return
+            print(f"✅ clear_selected_items ORM deleted {deleted} rows")
         except Exception as e:
             db.session.rollback()
             print(f"⚠️  clear_selected_items bulk delete failed: {e}")
+            # Fallback: one-by-one
+            for iid in item_ids:
+                try:
+                    item = CartItem.query.get(iid)
+                    if item:
+                        db.session.delete(item)
+                        db.session.commit()
+                except Exception as inner_e:
+                    db.session.rollback()
+                    print(f"⚠️  Failed to delete cart item {iid}: {inner_e}")
 
-        # Fallback: delete one-by-one
-        for iid in item_ids:
-            try:
-                item = CartItem.query.get(iid)
-                if item:
-                    db.session.delete(item)
-                    db.session.commit()
-            except Exception as inner_e:
-                db.session.rollback()
-                print(f"⚠️  Failed to delete cart item {iid}: {inner_e}")
+        # Step 2: Raw engine delete + explicit sync to push to Turso NOW.
+        # This second pass ensures the remote DB is updated before the next
+        # request's sync() pull, closing the replication-lag window.
+        try:
+            from sqlalchemy import text as _text
+            with db.engine.connect() as conn:
+                placeholders = ','.join([f':id{i}' for i in range(len(item_ids))])
+                params = {f'id{i}': v for i, v in enumerate(item_ids)}
+                conn.execute(_text(
+                    f'DELETE FROM cart_items WHERE id IN ({placeholders})'
+                ), params)
+                conn.commit()   # _LibSQLConnection.commit() calls sync()
+            print(f"✅ clear_selected_items raw+sync push complete")
+        except Exception as e:
+            print(f"⚠️  clear_selected_items raw sync push failed (non-fatal): {e}")
     
     @staticmethod
     def get_cart_total(session_id, user_id=None):
