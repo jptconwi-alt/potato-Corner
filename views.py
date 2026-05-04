@@ -242,11 +242,31 @@ def register_routes(app):
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
         blacklist = session.get('ordered_item_ids', [])
-        cart_items = CartController.get_cart_items(sid, uid, exclude_ids=blacklist)
-        # If DB returned no stale rows, we can clear the blacklist
-        if blacklist and not any(i.id in set(blacklist) for i in cart_items):
+        # Expire the blacklist after 5 minutes regardless — prevents it from
+        # hiding legitimately re-added items if Turso lag is unusually long.
+        import time as _time
+        bl_ts = session.get('ordered_item_ids_ts', 0)
+        if blacklist and (_time.time() - bl_ts) > 300:
+            blacklist = []
             session.pop('ordered_item_ids', None)
+            session.pop('ordered_item_ids_ts', None)
             session.modified = True
+
+        # Fetch ALL rows first (without exclusion) so we can detect whether
+        # Turso is still returning stale rows for the ordered IDs.
+        all_items = CartController.get_cart_items(sid, uid)
+        if blacklist:
+            bl_set = set(blacklist)
+            # Only clear the blacklist once Turso is no longer returning ANY of
+            # the ordered rows — i.e. the delete has fully propagated.
+            still_stale = any(i.id in bl_set for i in all_items)
+            if not still_stale:
+                session.pop('ordered_item_ids', None)
+                session.pop('ordered_item_ids_ts', None)
+                session.modified = True
+            cart_items = [i for i in all_items if i.id not in bl_set]
+        else:
+            cart_items = all_items
         subtotal = sum(i.product.price * i.quantity for i in cart_items)
         delivery_fee = 0 if subtotal >= 500 else 50
         total = subtotal + delivery_fee
@@ -296,16 +316,6 @@ def register_routes(app):
         sid = get_session_id()
         uid = current_user.id if current_user.is_authenticated else None
         ok = CartController.remove_from_cart(sid, item_id, uid)
-        if not ok:
-            # Ownership check failed — retry with user_id-only to handle rows
-            # whose session_id was cleared to None after merge_carts.
-            if uid:
-                from models import CartItem as _CI
-                item = _CI.query.filter_by(id=item_id, user_id=uid).first()
-                if item:
-                    db.session.delete(item)
-                    db.session.commit()
-                    ok = True
         return jsonify({'success': bool(ok)})
 
     @app.route('/api/cart/count')
@@ -458,6 +468,10 @@ def register_routes(app):
             # the DB to return stale rows on the next few requests.
             existing_blacklist = session.get('ordered_item_ids', [])
             session['ordered_item_ids'] = list(set(existing_blacklist + ordered_ids))
+            # Record when blacklist was created so it can expire after 5 minutes
+            # even if Turso replication lag never fully resolves.
+            import time as _time
+            session['ordered_item_ids_ts'] = _time.time()
             session.pop('checkout_item_ids', None)
             session.modified = True
 
