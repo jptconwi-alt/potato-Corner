@@ -421,6 +421,20 @@ def register_routes(app):
         return render_template('checkout.html', cart_items=cart_items, subtotal=subtotal,
                                delivery_fee=delivery_fee, total=total, items_param=items_param)
 
+    @app.route('/order/<int:order_id>/cancel', methods=['POST'])
+    @login_required
+    def cancel_order(order_id):
+        order = Order.query.get_or_404(order_id)
+        # Only the owner can cancel their own order
+        if order.user_id != current_user.id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+        # Only allow cancellation of Pending or Confirmed orders
+        if order.status not in ['Pending', 'Confirmed']:
+            return jsonify({'success': False, 'message': f'Cannot cancel an order that is already "{order.status}".'})
+        order.status = 'Cancelled'
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Order cancelled successfully.'})
+
     @app.route('/order/confirmation/<order_number>')
     def order_confirmation(order_number):
         order = OrderController.get_order(order_number)

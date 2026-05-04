@@ -46,6 +46,19 @@
 .empty-orders .empty-icon { font-size:4rem;margin-bottom:1rem; }
 .empty-orders h3 { color:#374151;font-size:1.3rem;margin-bottom:.5rem; }
 .last-updated-text { font-size:.72rem;color:#9ca3af;margin-left:auto; }
+.oc-actions { padding:.7rem 1.1rem;border-top:1px solid #f3f4f6;background:#fff8f8; }
+.btn-cancel-order { display:inline-flex;align-items:center;gap:.4rem;padding:.45rem 1.1rem;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;border-radius:50px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s; }
+.btn-cancel-order:hover { background:#dc2626;color:#fff;border-color:#dc2626; }
+.btn-cancel-order:disabled { opacity:.5;cursor:not-allowed; }
+.history-section { margin-top:2rem; }
+.history-toggle { width:100%;display:flex;align-items:center;gap:.5rem;padding:1rem 1.25rem;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:14px;font-family:'Fredoka One',cursive;font-size:1rem;color:#374151;cursor:pointer;transition:all .2s; }
+.history-toggle:hover { background:#f0fdf4;border-color:#43a047;color:#1b5e20; }
+.history-count { background:#e5e7eb;color:#6b7280;font-size:.75rem;font-weight:700;font-family:inherit;padding:.15rem .55rem;border-radius:50px;margin-left:.25rem; }
+.history-list { margin-top:.75rem; }
+.history-card { opacity:.85; }
+.history-card:hover { opacity:1; }
+.cancel-modal-overlay { display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.5);align-items:center;justify-content:center; }
+.cancel-modal-overlay.active { display:flex; }
 @media(max-width:480px){
   .oc-header,.oc-body{padding:.75rem .9rem;}
   .oc-num{font-size:.92rem;}
@@ -74,14 +87,17 @@
     </div>
 
     <div id="ordersContainer">
-    {% if orders %}
-      {% for order in orders %}
+    {% set active_orders = orders | rejectattr('status', 'in', ['Delivered', 'Cancelled']) | list %}
+    {% set history_orders = orders | selectattr('status', 'in', ['Delivered', 'Cancelled']) | list %}
+
+    {% if active_orders %}
+      {% for order in active_orders %}
       {% set steps = ['Pending','Confirmed','Preparing','Ready','Out for Delivery'] %}
       {% set step_labels = ['Placed','Confirmed','Preparing','Ready','On the way'] %}
       {% set cur_idx = steps.index(order.status) if order.status in steps else 0 %}
       {% set icons = {'Pending':'⏳','Confirmed':'✅','Preparing':'🍟','Ready':'🎉','Out for Delivery':'🛵','Delivered':'🎊','Cancelled':'❌'} %}
       {% set badge_map = {'Pending':'s-pending','Confirmed':'s-confirmed','Preparing':'s-preparing','Ready':'s-ready','Out for Delivery':'s-out_for_delivery','Delivered':'s-delivered','Cancelled':'s-cancelled'} %}
-      <div class="order-card" id="order-card-{{ order.id }}" data-status="{{ order.status }}">
+      <div class="order-card" id="order-card-{{ order.id }}" data-status="{{ order.status }}" data-order-num="{{ order.order_number }}">
         <div class="oc-header">
           <div>
             <div class="oc-num">{{ order.order_number }}</div>
@@ -112,7 +128,6 @@
             <span><i class="fas fa-credit-card"></i>Payment: <strong style="{{ 'color:#16a34a' if order.payment_status == 'Paid' else 'color:#d97706' }}">{{ order.payment_status }}</strong></span>
           </div>
         </div>
-        {% if order.status not in ['Delivered','Cancelled'] %}
         <div class="order-progress">
           {% for i in range(steps|length) %}
           <div class="prog-step {% if i < cur_idx %}done{% elif i == cur_idx %}active{% endif %}">
@@ -122,10 +137,17 @@
           </div>
           {% endfor %}
         </div>
+        {% if order.status in ['Pending', 'Confirmed'] %}
+        <div class="oc-actions">
+          <button class="btn-cancel-order" id="cancel-btn-{{ order.id }}"
+                  onclick="openCancelModal({{ order.id }}, '{{ order.order_number }}')">
+            <i class="fas fa-times-circle"></i>Cancel Order
+          </button>
+        </div>
         {% endif %}
       </div>
       {% endfor %}
-    {% else %}
+    {% elif not history_orders %}
     <div class="empty-orders" id="emptyState">
       <div class="empty-icon">📦</div>
       <h3>No orders yet</h3>
@@ -135,9 +157,73 @@
       </a>
     </div>
     {% endif %}
+
+    {% if history_orders %}
+    <div class="history-section" id="historySection">
+      <button class="history-toggle" id="historyToggle" onclick="toggleHistory()">
+        <i class="fas fa-history"></i>Order History
+        <span class="history-count" id="historyCount">{{ history_orders|length }}</span>
+        <i class="fas fa-chevron-down ms-auto" id="historyChevron"></i>
+      </button>
+      <div class="history-list" id="historyList" style="display:none;">
+        {% for order in history_orders %}
+        {% set icons = {'Delivered':'🎊','Cancelled':'❌'} %}
+        {% set badge_map = {'Delivered':'s-delivered','Cancelled':'s-cancelled'} %}
+        <div class="order-card history-card" id="order-card-{{ order.id }}" data-status="{{ order.status }}">
+          <div class="oc-header">
+            <div>
+              <div class="oc-num">{{ order.order_number }}</div>
+              <div class="oc-date"><i class="fas fa-clock me-1"></i>{{ order.order_date.strftime('%b %d, %Y · %I:%M %p') }}</div>
+            </div>
+            <div class="oc-right">
+              <span class="status-badge {{ badge_map.get(order.status, 's-pending') }}">
+                {{ icons.get(order.status, '📦') }} {{ order.status }}
+              </span>
+              <span class="oc-total">₱{{ "%.0f"|format(order.total_amount) }}</span>
+            </div>
+          </div>
+          <div class="oc-body">
+            <div class="oc-items">
+              {% for item in order.items %}
+              <div class="oc-item">
+                <span class="oc-item-name">🍟 {{ item.product_name }}</span>
+                <span class="oc-item-qty">×{{ item.quantity }}</span>
+                <span class="oc-item-sub">₱{{ "%.0f"|format(item.subtotal) }}</span>
+              </div>
+              {% endfor %}
+            </div>
+            <div class="oc-footer">
+              {% if order.delivery_address %}
+              <span><i class="fas fa-map-marker-alt"></i>{{ order.delivery_address[:55] }}{% if order.delivery_address|length > 55 %}…{% endif %}</span>
+              {% endif %}
+              <span><i class="fas fa-wallet"></i>{{ order.payment_method }}</span>
+              {% if order.status == 'Cancelled' %}
+              <span style="color:#dc2626;font-weight:600;"><i class="fas fa-ban"></i>Cancelled</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     </div>
   </div>
 </section>
+
+<!-- Cancel Confirmation Modal -->
+<div class="cancel-modal-overlay" id="cancelModal">
+  <div style="background:#fff;border-radius:20px;padding:2rem;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
+    <div style="font-size:3rem;margin-bottom:.75rem;">⚠️</div>
+    <h3 style="font-family:'Fredoka One',cursive;color:#1b5e20;margin-bottom:.5rem;font-size:1.4rem;">Cancel Order?</h3>
+    <p style="color:#6b7280;font-size:.9rem;margin-bottom:1.5rem;">Are you sure you want to cancel order <strong id="cancelOrderNum"></strong>? This cannot be undone.</p>
+    <div style="display:flex;gap:.75rem;justify-content:center;">
+      <button onclick="closeCancelModal()" style="flex:1;padding:.75rem;border:2px solid #e5e7eb;background:#fff;border-radius:12px;font-weight:600;cursor:pointer;color:#6b7280;font-size:.9rem;">Keep Order</button>
+      <button id="confirmCancelBtn" onclick="confirmCancel()" style="flex:1;padding:.75rem;background:#dc2626;border:none;border-radius:12px;font-weight:700;cursor:pointer;color:#fff;font-size:.9rem;">Yes, Cancel</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -145,12 +231,133 @@
 (function(){
   const POLL_MS = 15000;
   let _known = {};
+  let _pendingCancelId  = null;
+  let _pendingCancelNum = null;
 
   document.querySelectorAll('[id^="order-card-"]').forEach(el => {
     const id = el.id.replace('order-card-','');
     _known[id] = el.dataset.status || '';
   });
 
+  // ── Cancel order ─────────────────────────────────────────
+  window.openCancelModal = function(orderId, orderNum) {
+    _pendingCancelId  = orderId;
+    _pendingCancelNum = orderNum;
+    document.getElementById('cancelOrderNum').textContent = '#' + orderNum;
+    document.getElementById('cancelModal').classList.add('active');
+  };
+
+  window.closeCancelModal = function() {
+    document.getElementById('cancelModal').classList.remove('active');
+    _pendingCancelId  = null;
+    _pendingCancelNum = null;
+    const btn = document.getElementById('confirmCancelBtn');
+    btn.disabled = false;
+    btn.textContent = 'Yes, Cancel';
+  };
+
+  window.confirmCancel = async function() {
+    if (!_pendingCancelId) return;
+    const btn = document.getElementById('confirmCancelBtn');
+    btn.disabled = true;
+    btn.textContent = 'Cancelling…';
+    const cancelId  = _pendingCancelId;
+    const cancelNum = _pendingCancelNum;
+    try {
+      const res  = await fetch('/order/' + cancelId + '/cancel', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      closeCancelModal();
+      if (data.success) {
+        moveOrderToHistory(cancelId, cancelNum);
+        showToast(cancelNum, 'Cancelled');
+      } else {
+        alert(data.message || 'Could not cancel the order. Please try again.');
+      }
+    } catch(e) {
+      closeCancelModal();
+      alert('Network error. Please try again.');
+    }
+  };
+
+  function moveOrderToHistory(orderId, orderNum) {
+    const card = document.getElementById('order-card-' + orderId);
+    if (!card) { location.reload(); return; }
+
+    // Update badge
+    const badge = card.querySelector('.status-badge');
+    if (badge) {
+      badge.className = 'status-badge s-cancelled';
+      badge.textContent = '❌ Cancelled';
+    }
+    // Remove progress bar and cancel button
+    const prog = card.querySelector('.order-progress');
+    if (prog) prog.remove();
+    const actions = card.querySelector('.oc-actions');
+    if (actions) actions.remove();
+    // Add cancelled note to footer
+    const footer = card.querySelector('.oc-footer');
+    if (footer) {
+      const span = document.createElement('span');
+      span.style.cssText = 'color:#dc2626;font-weight:600;';
+      span.innerHTML = '<i class="fas fa-ban"></i> Cancelled';
+      footer.appendChild(span);
+    }
+    card.dataset.status = 'Cancelled';
+    card.classList.add('history-card');
+    _known[orderId] = 'Cancelled';
+
+    // Ensure history section exists; create it on-the-fly if not
+    let historySection = document.getElementById('historySection');
+    let historyList    = document.getElementById('historyList');
+
+    if (!historySection) {
+      historySection = document.createElement('div');
+      historySection.className = 'history-section';
+      historySection.id = 'historySection';
+      historySection.innerHTML =
+        '<button class="history-toggle" id="historyToggle" onclick="toggleHistory()">' +
+        '<i class="fas fa-history"></i>Order History' +
+        '<span class="history-count" id="historyCount">0</span>' +
+        '<i class="fas fa-chevron-down ms-auto" id="historyChevron"></i>' +
+        '</button>' +
+        '<div class="history-list" id="historyList"></div>';
+      document.getElementById('ordersContainer').appendChild(historySection);
+      historyList = document.getElementById('historyList');
+      historyList.style.display = 'block';
+      const ch = document.getElementById('historyChevron');
+      if(ch) ch.style.transform = 'rotate(180deg)';
+    }
+
+    historyList.insertBefore(card, historyList.firstChild);
+
+    const countEl = document.getElementById('historyCount');
+    if (countEl) countEl.textContent = parseInt(countEl.textContent || '0') + 1;
+
+    // Show empty state if no more active orders
+    const remaining = document.querySelectorAll('#ordersContainer > .order-card:not(.history-card)');
+    if (remaining.length === 0 && !document.getElementById('emptyState')) {
+      const div = document.createElement('div');
+      div.className = 'empty-orders';
+      div.id = 'emptyState';
+      div.innerHTML = '<div class="empty-icon">📦</div><h3>No active orders</h3><p>Check your order history below.</p>';
+      document.getElementById('ordersContainer').insertBefore(div, historySection);
+    }
+  }
+
+  // ── History toggle ─────────────────────────────────────
+  window.toggleHistory = function() {
+    const list    = document.getElementById('historyList');
+    const chevron = document.getElementById('historyChevron');
+    const hidden  = !list || list.style.display === 'none' || list.style.display === '';
+    if (list) list.style.display = hidden ? 'block' : 'none';
+    if (chevron) chevron.style.transform = hidden ? 'rotate(180deg)' : '';
+  };
+
+  // ── Status helpers ─────────────────────────────────────
   function statusClass(s){
     return 's-'+(s||'').toLowerCase().replace(/\s+/g,'_');
   }
@@ -180,19 +387,17 @@
     const m={'Confirmed':'✅','Preparing':'🍟','Ready':'🎉','Out for Delivery':'🛵','Delivered':'🎊','Cancelled':'❌'};
     const t=document.createElement('div');
     t.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:99999;background:#1b5e20;color:#fff;padding:12px 20px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.25);font-size:.9rem;font-weight:600;display:flex;align-items:center;gap:10px;max-width:320px;animation:slideUpToast .3s ease;white-space:nowrap;';
-    t.innerHTML=`<span style="font-size:1.3rem">${m[status]||'📦'}</span><div><div style="font-size:.72rem;opacity:.8;margin-bottom:2px">Order #${orderNum}</div>${status}</div>`;
+    t.innerHTML='<span style="font-size:1.3rem">'+(m[status]||'📦')+'</span><div><div style="font-size:.72rem;opacity:.8;margin-bottom:2px">Order #'+orderNum+'</div>'+status+'</div>';
     document.body.appendChild(t);
     setTimeout(()=>{ t.style.opacity='0';t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); },4000);
   }
 
+  // ── Live poll ──────────────────────────────────────────
   async function poll(){
     try{
       const res=await fetch('/api/orders/status',{cache:'no-store'});
       const data=await res.json();
       if(!data.orders)return;
-
-      const emptyState=document.getElementById('emptyState');
-      if(data.orders.length>0&&emptyState) emptyState.style.display='none';
 
       let needsReload=false;
       data.orders.forEach(order=>{
@@ -211,6 +416,11 @@
           void card.offsetWidth;
           card.classList.add('status-updated');
           showToast(order.order_number,order.status);
+          // Hide cancel button if order moves to terminal state
+          if(order.status==='Cancelled'||order.status==='Delivered'){
+            const actions=card.querySelector('.oc-actions');
+            if(actions) actions.remove();
+          }
         }
         _known[order.id]=order.status;
       });
@@ -228,6 +438,11 @@
   setTimeout(poll,2000);
   setInterval(poll,POLL_MS);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') poll(); });
+
+  // Close modal on backdrop click
+  document.getElementById('cancelModal').addEventListener('click', function(e){
+    if(e.target===this) closeCancelModal();
+  });
 })();
 </script>
 {% endblock %}

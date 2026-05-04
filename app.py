@@ -221,6 +221,26 @@ def create_app():
             print(f"❌ DB init error: {e}")
             import traceback; traceback.print_exc()
 
+    @app.before_request
+    def expire_session_on_request():
+        """Expire all ORM-cached objects at the start of every request.
+
+        libsql works in local-first mode: _creator() calls sync() before each
+        request to pull the latest remote state into the local replica.  But
+        SQLAlchemy's identity-map (session cache) still holds Python objects
+        from a previous request.  Those cached objects shadow the freshly-
+        synced DB rows, causing the 'refresh toggle' bug where cart items
+        reappear or orders disappear on the first refresh after checkout.
+
+        expire_all() invalidates every cached ORM object so the *next* attribute
+        access for each object issues a fresh SELECT against the already-synced
+        local replica.  This is cheap (no SQL yet) and fixes the stale-read bug.
+        """
+        try:
+            db.session.expire_all()
+        except Exception:
+            pass
+
     register_routes(app)
 
     # ── Google OAuth ──────────────────────────────────────────────────────────
