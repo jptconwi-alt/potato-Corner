@@ -84,6 +84,19 @@ def turso_pull_sync():
         except Exception as e:
             print(f'⚠️  Turso pull sync failed: {e}')
 
+        # Re-run migrations after pull: Turso remote may not have all columns
+        # (e.g. is_ordered), so the pulled file needs patching every cold start.
+        try:
+            import sqlite3 as _sqlite3
+            from sqlalchemy import create_engine as _ce, text as _text
+            _engine = _ce(f'sqlite:///{_LOCAL_DB}', connect_args={'check_same_thread': False})
+            from init_db import run_migrations
+            run_migrations(_engine)
+            _engine.dispose()
+            print('✅ Post-pull migrations applied')
+        except Exception as e:
+            print(f'⚠️  Post-pull migrations failed: {e}')
+
     threading.Thread(target=_do, daemon=True).start()
 
 
