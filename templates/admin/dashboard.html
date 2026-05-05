@@ -68,7 +68,7 @@
       </button>
       <div class="admin-topbar-title">Dashboard Overview</div>
       <div class="admin-topbar-actions">
-        <span class="admin-date"><i class="fas fa-calendar me-1"></i>{{ now.strftime('%B %d, %Y') if now else '' }}</span>
+        <span class="admin-date" id="live-clock"><i class="fas fa-calendar me-1"></i><span id="live-clock-text">{{ now.strftime('%B %d, %Y') if now else '' }}</span></span>
       </div>
     </div>
 
@@ -290,6 +290,27 @@ function toggleSidebar() {
   document.getElementById('adminSidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('active');
 }
+
+// Live real-time clock
+(function() {
+  const monthNames = ["January","February","March","April","May","June",
+    "July","August","September","October","November","December"];
+  function updateClock() {
+    const now = new Date();
+    const month = monthNames[now.getMonth()];
+    const day = String(now.getDate()).padStart(2, '0');
+    const year = now.getFullYear();
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const el = document.getElementById('live-clock-text');
+    if (el) el.textContent = `${month} ${day}, ${year}  \u00a0${hours}:${minutes}:${seconds} ${ampm}`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+})();
 
 function markDelivered(orderId, btn) {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';

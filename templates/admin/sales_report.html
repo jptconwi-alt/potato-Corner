@@ -168,7 +168,7 @@
       <button class="sidebar-toggle-btn d-lg-none" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
       <div class="admin-topbar-title"><i class="fas fa-chart-line me-2" style="color:#16a34a;"></i>Sales Report</div>
       <div class="admin-topbar-actions" style="display:flex;gap:8px;align-items:center;">
-        <span class="admin-date"><i class="fas fa-calendar me-1"></i>{{ now.strftime('%B %d, %Y') }}</span>
+        <span class="admin-date" id="live-clock"><i class="fas fa-calendar me-1"></i><span id="live-clock-text">{{ now.strftime('%B %d, %Y') }}</span></span>
         <a href="{{ url_for('admin_export_report', type='orders', format='csv') }}" class="btn-report csv"><i class="fas fa-file-csv"></i> CSV</a>
         <a href="{{ url_for('admin_export_report', type='orders', format='pdf') }}" class="btn-report pdf"><i class="fas fa-file-pdf"></i> PDF</a>
       </div>
@@ -325,6 +325,28 @@ function toggleSidebar() {
   document.getElementById('adminSidebar').classList.toggle('open');
   document.getElementById('sidebarOverlay').classList.toggle('active');
 }
+
+// Live real-time clock
+(function() {
+  const monthNames = ["January","February","March","April","May","June",
+    "July","August","September","October","November","December"];
+  function updateClock() {
+    const now = new Date();
+    const month = monthNames[now.getMonth()];
+    const day = String(now.getDate()).padStart(2, '0');
+    const year = now.getFullYear();
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const el = document.getElementById('live-clock-text');
+    if (el) el.textContent = `${month} ${day}, ${year}  \u00a0${hours}:${minutes}:${seconds} ${ampm}`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+})();
+
 {% if chart_labels %}
 const chartLabels     = {{ chart_labels | tojson }};
 const chartIncome     = {{ chart_data | tojson }};
