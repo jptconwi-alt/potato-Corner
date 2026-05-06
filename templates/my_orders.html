@@ -82,17 +82,12 @@
   <div class="container">
     <div class="page-header-inner">
       <h1 class="page-title"><i class="fas fa-box me-2"></i>My Orders</h1>
-      <p class="page-sub">Live order tracking — updates automatically</p>
     </div>
   </div>
 </div>
 
 <section class="orders-page">
   <div class="container">
-    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
-      <!-- <span class="live-badge"><span class="live-dot"></span>Live</span> -->
-      <span id="lastUpdatedText" class="last-updated-text">Checking…</span>
-    </div>
 
     <div id="ordersContainer">
     {% set active_orders = orders | rejectattr('status', 'in', ['Delivered', 'Cancelled']) | list %}
