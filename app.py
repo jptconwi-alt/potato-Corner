@@ -31,13 +31,17 @@ def create_app():
 
     if turso_url and turso_token:
         # Normalise the URL scheme for SQLAlchemy's libsql dialect
+        # sqlalchemy-libsql uses Hrana over HTTPS, so libsql:// must become https://
         db_url = turso_url
         if db_url.startswith('libsql://'):
-            db_url = 'sqlite+libsql://' + db_url[len('libsql://'):]
-        if '?' in db_url:
-            db_url += f'&authToken={turso_token}'
+            # sqlalchemy-libsql uses Hrana over HTTPS; the host must be prefixed with https://
+            host = db_url[len('libsql://'):]
+            db_url = f'sqlite+libsql:///{host}?authToken={turso_token}&secure=true'
         else:
-            db_url += f'?authToken={turso_token}'
+            if '?' in db_url:
+                db_url += f'&authToken={turso_token}'
+            else:
+                db_url += f'?authToken={turso_token}'
 
         app.config['SQLALCHEMY_DATABASE_URI'] = db_url
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
@@ -67,7 +71,7 @@ def create_app():
             import traceback; traceback.print_exc()
 
     login_manager.init_app(app)
-    login_manager.login_view = None
+    login_manager.login_view = 'login'
     login_manager.login_message = ''
 
     oauth = OAuth(app)
