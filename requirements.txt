@@ -7,5 +7,6 @@ Werkzeug==2.3.7
 authlib
 python-dotenv
 requests
+psycopg2-binary
 reportlab
 python-docx

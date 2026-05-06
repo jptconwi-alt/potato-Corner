@@ -25,35 +25,26 @@ def create_app():
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # ── Database: Turso via HTTP DB-API (no libsql/WebSocket issues) ──────────
-    turso_url   = os.environ.get('TURSO_DATABASE_URL', '').strip()
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '').strip()
+    # ── Database: Supabase (PostgreSQL) or local SQLite fallback ────────────
+    db_url = os.environ.get('DATABASE_URL', '').strip()
 
-    if turso_url and turso_token:
-        # Use the custom HTTP DB-API driver (same approach as nemsu-marketplace).
-        # This calls Turso's /v2/pipeline REST endpoint directly — no libsql,
-        # no WebSockets, no dialect registration issues.
-        from turso.dbapi import connect as _turso_connect
-        from sqlalchemy.pool import StaticPool
-
-        def _turso_creator():
-            return _turso_connect(turso_url, turso_token)
-
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///:memory:'
+    if db_url:
+        # Supabase/PostgreSQL — fix legacy postgres:// scheme if needed
+        if db_url.startswith('postgres://'):
+            db_url = db_url.replace('postgres://', 'postgresql://', 1)
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_url
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-            'creator':       _turso_creator,
-            'poolclass':     StaticPool,
-            'connect_args':  {'check_same_thread': False},
-            'pool_pre_ping': False,
+            'pool_pre_ping': True,
+            'pool_recycle':  300,
         }
-        print(f'🌐 Using Turso database (HTTP): {turso_url}')
+        print(f'🌐 Using Supabase (PostgreSQL)')
     else:
         # Local SQLite fallback (development)
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
             'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
         }
-        print('💾 Using local SQLite database (no Turso credentials found)')
+        print('💾 Using local SQLite database (no DATABASE_URL found)')
 
     db.init_app(app)
 
