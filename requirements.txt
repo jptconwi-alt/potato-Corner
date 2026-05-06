@@ -8,5 +8,6 @@ authlib
 python-dotenv
 requests
 sqlalchemy-libsql
+libsql-experimental
 reportlab
 python-docx
