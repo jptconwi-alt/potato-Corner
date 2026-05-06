@@ -1129,7 +1129,73 @@ def register_routes(app):
         fmt = request.args.get('format', 'csv')           # csv | pdf | docx
 
         # ── Gather data ──────────────────────────────
-        if report_type == 'products':
+        if report_type == 'sales':
+            from datetime import timedelta
+            period = request.args.get('period', 'month')
+            now = ph_now()
+            if period == 'today':
+                start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+                label = 'Today'
+            elif period == 'week':
+                start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+                label = 'This Week'
+            elif period == 'year':
+                start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+                label = 'This Year'
+            else:  # month
+                start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+                label = 'This Month'
+
+            # All-time delivered orders for KPI snapshots
+            all_delivered = Order.query.filter(Order.status == 'Delivered').all()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            week_start  = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            year_start  = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            kpi_today  = sum(o.total_amount for o in all_delivered if o.order_date >= today_start)
+            kpi_week   = sum(o.total_amount for o in all_delivered if o.order_date >= week_start)
+            kpi_month  = sum(o.total_amount for o in all_delivered if o.order_date >= month_start)
+            kpi_year   = sum(o.total_amount for o in all_delivered if o.order_date >= year_start)
+            kpi_total  = sum(o.total_amount for o in all_delivered)
+
+            # Period orders
+            period_rows = Order.query.filter(Order.order_date >= start).order_by(Order.order_date.desc()).all()
+            period_delivered  = [o for o in period_rows if o.status == 'Delivered']
+            period_cancelled  = [o for o in period_rows if o.status == 'Cancelled']
+            period_income     = sum(o.total_amount for o in period_delivered)
+            period_cancelled_count = len(period_cancelled)
+
+            title = f'Sales Report — {label}'
+            generated_at = ph_now().strftime('%Y-%m-%d %H:%M')
+
+            # Build structured data: KPI block + orders table
+            # We'll use a wide header based on the orders columns
+            headers = ['Order #', 'Customer', 'Phone', 'Total (₱)', 'Status', 'Payment', 'Date']
+
+            # Summary block rows (prepended before order rows)
+            summary_rows = [
+                ['=== INCOME SUMMARY ===', '', '', '', '', '', ''],
+                ['Today\'s Income',    f'₱{kpi_today:.2f}',  '', '', '', '', ''],
+                ['This Week Income',   f'₱{kpi_week:.2f}',   '', '', '', '', ''],
+                ['This Month Income',  f'₱{kpi_month:.2f}',  '', '', '', '', ''],
+                ['This Year Income',   f'₱{kpi_year:.2f}',   '', '', '', '', ''],
+                ['All-Time Income',    f'₱{kpi_total:.2f}',  '', '', '', '', ''],
+                ['', '', '', '', '', '', ''],
+                [f'=== {label.upper()} BREAKDOWN ===', '', '', '', '', '', ''],
+                ['Total Orders',       str(len(period_rows)),          '', '', '', '', ''],
+                ['Delivered Orders',   str(len(period_delivered)),     '', '', '', '', ''],
+                ['Delivered Income',   f'₱{period_income:.2f}',        '', '', '', '', ''],
+                ['Cancelled Orders',   str(period_cancelled_count),    '', '', '', '', ''],
+                ['', '', '', '', '', '', ''],
+                [f'=== ORDERS ({label.upper()}) ===', '', '', '', '', '', ''],
+            ]
+
+            order_rows = [[o.order_number, o.customer_name, o.customer_phone or '',
+                           f'{o.total_amount:.2f}', o.status, o.payment_status,
+                           o.order_date.strftime('%Y-%m-%d %H:%M')] for o in period_rows]
+
+            data = summary_rows + order_rows
+        elif report_type == 'products':
             rows = Product.query.order_by(Product.flavor, Product.size).all()
             headers = ['ID', 'Name', 'Category', 'Flavor', 'Size', 'Price (₱)', 'Available']
             data = [[p.id, p.name, p.category, p.flavor, p.size,
@@ -1354,20 +1420,53 @@ def register_routes(app):
             ws.row_dimensions[4].height = 22
 
             # ── Data rows ──────────────────────────────
-            even_fill = PatternFill(fill_type='solid', fgColor='FFFFFF')
-            odd_fill  = PatternFill(fill_type='solid', fgColor='FEF9EC')
-            data_font = Font(name='Calibri', size=9)
-            data_align = Alignment(horizontal='center', vertical='center', wrap_text=False)
+            even_fill    = PatternFill(fill_type='solid', fgColor='FFFFFF')
+            odd_fill     = PatternFill(fill_type='solid', fgColor='FEF9EC')
+            section_fill = PatternFill(fill_type='solid', fgColor='1E293B')  # dark for section headers
+            kpi_fill     = PatternFill(fill_type='solid', fgColor='EFF6FF')  # light blue for KPI rows
+            data_font    = Font(name='Calibri', size=9)
+            section_font = Font(name='Calibri', size=9, bold=True, color='FFFFFF')
+            kpi_font     = Font(name='Calibri', size=9, bold=True, color='1E3A5F')
+            data_align   = Alignment(horizontal='center', vertical='center', wrap_text=False)
+            left_align   = Alignment(horizontal='left', vertical='center')
 
+            order_data_start = False
+            order_row_counter = 0
             for row_idx, row in enumerate(data, start=5):
-                fill = even_fill if (row_idx % 2 == 0) else odd_fill
+                first_val = str(row[0]) if row else ''
+                is_section = first_val.startswith('===')
+                is_empty   = all(str(v) == '' for v in row)
+                is_kpi     = not is_section and not is_empty and not order_data_start and len(row) > 1 and str(row[1]).startswith('₱')
+                is_breakdown = not is_section and not is_empty and not order_data_start and not is_kpi and str(row[1]).isdigit()
+
+                if is_section and 'ORDERS' in first_val:
+                    order_data_start = True
+
+                if is_section:
+                    fill = section_fill
+                    font = section_font
+                    align = left_align
+                elif is_empty:
+                    fill = even_fill
+                    font = data_font
+                    align = data_align
+                elif is_kpi or is_breakdown:
+                    fill = kpi_fill
+                    font = kpi_font
+                    align = left_align
+                else:
+                    order_row_counter += 1
+                    fill = even_fill if (order_row_counter % 2 == 0) else odd_fill
+                    font = data_font
+                    align = data_align
+
                 for col_idx, val in enumerate(row, start=1):
-                    cell = ws.cell(row=row_idx, column=col_idx, value=val)
-                    cell.font = data_font
+                    cell = ws.cell(row=row_idx, column=col_idx, value=str(val) if val != '' else '')
+                    cell.font = font
                     cell.fill = fill
-                    cell.alignment = data_align
+                    cell.alignment = align
                     cell.border = border
-                ws.row_dimensions[row_idx].height = 18
+                ws.row_dimensions[row_idx].height = 20 if is_section else 18
 
             # ── Auto column widths ─────────────────────
             for col_idx, h_txt in enumerate(headers, start=1):
