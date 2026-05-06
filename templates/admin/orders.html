@@ -549,8 +549,19 @@ function showItems(orderId) {
   const itemsDiv = document.getElementById('items-' + orderId);
   const rows = itemsDiv ? itemsDiv.querySelectorAll('div') : [];
   let html = '<div class="modal-items-list">';
-  rows.forEach(r => { html += '<div class="modal-item-row">' + r.innerHTML + '</div>'; });
+  let grandTotal = 0;
+  rows.forEach(r => {
+    html += '<div class="modal-item-row">' + r.innerHTML + '</div>';
+    // Parse subtotal from text like "Item Name (size) ×qty = ₱999"
+    const match = r.textContent.match(/₱([\d,]+)/);
+    if (match) grandTotal += parseFloat(match[1].replace(/,/g, '')) || 0;
+  });
   html += '</div>';
+  // Grand total row
+  html += '<div style="margin-top:12px;padding-top:10px;border-top:2px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">' +
+          '<span style="font-weight:700;font-size:.9rem;color:#374151;">Grand Total</span>' +
+          '<span style="font-weight:800;font-size:1.05rem;color:#16a34a;">₱' + grandTotal.toLocaleString('en-PH', {minimumFractionDigits:0,maximumFractionDigits:0}) + '</span>' +
+          '</div>';
   document.getElementById('modalItemsBody').innerHTML = html;
   new bootstrap.Modal(document.getElementById('itemsModal')).show();
 }
@@ -634,8 +645,9 @@ function getDateRange(period) {
   if (period === 'today') {
     start.setHours(0, 0, 0, 0);
   } else if (period === 'week') {
-    const day = start.getDay();
-    start.setDate(start.getDate() - day);
+    const day = start.getDay(); // 0=Sun,1=Mon,...,6=Sat
+    const diff = (day === 0) ? 6 : day - 1; // days since Monday
+    start.setDate(start.getDate() - diff);
     start.setHours(0, 0, 0, 0);
   } else if (period === 'month') {
     start.setDate(1);

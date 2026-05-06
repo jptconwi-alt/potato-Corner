@@ -205,6 +205,7 @@
               <span><i class="fas fa-map-marker-alt"></i>{{ order.delivery_address[:55] }}{% if order.delivery_address|length > 55 %}…{% endif %}</span>
               {% endif %}
               <span><i class="fas fa-wallet"></i>{{ order.payment_method }}</span>
+              <span><i class="fas fa-credit-card"></i>Payment: <strong style="{{ 'color:#16a34a' if order.payment_status == 'Paid' else 'color:#d97706' }}">{{ order.payment_status }}</strong></span>
               {% if order.status == 'Cancelled' %}
               <span style="color:#dc2626;font-weight:600;"><i class="fas fa-ban"></i>Cancelled</span>
               {% endif %}
@@ -334,6 +335,13 @@
     // Add cancelled note to footer
     const footer = card.querySelector('.oc-footer');
     if (footer) {
+      // Add payment status if not already shown
+      if (!footer.querySelector('.payment-status-span')) {
+        const paySpan = card.querySelector('.oc-footer .payment-status-span');
+        if (!paySpan) {
+          // payment status span is already in active cards via Jinja; ensure it stays visible
+        }
+      }
       const span = document.createElement('span');
       span.style.cssText = 'color:#dc2626;font-weight:600;';
       span.innerHTML = '<i class="fas fa-ban"></i> Cancelled';
