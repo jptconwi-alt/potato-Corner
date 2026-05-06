@@ -327,8 +327,10 @@
                   data-address="{{ order.delivery_address|replace('"', '&quot;') }}"
                   data-payment-method="{{ order.payment_method }}"
                   data-payment-status="{{ order.payment_status }}"
-                  data-order-date="{{ order.order_date.strftime('%b %d, %Y · %I:%M %p') }}"
+                  data-order-date="{{ order.order_date.strftime('%b %d, %Y') }} {{ order.order_date.strftime('%I:%M %p') }}"
                   data-total="{{ order.total_amount }}"
+                  data-lat="{{ order.delivery_lat or '' }}"
+                  data-lng="{{ order.delivery_lng or '' }}"
                   id="order-row-{{ order.id }}">
                   <td>
                     <span class="admin-order-num">{{ order.order_number }}</span>
@@ -413,16 +415,16 @@
 
 <!-- Items Modal -->
 <div class="modal fade" id="itemsModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content admin-modal">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fas fa-box me-2"></i>Order Items</h5>
+        <h5 class="modal-title"><i class="fas fa-box me-2"></i>Order Details</h5>
         <button type="button" onclick="printReceipt()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:5px 12px;font-size:.8rem;font-weight:700;cursor:pointer;margin-right:8px;">
           <i class="fas fa-print"></i> Print
         </button>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body" id="modalItemsBody"></div>
+      <div class="modal-body" id="modalItemsBody" style="padding:16px;max-height:80vh;overflow-y:auto;"></div>
     </div>
   </div>
 </div>
@@ -561,24 +563,29 @@ function togglePayment(orderId, btn) {
 }
 
 var _currentReceipt = null;
+var _modalMap = null;
 
 function showItems(orderId) {
   var row      = document.getElementById('order-row-' + orderId);
   var itemsDiv = document.getElementById('items-' + orderId);
   var divs     = itemsDiv ? itemsDiv.querySelectorAll('div') : [];
 
+  // Parse items
   var items = [];
   var grandTotal = 0;
   divs.forEach(function(d) {
     var text = d.textContent.trim();
-    // amount after the peso sign
-    var amtM = text.match(/₱([\d,]+)/);
-    var qtyM = text.match(/×(\d+)/);
+    var amtM = text.match(/[\u20b1]([\d,]+)/);
+    var qtyM = text.match(/[\xd7](\d+)/);
     var sub  = amtM ? parseFloat(amtM[1].replace(/,/g,'')) : 0;
     grandTotal += sub;
-    var name = text.split('×')[0].replace(/=\s*₱[\d,]+/, '').trim();
+    var name = text.split('\xd7')[0].replace(/=\s*[\u20b1][\d,]+/, '').trim();
     items.push({ text: text, name: name, qty: qtyM ? qtyM[1] : '1', sub: sub });
   });
+
+  var lat    = row ? parseFloat(row.dataset.lat) : NaN;
+  var lng    = row ? parseFloat(row.dataset.lng) : NaN;
+  var hasMap = row && row.dataset.lat && row.dataset.lng && !isNaN(lat) && !isNaN(lng);
 
   _currentReceipt = row ? {
     orderNumber   : row.dataset.orderNumber   || orderId,
@@ -590,96 +597,132 @@ function showItems(orderId) {
     status        : row.dataset.status        || '',
     orderDate     : row.dataset.orderDate     || '',
     total         : parseFloat(row.dataset.total) || grandTotal,
+    lat           : lat,
+    lng           : lng,
     items         : items
   } : null;
 
-  var html = '<div class="modal-items-list">';
-  items.forEach(function(it) { html += '<div class="modal-item-row">' + it.text + '</div>'; });
-  html += '</div>';
-  html += '<div style="margin-top:12px;padding-top:10px;border-top:2px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">' +
-          '<span style="font-weight:700;font-size:.9rem;color:#374151;">Grand Total</span>' +
-          '<span style="font-weight:800;font-size:1.05rem;color:#16a34a;">₱' + grandTotal.toLocaleString('en-PH',{minimumFractionDigits:0,maximumFractionDigits:0}) + '</span>' +
-          '</div>';
-  document.getElementById('modalItemsBody').innerHTML = html;
-  new bootstrap.Modal(document.getElementById('itemsModal')).show();
-}
-
-function printReceipt() {
-  var r = _currentReceipt;
-  if (!r) return;
-
+  var r = _currentReceipt || {};
   var paidColor = r.paymentStatus === 'Paid' ? '#16a34a' : '#d97706';
   var paidBg    = r.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7';
-  var paidLabel = r.paymentStatus === 'Paid' ? '✅ Paid' : '⏳ Unpaid';
-  var total     = r.total.toLocaleString('en-PH', {minimumFractionDigits:0, maximumFractionDigits:0});
+  var paidLabel = r.paymentStatus === 'Paid' ? '&#10003; Paid' : '&#8987; Unpaid';
 
-  var itemRows = '';
-  r.items.forEach(function(it) {
-    var sub = it.sub.toLocaleString('en-PH', {minimumFractionDigits:0, maximumFractionDigits:0});
-    itemRows += '<tr>' +
-      '<td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;">' + it.name + '</td>' +
-      '<td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;text-align:center;">' + it.qty + '</td>' +
-      '<td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;text-align:right;font-weight:600;">₱' + sub + '</td>' +
-      '</tr>';
-  });
+  var statusMap = {
+    'pending':{'bg':'#fef3c7','c':'#92400e'},
+    'confirmed':{'bg':'#dbeafe','c':'#1e3a8a'},
+    'preparing':{'bg':'#fed7aa','c':'#9a3412'},
+    'ready':{'bg':'#d1fae5','c':'#065f46'},
+    'out-for-delivery':{'bg':'#e0e7ff','c':'#3730a3'},
+    'delivered':{'bg':'#d1fae5','c':'#065f46'},
+    'cancelled':{'bg':'#fee2e2','c':'#991b1b'}
+  };
+  var sm     = statusMap[r.status] || {'bg':'#f3f4f6','c':'#374151'};
+  var sLabel = r.status ? r.status.replace(/-/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : '';
 
-  var phoneRow   = r.phone   ? '<div class="rmr"><span class="rml">Phone</span><span class="rmv">'   + r.phone   + '</span></div>' : '';
-  var addressRow = r.address ? '<div class="rmr"><span class="rml">Address</span><span class="rmv">' + r.address + '</span></div>' : '';
+  var html = '';
 
-  var css =
-    '* {margin:0;padding:0;box-sizing:border-box}' +
-    'body{font-family:Inter,sans-serif;background:#f5f5f5;display:flex;justify-content:center;padding:24px}' +
-    '.receipt{background:#fff;width:320px;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);overflow:hidden;font-size:13px}' +
-    '.rh{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:20px 18px 16px;text-align:center}' +
-    '.rl{font-size:26px;letter-spacing:1px;font-weight:800}' +
-    '.rs{font-size:11px;opacity:.8;margin-top:2px}' +
-    '.rd{text-align:center;font-size:12px;color:#888;letter-spacing:3px;padding:10px 0;border-bottom:1.5px dashed #e5e7eb}' +
-    '.rm{padding:12px 18px;border-bottom:1.5px dashed #e5e7eb}' +
-    '.rmr{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px}' +
-    '.rml{color:#888}' +
-    '.rmv{font-weight:600;text-align:right;max-width:60%;word-break:break-word}' +
-    '.ri{padding:10px 18px}' +
-    '.it{width:100%;border-collapse:collapse}' +
-    '.it th{font-size:11px;color:#888;font-weight:600;padding:4px;border-bottom:1.5px solid #e5e7eb;text-align:left}' +
-    '.it th:last-child{text-align:right}' +
-    '.rtot{margin:0 18px 14px;background:#f0fdf4;border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;border:1.5px solid #bbf7d0}' +
-    '.rtotl{font-weight:700;color:#1b5e20;font-size:13px}' +
-    '.rtota{font-size:22px;font-weight:800;color:#16a34a}' +
-    '.rpay{margin:0 18px 14px;border-radius:10px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;background:' + paidBg + '}' +
-    '.rpayl{font-size:12px;font-weight:700;color:#374151}' +
-    '.rpays{font-size:12px;font-weight:800;color:' + paidColor + '}' +
-    '.rf{text-align:center;padding:14px 18px;border-top:1.5px dashed #e5e7eb;font-size:11px;color:#aaa;line-height:1.7}' +
-    '.rf strong{color:#555}' +
-    '@media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border-radius:0;width:100%}.np{display:none!important}}';
+  // ── Customer / Order header card ──────────────────────────────────
+  html += '<div style="background:#f8fafc;border-radius:12px;padding:14px 16px;margin-bottom:14px;border:1px solid #e2e8f0;">';
+  html += '<div style="font-size:.68rem;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">Customer &amp; Order Info</div>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">';
 
-  var body =
-    '<div class="receipt">' +
-      '<div class="rh"><div class="rl">&#127839; Potato Corner</div><div class="rs">Order Receipt</div></div>' +
-      '<div class="rd">* * * * * * * * *</div>' +
-      '<div class="rm">' +
-        '<div class="rmr"><span class="rml">Order #</span><span class="rmv" style="color:#1b5e20;font-weight:800">' + r.orderNumber + '</span></div>' +
-        '<div class="rmr"><span class="rml">Date</span><span class="rmv">' + r.orderDate + '</span></div>' +
-        '<div class="rmr"><span class="rml">Customer</span><span class="rmv">' + r.customer + '</span></div>' +
-        phoneRow + addressRow +
-        '<div class="rmr"><span class="rml">Payment</span><span class="rmv">' + r.paymentMethod + '</span></div>' +
-        '<div class="rmr"><span class="rml">Status</span><span class="rmv">' + r.status + '</span></div>' +
-      '</div>' +
-      '<div class="ri"><table class="it"><thead><tr>' +
-        '<th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th>' +
-      '</tr></thead><tbody>' + itemRows + '</tbody></table></div>' +
-      '<div class="rtot"><span class="rtotl">TOTAL</span><span class="rtota">₱' + total + '</span></div>' +
-      '<div class="rpay"><span class="rpayl">Payment Status</span><span class="rpays">' + paidLabel + '</span></div>' +
-      '<div style="text-align:center;margin:0 18px 14px">' +
-        '<button onclick="window.print()" class="np" style="width:100%;padding:10px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">&#128424;&#65039; Print Receipt</button>' +
-      '</div>' +
-      '<div class="rf"><strong>Thank you for your order!</strong><br>Potato Corner &mdash; Flavored Fries</div>' +
-    '</div>';
+  // Left: avatar + name + phone + date
+  var initials = r.customer ? r.customer.charAt(0).toUpperCase() : '?';
+  html += '<div style="display:flex;gap:10px;align-items:center;">';
+  html += '<div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;font-weight:800;font-size:1.15rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;">' + initials + '</div>';
+  html += '<div>';
+  html += '<div style="font-weight:700;font-size:.95rem;color:#1e293b;">' + (r.customer || '&mdash;') + '</div>';
+  if (r.phone) html += '<div style="font-size:.8rem;color:#64748b;margin-top:2px;"><i class="fas fa-phone" style="width:13px;color:#94a3b8;font-size:.7rem;"></i> ' + r.phone + '</div>';
+  if (r.orderDate) html += '<div style="font-size:.75rem;color:#94a3b8;margin-top:2px;"><i class="fas fa-clock" style="width:13px;font-size:.7rem;"></i> ' + r.orderDate + '</div>';
+  html += '</div></div>';
 
-  var win = window.open('', '_blank', 'width=420,height=700,scrollbars=yes');
-  if (win) {
-    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt ' + r.orderNumber + '</title><style>' + css + '</style></head><body>' + body + '<scr' + 'ipt>window.onload=function(){window.print()};</' + 'script></body></html>');
-    win.document.close();
+  // Right: order number + status + payment badges
+  html += '<div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">';
+  html += '<div style="font-family:monospace;font-size:.8rem;font-weight:700;color:#1b5e20;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:3px 9px;">' + (r.orderNumber || '') + '</div>';
+  if (sLabel) html += '<span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;background:' + sm.bg + ';color:' + sm.c + ';">' + sLabel + '</span>';
+  html += '<span style="font-size:.72rem;font-weight:700;padding:3px 9px;border-radius:20px;background:' + paidBg + ';color:' + paidColor + ';">' + paidLabel + '</span>';
+  html += '</div>';
+  html += '</div>'; // flex row end
+
+  // Payment method
+  if (r.paymentMethod) {
+    html += '<div style="margin-top:8px;font-size:.78rem;color:#64748b;"><i class="fas fa-wallet" style="color:#94a3b8;margin-right:5px;"></i>Payment via <strong style="color:#374151;">' + r.paymentMethod + '</strong></div>';
   }
+
+  // Address
+  if (r.address) {
+    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #e2e8f0;display:flex;align-items:flex-start;gap:8px;">';
+    html += '<i class="fas fa-map-marker-alt" style="color:#e53935;margin-top:2px;flex-shrink:0;"></i>';
+    html += '<div style="min-width:0;">';
+    html += '<div style="font-size:.8rem;font-weight:600;color:#374151;word-break:break-word;">' + r.address + '</div>';
+    if (hasMap) {
+      html += '<a href="https://www.google.com/maps?q=' + lat + ',' + lng + '" target="_blank" style="font-size:.72rem;color:#1565c0;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:4px;">' +
+              '<i class="fab fa-google"></i> Open in Google Maps</a>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div>'; // customer card end
+
+  // ── Inline map ────────────────────────────────────────────────────
+  if (hasMap) {
+    html += '<div id="modalMapContainer" style="border-radius:12px;overflow:hidden;margin-bottom:14px;border:1px solid #e2e8f0;height:220px;"></div>';
+  }
+
+  // ── Items table ───────────────────────────────────────────────────
+  html += '<div style="font-size:.68rem;font-weight:700;color:#94a3b8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;">Order Items</div>';
+  html += '<div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:14px;">';
+  html += '<table style="width:100%;border-collapse:collapse;">';
+  html += '<thead><tr style="background:#f8fafc;">' +
+          '<th style="padding:8px 12px;font-size:.72rem;color:#64748b;font-weight:600;text-align:left;border-bottom:1px solid #e2e8f0;">Item</th>' +
+          '<th style="padding:8px 12px;font-size:.72rem;color:#64748b;font-weight:600;text-align:center;border-bottom:1px solid #e2e8f0;">Qty</th>' +
+          '<th style="padding:8px 12px;font-size:.72rem;color:#64748b;font-weight:600;text-align:right;border-bottom:1px solid #e2e8f0;">Amount</th>' +
+          '</tr></thead><tbody>';
+  items.forEach(function(it, i) {
+    var rowBg = i % 2 === 0 ? '#fff' : '#fafafa';
+    var sub   = it.sub.toLocaleString('en-PH',{minimumFractionDigits:0,maximumFractionDigits:0});
+    html += '<tr style="background:' + rowBg + ';border-top:1px solid #f1f5f9;">' +
+            '<td style="padding:9px 12px;font-size:.83rem;color:#374151;">&#127839; ' + it.name + '</td>' +
+            '<td style="padding:9px 12px;font-size:.83rem;color:#64748b;text-align:center;">' + it.qty + '</td>' +
+            '<td style="padding:9px 12px;font-size:.83rem;font-weight:600;color:#2e7d32;text-align:right;">&#8369;' + sub + '</td>' +
+            '</tr>';
+  });
+  html += '</tbody></table></div>';
+
+  // ── Grand total ───────────────────────────────────────────────────
+  var totalFmt = grandTotal.toLocaleString('en-PH',{minimumFractionDigits:0,maximumFractionDigits:0});
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:12px 16px;">' +
+          '<span style="font-weight:700;font-size:.95rem;color:#1b5e20;">Grand Total</span>' +
+          '<span style="font-size:1.25rem;font-weight:800;color:#16a34a;">&#8369;' + totalFmt + '</span>' +
+          '</div>';
+
+  document.getElementById('modalItemsBody').innerHTML = html;
+  var bsModal = new bootstrap.Modal(document.getElementById('itemsModal'));
+  bsModal.show();
+
+  // Init Leaflet map inside modal after it finishes rendering
+  if (hasMap) {
+    setTimeout(function() {
+      if (_modalMap) { _modalMap.remove(); _modalMap = null; }
+      _modalMap = L.map('modalMapContainer', {zoomControl:true, attributionControl:false}).setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(_modalMap);
+      var pinIcon = L.divIcon({
+        html: '<div style="background:#e53935;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.3);"></div>',
+        iconSize:[30,30], iconAnchor:[15,30], className:''
+      });
+      var addr = r.address || '';
+      L.marker([lat, lng], {icon: pinIcon}).addTo(_modalMap)
+        .bindPopup('<strong>&#128666; Deliver Here</strong><br><small style="color:#555">' + addr + '</small>')
+        .openPopup();
+      L.circle([lat, lng], {radius:40, color:'#e53935', fillColor:'#ef9a9a', fillOpacity:0.2, weight:2}).addTo(_modalMap);
+      _modalMap.invalidateSize();
+    }, 400);
+  }
+
+  // Destroy map when modal closes to avoid stale instances
+  document.getElementById('itemsModal').addEventListener('hidden.bs.modal', function onHide() {
+    if (_modalMap) { _modalMap.remove(); _modalMap = null; }
+    this.removeEventListener('hidden.bs.modal', onHide);
+  });
 }
 
 // ── Delivery Map Modal ──────────────────────────────────
