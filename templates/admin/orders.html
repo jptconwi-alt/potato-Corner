@@ -394,17 +394,7 @@
                     <div class="status-current-label" id="status-label-{{ order.id }}">{{ order.status }}</div>
                   </td>
                   <td><span class="admin-date-small">{{ order.order_date.strftime('%b %d') }}<br>{{ order.order_date.strftime('%I:%M %p') }}</span></td>
-                  <td>
-                    <div class="admin-action-btns">
-                      {% if order.status != 'Delivered' %}
-                      <button class="admin-btn-deliver" onclick="quickDeliver({{ order.id }}, this)" title="Mark Delivered">
-                        <i class="fas fa-check"></i>
-                      </button>
-                      {% else %}
-                      <span class="delivered-check"><i class="fas fa-check-circle text-success"></i></span>
-                      {% endif %}
-                    </div>
-                  </td>
+                  
                 </tr>
                 {% endfor %}
               </tbody>
