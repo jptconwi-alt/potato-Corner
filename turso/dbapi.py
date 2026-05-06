@@ -121,7 +121,23 @@ class Cursor:
         self._pending  = []   # batch of (sql, args) for executemany
 
     # ── execution ──────────────────────────────────────────────────────────────
+    # PRAGMAs that SQLAlchemy fires on connect for isolation-level detection
+    # are not supported by Turso's HTTP API — intercept and no-op them.
+    _BLOCKED_PRAGMAS = {
+        'pragma read_uncommitted',
+        'pragma journal_mode',
+        'pragma foreign_keys',
+    }
+
     def execute(self, sql: str, parameters=None):
+        normalised = sql.strip().lower().rstrip(';')
+        if any(normalised == p or normalised.startswith(p) for p in self._BLOCKED_PRAGMAS):
+            # Return an empty result so SQLAlchemy's init probe succeeds
+            self.description = None
+            self.rowcount = -1
+            self._rows = []
+            self._pos  = 0
+            return self
         sql, params = _translate(sql, parameters or [])
         result = self._conn._pipeline([(sql, params)])
         self._load_result(result, 0)
