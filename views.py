@@ -551,19 +551,31 @@ def register_routes(app):
     @app.route('/admin')
     @admin_required
     def admin_dashboard():
-        all_orders = Order.query.all()
+        from sqlalchemy import func, case
+        # Single aggregate query replaces loading all rows into Python
+        agg = db.session.query(
+            func.count(Order.id).label('total_orders'),
+            func.sum(case((Order.status == 'Pending', 1), else_=0)).label('pending_orders'),
+            func.sum(case((Order.status == 'Delivered', 1), else_=0)).label('delivered_orders'),
+            func.sum(case((Order.status == 'Out for Delivery', 1), else_=0)).label('out_for_delivery'),
+            func.coalesce(func.sum(case((Order.status == 'Delivered', Order.total_amount), else_=0)), 0).label('total_revenue'),
+        ).one()
         stats = {
-            'total_orders': len(all_orders),
-            'pending_orders': sum(1 for o in all_orders if o.status == 'Pending'),
-            'delivered_orders': sum(1 for o in all_orders if o.status == 'Delivered'),
-            'out_for_delivery': sum(1 for o in all_orders if o.status == 'Out for Delivery'),
-            'total_revenue': sum(o.total_amount for o in all_orders if o.status == 'Delivered'),
-            'total_users': User.query.count(),
+            'total_orders':    agg.total_orders or 0,
+            'pending_orders':  agg.pending_orders or 0,
+            'delivered_orders': agg.delivered_orders or 0,
+            'out_for_delivery': agg.out_for_delivery or 0,
+            'total_revenue':   float(agg.total_revenue or 0),
+            'total_users':     User.query.count(),
         }
-        recent_orders = Order.query.order_by(Order.order_date.desc()).limit(8).all()
-        pending_delivery = Order.query.filter(
-            Order.status.in_(['Pending', 'Preparing', 'Out for Delivery'])
-        ).order_by(Order.order_date.asc()).limit(5).all()
+        from sqlalchemy.orm import joinedload
+        recent_orders = (Order.query
+                         .options(joinedload(Order.items))
+                         .order_by(Order.order_date.desc()).limit(8).all())
+        pending_delivery = (Order.query
+                            .options(joinedload(Order.items))
+                            .filter(Order.status.in_(['Pending', 'Preparing', 'Out for Delivery']))
+                            .order_by(Order.order_date.asc()).limit(5).all())
         pending_count = stats['pending_orders']
         return render_template('admin/dashboard.html',
                                stats=stats,
@@ -575,7 +587,10 @@ def register_routes(app):
     @app.route('/admin/orders')
     @admin_required
     def admin_orders():
-        all_orders = Order.query.order_by(Order.order_date.desc()).all()
+        from sqlalchemy.orm import joinedload
+        all_orders = (Order.query
+                      .options(joinedload(Order.items), joinedload(Order.user))
+                      .order_by(Order.order_date.desc()).all())
         return render_template('admin/orders.html', orders=all_orders)
 
     @app.route('/admin/users')
@@ -878,6 +893,7 @@ def register_routes(app):
         from datetime import timedelta
         from collections import defaultdict
         import calendar as cal_mod
+        from sqlalchemy import func
         period = request.args.get('period', 'month')
         now = ph_now()
 
@@ -898,24 +914,35 @@ def register_routes(app):
             start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             label = 'This Month'
 
-        period_orders = Order.query.filter(Order.order_date >= start).order_by(Order.order_date.desc()).all()
+        from sqlalchemy.orm import joinedload
+        period_orders = (Order.query
+                         .options(joinedload(Order.items))
+                         .filter(Order.order_date >= start)
+                         .order_by(Order.order_date.desc()).all())
         delivered = [o for o in period_orders if o.status == 'Delivered']
         total_income = sum(o.total_amount for o in delivered)
         total_orders = len(period_orders)
         total_delivered = len(delivered)
         cancelled = sum(1 for o in period_orders if o.status == 'Cancelled')
 
-        # Auto-summary snapshots (always computed regardless of period filter)
+        # Auto-summary snapshots — use SQL SUM per time bucket (no Python loop over all rows)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start  = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         year_start  = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        all_delivered = Order.query.filter(Order.status == 'Delivered').all()
-        week_start  = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
-        auto_today = sum(o.total_amount for o in all_delivered if o.order_date >= today_start)
-        auto_week  = sum(o.total_amount for o in all_delivered if o.order_date >= week_start)
-        auto_month = sum(o.total_amount for o in all_delivered if o.order_date >= month_start)
-        auto_year  = sum(o.total_amount for o in all_delivered if o.order_date >= year_start)
-        auto_total = sum(o.total_amount for o in all_delivered)
+
+        def _revenue_since(dt):
+            r = db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).filter(
+                Order.status == 'Delivered', Order.order_date >= dt
+            ).scalar()
+            return float(r or 0)
+
+        auto_today = _revenue_since(today_start)
+        auto_week  = _revenue_since(week_start)
+        auto_month = _revenue_since(month_start)
+        auto_year  = _revenue_since(year_start)
+        auto_total = float(db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).filter(
+            Order.status == 'Delivered').scalar() or 0)
 
         # Chart data based on selected period
         if period == 'today':
@@ -1146,17 +1173,24 @@ def register_routes(app):
                 start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 label = 'This Month'
 
-            # All-time delivered orders for KPI snapshots
-            all_delivered = Order.query.filter(Order.status == 'Delivered').all()
+            # All-time delivered orders for KPI snapshots — use SQL aggregates
+            from sqlalchemy import func
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
             week_start  = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             year_start  = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-            kpi_today  = sum(o.total_amount for o in all_delivered if o.order_date >= today_start)
-            kpi_week   = sum(o.total_amount for o in all_delivered if o.order_date >= week_start)
-            kpi_month  = sum(o.total_amount for o in all_delivered if o.order_date >= month_start)
-            kpi_year   = sum(o.total_amount for o in all_delivered if o.order_date >= year_start)
-            kpi_total  = sum(o.total_amount for o in all_delivered)
+
+            def _rev(dt=None):
+                q = db.session.query(func.coalesce(func.sum(Order.total_amount), 0)).filter(Order.status == 'Delivered')
+                if dt:
+                    q = q.filter(Order.order_date >= dt)
+                return float(q.scalar() or 0)
+
+            kpi_today = _rev(today_start)
+            kpi_week  = _rev(week_start)
+            kpi_month = _rev(month_start)
+            kpi_year  = _rev(year_start)
+            kpi_total = _rev()
 
             # Period orders
             period_rows = Order.query.filter(Order.order_date >= start).order_by(Order.order_date.desc()).all()

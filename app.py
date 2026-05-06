@@ -36,6 +36,8 @@ def create_app():
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
             'pool_pre_ping': True,
             'pool_recycle':  300,
+            'pool_size': 5,
+            'max_overflow': 10,
         }
         print(f'🌐 Using Neon (PostgreSQL)')
     else:
@@ -82,12 +84,9 @@ def create_app():
             db.session.rollback()
             return None
 
-    @app.before_request
-    def before_each_request():
-        try:
-            db.session.expire_all()
-        except Exception:
-            pass
+    # Note: db.session.expire_all() removed — it was firing on every request,
+    # causing SQLAlchemy to re-fetch all already-loaded ORM objects from the DB.
+    # Flask-SQLAlchemy's scoped session already isolates state per request.
 
     register_routes(app)
 
