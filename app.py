@@ -25,11 +25,11 @@ def create_app():
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # ── Database: Supabase (PostgreSQL) or local SQLite fallback ────────────
+    # ── Database: Neon (PostgreSQL) or local SQLite fallback ─────────────────
     db_url = os.environ.get('DATABASE_URL', '').strip()
 
     if db_url:
-        # Supabase/PostgreSQL — fix legacy postgres:// scheme if needed
+        # Neon/PostgreSQL — fix legacy postgres:// scheme if needed
         if db_url.startswith('postgres://'):
             db_url = db_url.replace('postgres://', 'postgresql://', 1)
         app.config['SQLALCHEMY_DATABASE_URI'] = db_url
@@ -37,7 +37,7 @@ def create_app():
             'pool_pre_ping': True,
             'pool_recycle':  300,
         }
-        print(f'🌐 Using Supabase (PostgreSQL)')
+        print(f'🌐 Using Neon (PostgreSQL)')
     else:
         # Local SQLite fallback (development)
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
