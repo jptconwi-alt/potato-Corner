@@ -1180,4 +1180,83 @@ def register_routes(app):
             response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{ph_now().strftime("%Y%m%d")}.docx'
             return response
 
+        # ── XLSX (Excel) ─────────────────────────────
+        elif fmt == 'xlsx':
+            try:
+                import openpyxl
+                from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+                from openpyxl.utils import get_column_letter
+            except ImportError:
+                return jsonify({'error': 'openpyxl not installed'}), 500
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = title[:31]  # Excel sheet name limit
+
+            # ── Title row ──────────────────────────────
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+            title_cell = ws.cell(row=1, column=1, value=f'🍟 Potato Corner — {title}')
+            title_cell.font = Font(name='Calibri', bold=True, size=14, color='1E293B')
+            title_cell.alignment = Alignment(horizontal='center', vertical='center')
+            title_cell.fill = PatternFill(fill_type='solid', fgColor='FEF3C7')
+            ws.row_dimensions[1].height = 28
+
+            # ── Generated at row ───────────────────────
+            ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+            gen_cell = ws.cell(row=2, column=1, value=f'Generated: {generated_at}')
+            gen_cell.font = Font(name='Calibri', size=9, color='64748B', italic=True)
+            gen_cell.alignment = Alignment(horizontal='center')
+            ws.row_dimensions[2].height = 16
+
+            # ── Blank row ──────────────────────────────
+            ws.row_dimensions[3].height = 6
+
+            # ── Header row ─────────────────────────────
+            header_fill = PatternFill(fill_type='solid', fgColor='F59E0B')
+            header_font = Font(name='Calibri', bold=True, size=10, color='FFFFFF')
+            header_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            thin = Side(style='thin', color='E2E8F0')
+            border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+            for col_idx, h_txt in enumerate(headers, start=1):
+                cell = ws.cell(row=4, column=col_idx, value=h_txt)
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_align
+                cell.border = border
+            ws.row_dimensions[4].height = 22
+
+            # ── Data rows ──────────────────────────────
+            even_fill = PatternFill(fill_type='solid', fgColor='FFFFFF')
+            odd_fill  = PatternFill(fill_type='solid', fgColor='FEF9EC')
+            data_font = Font(name='Calibri', size=9)
+            data_align = Alignment(horizontal='center', vertical='center', wrap_text=False)
+
+            for row_idx, row in enumerate(data, start=5):
+                fill = even_fill if (row_idx % 2 == 0) else odd_fill
+                for col_idx, val in enumerate(row, start=1):
+                    cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                    cell.font = data_font
+                    cell.fill = fill
+                    cell.alignment = data_align
+                    cell.border = border
+                ws.row_dimensions[row_idx].height = 18
+
+            # ── Auto column widths ─────────────────────
+            for col_idx, h_txt in enumerate(headers, start=1):
+                col_data = [str(row[col_idx - 1]) for row in data]
+                max_len = max(len(h_txt), max((len(v) for v in col_data), default=0))
+                ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 4, 35)
+
+            # ── Freeze header row ──────────────────────
+            ws.freeze_panes = 'A5'
+
+            buf = io.BytesIO()
+            wb.save(buf)
+            buf.seek(0)
+            response = make_response(buf.read())
+            response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            response.headers['Content-Disposition'] = f'attachment; filename=potato_corner_{report_type}_{ph_now().strftime("%Y%m%d")}.xlsx'
+            return response
+
         return jsonify({'error': 'Unsupported format'}), 400
