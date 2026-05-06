@@ -417,7 +417,7 @@
     <div class="modal-content admin-modal">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fas fa-box me-2"></i>Order Items</h5>
-        <button type="button" id="modalPrintBtn" onclick="printReceipt()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:5px 12px;font-size:.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;margin-right:8px;">
+        <button type="button" onclick="printReceipt()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:5px 12px;font-size:.8rem;font-weight:700;cursor:pointer;margin-right:8px;">
           <i class="fas fa-print"></i> Print
         </button>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -560,43 +560,41 @@ function togglePayment(orderId, btn) {
   });
 }
 
-// Store current receipt data for printing
-let _currentReceipt = null;
+var _currentReceipt = null;
 
 function showItems(orderId) {
-  const row = document.getElementById('order-row-' + orderId);
-  const itemsDiv = document.getElementById('items-' + orderId);
-  const rows = itemsDiv ? itemsDiv.querySelectorAll('div') : [];
+  var row      = document.getElementById('order-row-' + orderId);
+  var itemsDiv = document.getElementById('items-' + orderId);
+  var divs     = itemsDiv ? itemsDiv.querySelectorAll('div') : [];
 
-  // Build receipt data from row data-attributes
-  const items = [];
-  let grandTotal = 0;
-  rows.forEach(r => {
-    const text = r.textContent.trim();
-    const match = text.match(/₱([\d,]+)/);
-    const sub = match ? parseFloat(match[1].replace(/,/g,'')) : 0;
+  var items = [];
+  var grandTotal = 0;
+  divs.forEach(function(d) {
+    var text = d.textContent.trim();
+    // amount after the peso sign
+    var amtM = text.match(/₱([\d,]+)/);
+    var qtyM = text.match(/×(\d+)/);
+    var sub  = amtM ? parseFloat(amtM[1].replace(/,/g,'')) : 0;
     grandTotal += sub;
-    items.push({ text, sub });
+    var name = text.split('×')[0].replace(/=\s*₱[\d,]+/, '').trim();
+    items.push({ text: text, name: name, qty: qtyM ? qtyM[1] : '1', sub: sub });
   });
 
   _currentReceipt = row ? {
-    orderNumber : row.dataset.orderNumber || orderId,
-    customer    : row.dataset.customer    || '—',
-    phone       : row.dataset.phone       || '',
-    address     : row.dataset.address     || '',
+    orderNumber   : row.dataset.orderNumber   || orderId,
+    customer      : row.dataset.customer      || '',
+    phone         : row.dataset.phone         || '',
+    address       : row.dataset.address       || '',
     paymentMethod : row.dataset.paymentMethod || '',
     paymentStatus : row.dataset.paymentStatus || '',
-    status      : row.dataset.status      || '',
-    orderDate   : row.dataset.orderDate   || '',
-    total       : parseFloat(row.dataset.total) || grandTotal,
-    items
+    status        : row.dataset.status        || '',
+    orderDate     : row.dataset.orderDate     || '',
+    total         : parseFloat(row.dataset.total) || grandTotal,
+    items         : items
   } : null;
 
-  // Build modal body
-  let html = '<div class="modal-items-list">';
-  items.forEach(it => {
-    html += '<div class="modal-item-row">' + it.text + '</div>';
-  });
+  var html = '<div class="modal-items-list">';
+  items.forEach(function(it) { html += '<div class="modal-item-row">' + it.text + '</div>'; });
   html += '</div>';
   html += '<div style="margin-top:12px;padding-top:10px;border-top:2px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">' +
           '<span style="font-weight:700;font-size:.9rem;color:#374151;">Grand Total</span>' +
@@ -607,180 +605,79 @@ function showItems(orderId) {
 }
 
 function printReceipt() {
-  const r = _currentReceipt;
+  var r = _currentReceipt;
   if (!r) return;
 
-  const paidColor  = r.paymentStatus === 'Paid' ? '#16a34a' : '#d97706';
-  const paidBg     = r.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7';
+  var paidColor = r.paymentStatus === 'Paid' ? '#16a34a' : '#d97706';
+  var paidBg    = r.paymentStatus === 'Paid' ? '#dcfce7' : '#fef3c7';
+  var paidLabel = r.paymentStatus === 'Paid' ? '✅ Paid' : '⏳ Unpaid';
+  var total     = r.total.toLocaleString('en-PH', {minimumFractionDigits:0, maximumFractionDigits:0});
 
-  let itemRows = '';
-  r.items.forEach(it => {
-    // Parse "Name (size) ×qty = ₱sub"
-    const m = it.text.match(/^(.+?)(?:\s*×(\d+))?\s*=\s*₱([\d,]+)$/);
-    if (m) {
-      itemRows += `<tr>
-        <td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;">${m[1].trim()}</td>
-        <td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;text-align:center;">${m[2]||1}</td>
-        <td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;text-align:right;font-weight:600;">₱${m[3]}</td>
-      </tr>`;
-    } else {
-      itemRows += `<tr><td colspan="3" style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;">${it.text}</td></tr>`;
-    }
+  var itemRows = '';
+  r.items.forEach(function(it) {
+    var sub = it.sub.toLocaleString('en-PH', {minimumFractionDigits:0, maximumFractionDigits:0});
+    itemRows += '<tr>' +
+      '<td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;">' + it.name + '</td>' +
+      '<td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;text-align:center;">' + it.qty + '</td>' +
+      '<td style="padding:6px 4px;border-bottom:1px dashed #e5e7eb;text-align:right;font-weight:600;">₱' + sub + '</td>' +
+      '</tr>';
   });
 
-  const total = r.total.toLocaleString('en-PH',{minimumFractionDigits:0,maximumFractionDigits:0});
+  var phoneRow   = r.phone   ? '<div class="rmr"><span class="rml">Phone</span><span class="rmv">'   + r.phone   + '</span></div>' : '';
+  var addressRow = r.address ? '<div class="rmr"><span class="rml">Address</span><span class="rmv">' + r.address + '</span></div>' : '';
 
-  const receiptHtml = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Receipt — ${r.orderNumber}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Inter:wght@400;600;700;800&display=swap');
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Inter',sans-serif; background:#f5f5f5; display:flex; justify-content:center; padding:24px; }
-    .receipt {
-      background:#fff;
-      width:320px;
-      border-radius:16px;
-      box-shadow:0 4px 24px rgba(0,0,0,.12);
-      overflow:hidden;
-      font-size:13px;
-    }
-    .receipt-header {
-      background:linear-gradient(135deg,#1b5e20,#2e7d32);
-      color:#fff;
-      padding:20px 18px 16px;
-      text-align:center;
-    }
-    .receipt-logo { font-family:'Fredoka One',cursive; font-size:26px; letter-spacing:1px; }
-    .receipt-sub  { font-size:11px; opacity:.8; margin-top:2px; }
-    .receipt-divider {
-      text-align:center; font-size:12px; color:#888; letter-spacing:3px;
-      padding:10px 0; border-bottom:1.5px dashed #e5e7eb;
-    }
-    .receipt-meta { padding:12px 18px; border-bottom:1.5px dashed #e5e7eb; }
-    .receipt-meta-row { display:flex; justify-content:space-between; margin-bottom:5px; font-size:12px; }
-    .receipt-meta-label { color:#888; }
-    .receipt-meta-value { font-weight:600; text-align:right; max-width:60%; word-break:break-word; }
-    .receipt-items { padding:10px 18px; }
-    .items-table { width:100%; border-collapse:collapse; }
-    .items-table th { font-size:11px; color:#888; font-weight:600; padding:4px; border-bottom:1.5px solid #e5e7eb; text-align:left; }
-    .items-table th:last-child { text-align:right; }
-    .receipt-total {
-      margin:0 18px 14px;
-      background:#f0fdf4;
-      border-radius:10px;
-      padding:12px 14px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      border:1.5px solid #bbf7d0;
-    }
-    .receipt-total-label { font-weight:700; color:#1b5e20; font-size:13px; }
-    .receipt-total-amount { font-family:'Fredoka One',cursive; font-size:22px; color:#16a34a; }
-    .receipt-payment {
-      margin:0 18px 14px;
-      border-radius:10px;
-      padding:8px 14px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      background:${paidBg};
-    }
-    .receipt-payment-label { font-size:12px; font-weight:700; color:#374151; }
-    .receipt-payment-status { font-size:12px; font-weight:800; color:${paidColor}; }
-    .receipt-footer {
-      text-align:center; padding:14px 18px;
-      border-top:1.5px dashed #e5e7eb;
-      font-size:11px; color:#aaa; line-height:1.7;
-    }
-    .receipt-footer strong { color:#555; }
-    @media print {
-      body { background:#fff; padding:0; }
-      .receipt { box-shadow:none; border-radius:0; width:100%; }
-      .no-print { display:none !important; }
-    }
-  </style>
-</head>
-<body>
-<div class="receipt">
-  <div class="receipt-header">
-    <div class="receipt-logo">🍟 Potato Corner</div>
-    <div class="receipt-sub">Order Receipt</div>
-  </div>
+  var css =
+    '* {margin:0;padding:0;box-sizing:border-box}' +
+    'body{font-family:Inter,sans-serif;background:#f5f5f5;display:flex;justify-content:center;padding:24px}' +
+    '.receipt{background:#fff;width:320px;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);overflow:hidden;font-size:13px}' +
+    '.rh{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:20px 18px 16px;text-align:center}' +
+    '.rl{font-size:26px;letter-spacing:1px;font-weight:800}' +
+    '.rs{font-size:11px;opacity:.8;margin-top:2px}' +
+    '.rd{text-align:center;font-size:12px;color:#888;letter-spacing:3px;padding:10px 0;border-bottom:1.5px dashed #e5e7eb}' +
+    '.rm{padding:12px 18px;border-bottom:1.5px dashed #e5e7eb}' +
+    '.rmr{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px}' +
+    '.rml{color:#888}' +
+    '.rmv{font-weight:600;text-align:right;max-width:60%;word-break:break-word}' +
+    '.ri{padding:10px 18px}' +
+    '.it{width:100%;border-collapse:collapse}' +
+    '.it th{font-size:11px;color:#888;font-weight:600;padding:4px;border-bottom:1.5px solid #e5e7eb;text-align:left}' +
+    '.it th:last-child{text-align:right}' +
+    '.rtot{margin:0 18px 14px;background:#f0fdf4;border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;border:1.5px solid #bbf7d0}' +
+    '.rtotl{font-weight:700;color:#1b5e20;font-size:13px}' +
+    '.rtota{font-size:22px;font-weight:800;color:#16a34a}' +
+    '.rpay{margin:0 18px 14px;border-radius:10px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;background:' + paidBg + '}' +
+    '.rpayl{font-size:12px;font-weight:700;color:#374151}' +
+    '.rpays{font-size:12px;font-weight:800;color:' + paidColor + '}' +
+    '.rf{text-align:center;padding:14px 18px;border-top:1.5px dashed #e5e7eb;font-size:11px;color:#aaa;line-height:1.7}' +
+    '.rf strong{color:#555}' +
+    '@media print{body{background:#fff;padding:0}.receipt{box-shadow:none;border-radius:0;width:100%}.np{display:none!important}}';
 
-  <div class="receipt-divider">* * * * * * * * *</div>
+  var body =
+    '<div class="receipt">' +
+      '<div class="rh"><div class="rl">&#127839; Potato Corner</div><div class="rs">Order Receipt</div></div>' +
+      '<div class="rd">* * * * * * * * *</div>' +
+      '<div class="rm">' +
+        '<div class="rmr"><span class="rml">Order #</span><span class="rmv" style="color:#1b5e20;font-weight:800">' + r.orderNumber + '</span></div>' +
+        '<div class="rmr"><span class="rml">Date</span><span class="rmv">' + r.orderDate + '</span></div>' +
+        '<div class="rmr"><span class="rml">Customer</span><span class="rmv">' + r.customer + '</span></div>' +
+        phoneRow + addressRow +
+        '<div class="rmr"><span class="rml">Payment</span><span class="rmv">' + r.paymentMethod + '</span></div>' +
+        '<div class="rmr"><span class="rml">Status</span><span class="rmv">' + r.status + '</span></div>' +
+      '</div>' +
+      '<div class="ri"><table class="it"><thead><tr>' +
+        '<th>Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th>' +
+      '</tr></thead><tbody>' + itemRows + '</tbody></table></div>' +
+      '<div class="rtot"><span class="rtotl">TOTAL</span><span class="rtota">₱' + total + '</span></div>' +
+      '<div class="rpay"><span class="rpayl">Payment Status</span><span class="rpays">' + paidLabel + '</span></div>' +
+      '<div style="text-align:center;margin:0 18px 14px">' +
+        '<button onclick="window.print()" class="np" style="width:100%;padding:10px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">&#128424;&#65039; Print Receipt</button>' +
+      '</div>' +
+      '<div class="rf"><strong>Thank you for your order!</strong><br>Potato Corner &mdash; Flavored Fries</div>' +
+    '</div>';
 
-  <div class="receipt-meta">
-    <div class="receipt-meta-row">
-      <span class="receipt-meta-label">Order #</span>
-      <span class="receipt-meta-value" style="font-family:'Fredoka One',cursive;color:#1b5e20;">${r.orderNumber}</span>
-    </div>
-    <div class="receipt-meta-row">
-      <span class="receipt-meta-label">Date</span>
-      <span class="receipt-meta-value">${r.orderDate}</span>
-    </div>
-    <div class="receipt-meta-row">
-      <span class="receipt-meta-label">Customer</span>
-      <span class="receipt-meta-value">${r.customer}</span>
-    </div>
-    ${r.phone ? `<div class="receipt-meta-row"><span class="receipt-meta-label">Phone</span><span class="receipt-meta-value">${r.phone}</span></div>` : ''}
-    ${r.address ? `<div class="receipt-meta-row"><span class="receipt-meta-label">Address</span><span class="receipt-meta-value">${r.address}</span></div>` : ''}
-    <div class="receipt-meta-row">
-      <span class="receipt-meta-label">Payment</span>
-      <span class="receipt-meta-value">${r.paymentMethod}</span>
-    </div>
-    <div class="receipt-meta-row">
-      <span class="receipt-meta-label">Status</span>
-      <span class="receipt-meta-value">${r.status.charAt(0).toUpperCase()+r.status.slice(1)}</span>
-    </div>
-  </div>
-
-  <div class="receipt-items">
-    <table class="items-table">
-      <thead>
-        <tr>
-          <th>Item</th>
-          <th style="text-align:center;">Qty</th>
-          <th style="text-align:right;">Amount</th>
-        </tr>
-      </thead>
-      <tbody>${itemRows}</tbody>
-    </table>
-  </div>
-
-  <div class="receipt-total">
-    <span class="receipt-total-label">TOTAL</span>
-    <span class="receipt-total-amount">₱${total}</span>
-  </div>
-
-  <div class="receipt-payment">
-    <span class="receipt-payment-label">Payment Status</span>
-    <span class="receipt-payment-status">${r.paymentStatus === 'Paid' ? '✅ Paid' : '⏳ Unpaid'}</span>
-  </div>
-
-  <div style="text-align:center;margin:0 18px 14px;">
-    <button onclick="window.print()" class="no-print" style="width:100%;padding:10px;background:#1b5e20;color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
-      🖨️ Print Receipt
-    </button>
-  </div>
-
-  <div class="receipt-footer">
-    <strong>Thank you for your order!</strong><br>
-    Potato Corner — Flavored Fries
-  </div>
-</div>
-<script>
-  // Auto-open print dialog
-  window.onload = function() { window.print(); };
-</script>
-</body>
-</html>`;
-
-  const win = window.open('', '_blank', 'width=400,height=680,scrollbars=yes');
+  var win = window.open('', '_blank', 'width=420,height=700,scrollbars=yes');
   if (win) {
-    win.document.write(receiptHtml);
+    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Receipt ' + r.orderNumber + '</title><style>' + css + '</style></head><body>' + body + '<scr' + 'ipt>window.onload=function(){window.print()};</' + 'script></body></html>');
     win.document.close();
   }
 }
@@ -864,8 +761,8 @@ function getDateRange(period) {
   if (period === 'today') {
     start.setHours(0, 0, 0, 0);
   } else if (period === 'week') {
-    const day = start.getDay(); // 0=Sun,1=Mon,...,6=Sat
-    const diff = (day === 0) ? 6 : day - 1; // days since Monday
+    const day = start.getDay();
+    const diff = (day === 0) ? 6 : day - 1;
     start.setDate(start.getDate() - diff);
     start.setHours(0, 0, 0, 0);
   } else if (period === 'month') {
