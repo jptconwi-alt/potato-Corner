@@ -422,9 +422,20 @@
     <div class="modal-content admin-modal">
       <div class="modal-header">
         <h5 class="modal-title"><i class="fas fa-box me-2"></i>Order Details</h5>
-        <button type="button" onclick="printReceipt()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:5px 12px;font-size:.8rem;font-weight:700;cursor:pointer;margin-right:8px;">
-          <i class="fas fa-print"></i> Print
-        </button>
+        <div style="display:flex;gap:6px;align-items:center;margin-right:8px;">
+          <button type="button" onclick="exportOrderCSV()" title="Export CSV" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+            <i class="fas fa-file-csv"></i> CSV
+          </button>
+          <button type="button" onclick="exportOrderPDF()" title="Export PDF" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+            <i class="fas fa-file-pdf"></i> PDF
+          </button>
+          <button type="button" onclick="exportOrderDOCX()" title="Export DOCX" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+            <i class="fas fa-file-word"></i> DOCX
+          </button>
+          <button type="button" onclick="printReceipt()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:5px 12px;font-size:.8rem;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+            <i class="fas fa-print"></i> Print
+          </button>
+        </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="modalItemsBody" style="padding:16px;max-height:80vh;overflow-y:auto;"></div>
@@ -900,7 +911,107 @@ function showToast(msg, type) {
 restoreTabHighlights();
 applyFilters();
 
-// ── HTTP polling: live order board sync (replaces Socket.IO) ─────────────────
+// ── Order Detail Export Functions ────────────────────────────────────────────
+
+function exportOrderCSV() {
+  if (!_currentReceipt) return;
+  var r = _currentReceipt;
+  var lines = [
+    ['Potato Corner — Order Receipt'],
+    ['Order #', r.orderNumber],
+    ['Customer', r.customer],
+    ['Phone', r.phone],
+    ['Address', r.address],
+    ['Payment Method', r.paymentMethod],
+    ['Payment Status', r.paymentStatus],
+    ['Order Status', r.status],
+    ['Order Date', r.orderDate],
+    [],
+    ['Item', 'Qty', 'Amount (PHP)']
+  ];
+  r.items.forEach(function(it) {
+    lines.push([it.name, it.qty, it.sub.toFixed(2)]);
+  });
+  lines.push([]);
+  lines.push(['Grand Total', '', r.total.toFixed(2)]);
+
+  var csv = lines.map(function(row) {
+    return row.map(function(cell) {
+      var s = String(cell == null ? '' : cell);
+      if (s.indexOf(',') > -1 || s.indexOf('"') > -1 || s.indexOf('\n') > -1)
+        s = '"' + s.replace(/"/g, '""') + '"';
+      return s;
+    }).join(',');
+  }).join('\r\n');
+
+  var blob = new Blob([csv], {type: 'text/csv'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'order_' + r.orderNumber + '.csv';
+  a.click();
+}
+
+function exportOrderPDF() {
+  if (!_currentReceipt) return;
+  var r = _currentReceipt;
+  // Build a hidden printable div and use the browser's PDF print dialog
+  var win = window.open('', '_blank', 'width=700,height=900');
+  if (!win) { showToast('Allow popups to export PDF', 'error'); return; }
+
+  var itemsHTML = r.items.map(function(it) {
+    return '<tr><td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;">' + it.name + '</td>' +
+           '<td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:center;">' + it.qty + '</td>' +
+           '<td style="padding:8px 12px;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;color:#16a34a;">&#8369;' +
+           it.sub.toLocaleString('en-PH',{minimumFractionDigits:2}) + '</td></tr>';
+  }).join('');
+
+  win.document.write('<!DOCTYPE html><html><head><title>Order ' + r.orderNumber + '</title>' +
+    '<style>body{font-family:Arial,sans-serif;margin:0;padding:24px;color:#1e293b;}' +
+    'h1{font-size:22px;color:#1b5e20;margin:0;}' +
+    '.header{background:#f0fdf4;border-radius:10px;padding:16px 20px;margin-bottom:18px;border:1.5px solid #bbf7d0;}' +
+    '.meta{font-size:12px;color:#64748b;margin-top:4px;}' +
+    'table{width:100%;border-collapse:collapse;margin-top:16px;}' +
+    'th{background:#f59e0b;color:#fff;padding:9px 12px;font-size:12px;text-align:left;}' +
+    'th:nth-child(2){text-align:center;}th:nth-child(3){text-align:right;}' +
+    '.total-row{background:#f0fdf4;font-weight:700;font-size:14px;}' +
+    '.total-row td{padding:10px 12px;border-top:2px solid #bbf7d0;}' +
+    '.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}' +
+    '@media print{body{padding:12px;}}' +
+    '</style></head><body>' +
+    '<div class="header">' +
+    '<h1>&#127839; Potato Corner</h1>' +
+    '<div class="meta">Order Receipt &nbsp;|&nbsp; ' + r.orderDate + '</div>' +
+    '</div>' +
+    '<table><tr><td><strong>Order #</strong></td><td colspan="2">' + r.orderNumber + '</td></tr>' +
+    '<tr><td><strong>Customer</strong></td><td colspan="2">' + r.customer + '</td></tr>' +
+    (r.phone ? '<tr><td><strong>Phone</strong></td><td colspan="2">' + r.phone + '</td></tr>' : '') +
+    (r.address ? '<tr><td><strong>Address</strong></td><td colspan="2">' + r.address + '</td></tr>' : '') +
+    '<tr><td><strong>Payment</strong></td><td colspan="2">' + r.paymentMethod + ' — ' + r.paymentStatus + '</td></tr>' +
+    '<tr><td><strong>Status</strong></td><td colspan="2">' + r.status + '</td></tr>' +
+    '</table>' +
+    '<table style="margin-top:20px;"><thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>' +
+    '<tbody>' + itemsHTML +
+    '<tr class="total-row"><td colspan="2">Grand Total</td><td style="text-align:right;color:#16a34a;">&#8369;' +
+    r.total.toLocaleString('en-PH',{minimumFractionDigits:2}) + '</td></tr>' +
+    '</tbody></table>' +
+    '<p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:24px;">Generated by Potato Corner Admin &mdash; ' + new Date().toLocaleString() + '</p>' +
+    '<script>window.onload=function(){window.print();window.onafterprint=function(){window.close();};};<\/script>' +
+    '</body></html>');
+  win.document.close();
+}
+
+function exportOrderDOCX() {
+  if (!_currentReceipt) return;
+  // Server-side single-order DOCX export
+  var r = _currentReceipt;
+  var params = new URLSearchParams({
+    order_number: r.orderNumber,
+    format: 'docx'
+  });
+  window.location.href = '/admin/order/export?' + params.toString();
+}
+
+
 // Polls /api/admin/orders/poll every 4 s so multiple admin tabs or devices
 // stay in sync without needing WebSockets or server-sent events.
 (function () {

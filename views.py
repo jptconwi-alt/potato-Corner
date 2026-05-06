@@ -991,6 +991,135 @@ def register_routes(app):
                                auto_total=auto_total,
                                now=now)
 
+    # ── Admin: Single-Order DOCX Export ─────────────────────────────
+    @app.route('/admin/order/export')
+    @admin_required
+    def admin_export_single_order():
+        import io
+        from flask import make_response
+        order_number = request.args.get('order_number', '')
+        fmt = request.args.get('format', 'docx')
+
+        order = Order.query.filter_by(order_number=order_number).first_or_404()
+        generated_at = ph_now().strftime('%Y-%m-%d %H:%M')
+
+        if fmt == 'docx':
+            try:
+                from docx import Document
+                from docx.shared import Pt, RGBColor, Cm
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
+                from docx.oxml.ns import qn
+                from docx.oxml import OxmlElement
+            except ImportError:
+                return jsonify({'error': 'python-docx not installed'}), 500
+
+            doc = Document()
+            for section in doc.sections:
+                section.top_margin    = Cm(2)
+                section.bottom_margin = Cm(2)
+                section.left_margin   = Cm(2.5)
+                section.right_margin  = Cm(2.5)
+
+            # Title
+            h = doc.add_heading('🍟 Potato Corner — Order Receipt', 0)
+            h.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            h.runs[0].font.color.rgb = RGBColor(0x1b, 0x5e, 0x20)
+
+            sub = doc.add_paragraph(f'Order #{order.order_number}  |  Generated: {generated_at}')
+            sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            sub.runs[0].font.size = Pt(10)
+            sub.runs[0].font.color.rgb = RGBColor(0x64, 0x74, 0x8b)
+            doc.add_paragraph()
+
+            # Customer info table
+            info_tbl = doc.add_table(rows=0, cols=2)
+            info_tbl.style = 'Table Grid'
+            fields = [
+                ('Customer', order.customer_name),
+                ('Phone', order.customer_phone or '—'),
+                ('Address', order.delivery_address or '—'),
+                ('Payment Method', order.payment_method),
+                ('Payment Status', order.payment_status),
+                ('Order Status', order.status),
+                ('Order Date', order.order_date.strftime('%b %d, %Y %I:%M %p')),
+            ]
+            for label, value in fields:
+                row_cells = info_tbl.add_row().cells
+                row_cells[0].text = label
+                row_cells[0].paragraphs[0].runs[0].bold = True
+                row_cells[0].paragraphs[0].runs[0].font.size = Pt(10)
+                row_cells[1].text = str(value)
+                row_cells[1].paragraphs[0].runs[0].font.size = Pt(10)
+
+            doc.add_paragraph()
+
+            # Items heading
+            items_heading = doc.add_heading('Order Items', level=2)
+            items_heading.runs[0].font.color.rgb = RGBColor(0x1b, 0x5e, 0x20)
+
+            # Items table
+            tbl = doc.add_table(rows=1, cols=3)
+            tbl.style = 'Table Grid'
+            hdr_cells = tbl.rows[0].cells
+            for i, txt in enumerate(['Item', 'Qty', 'Amount (₱)']):
+                hdr_cells[i].text = txt
+                r = hdr_cells[i].paragraphs[0].runs[0]
+                r.bold = True
+                r.font.color.rgb = RGBColor(0xff, 0xff, 0xff)
+                r.font.size = Pt(10)
+                tc_pr = hdr_cells[i]._tc.get_or_add_tcPr()
+                shd = OxmlElement('w:shd')
+                shd.set(qn('w:val'), 'clear')
+                shd.set(qn('w:color'), 'auto')
+                shd.set(qn('w:fill'), 'F59E0B')
+                tc_pr.append(shd)
+
+            grand_total = 0
+            for idx, item in enumerate(order.items):
+                cells = tbl.add_row().cells
+                name = item.product_name
+                if item.size:
+                    name += f' ({item.size})'
+                cells[0].text = name
+                cells[1].text = str(item.quantity)
+                cells[2].text = f'₱{item.subtotal:.2f}'
+                for cell in cells:
+                    cell.paragraphs[0].runs[0].font.size = Pt(9)
+                fill = 'FFFFFF' if idx % 2 == 0 else 'FEF9EC'
+                for cell in cells:
+                    tc_pr = cell._tc.get_or_add_tcPr()
+                    shd = OxmlElement('w:shd')
+                    shd.set(qn('w:val'), 'clear')
+                    shd.set(qn('w:color'), 'auto')
+                    shd.set(qn('w:fill'), fill)
+                    tc_pr.append(shd)
+                grand_total += item.subtotal
+
+            # Grand total row
+            total_cells = tbl.add_row().cells
+            total_cells[0].text = 'Grand Total'
+            total_cells[0].paragraphs[0].runs[0].bold = True
+            total_cells[1].text = ''
+            total_cells[2].text = f'₱{grand_total:.2f}'
+            total_cells[2].paragraphs[0].runs[0].bold = True
+            for cell in total_cells:
+                tc_pr = cell._tc.get_or_add_tcPr()
+                shd = OxmlElement('w:shd')
+                shd.set(qn('w:val'), 'clear')
+                shd.set(qn('w:color'), 'auto')
+                shd.set(qn('w:fill'), 'DCFCE7')
+                tc_pr.append(shd)
+
+            buf = io.BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            response = make_response(buf.read())
+            response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            response.headers['Content-Disposition'] = f'attachment; filename=order_{order_number}.docx'
+            return response
+
+        return jsonify({'error': 'Unsupported format'}), 400
+
     # ── Admin: Export Reports ────────────────
 
     @app.route('/admin/report/export')
