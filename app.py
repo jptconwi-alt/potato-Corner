@@ -30,21 +30,17 @@ def create_app():
     turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
 
     if turso_url and turso_token:
-        # Normalise the URL scheme for SQLAlchemy's libsql dialect.
-        # sqlalchemy-libsql expects: sqlite+libsql://host?authToken=...&secure=true
-        # (two slashes only - three slashes means a local file path)
-        db_url = turso_url
-        if db_url.startswith('libsql://'):
-            host = db_url[len('libsql://'):]
-            db_url = f'sqlite+libsql://{host}?authToken={turso_token}&secure=true'
+        # Build sqlite+libsql:// URL (two slashes = network host, not local file).
+        # Pass auth_token via connect_args so JWT special chars never corrupt the URL.
+        if turso_url.startswith('libsql://'):
+            host = turso_url[len('libsql://'):]
         else:
-            if '?' in db_url:
-                db_url += f'&authToken={turso_token}'
-            else:
-                db_url += f'?authToken={turso_token}'
+            host = turso_url
+        db_url = f'sqlite+libsql://{host}?secure=true'
 
         app.config['SQLALCHEMY_DATABASE_URI'] = db_url
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'connect_args': {'auth_token': turso_token},
             'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
         }
         print(f'🌐 Using Turso database: {turso_url}')
