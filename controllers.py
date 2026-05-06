@@ -5,29 +5,18 @@ from models import db, User, Product, Order, OrderItem, CartItem, ph_now
 from flask_login import login_user, logout_user, current_user
 
 
-def _turso_sync():
-    """Push local sqlite3 writes to Turso remote in a background thread.
-    Never blocks the HTTP response."""
-    try:
-        from app import turso_push_sync
-        turso_push_sync()
-    except Exception as e:
-        print(f"⚠️  _turso_sync import failed: {e}")
-
 class AuthController:
     """Handles authentication operations"""
     
     @staticmethod
     def register_user(username, email, password, full_name, phone='', address=''):
         """Register a new user"""
-        # Check if user exists
         if User.query.filter_by(username=username).first():
             return False, 'Username already exists'
         
         if User.query.filter_by(email=email).first():
             return False, 'Email already registered'
         
-        # Create new user
         user = User(
             username=username,
             email=email,
@@ -38,7 +27,6 @@ class AuthController:
         )
         user.set_password(password)
         
-        # First user becomes admin (optional)
         if not User.query.filter_by(is_admin=True).first():
             user.is_admin = True
         
@@ -134,13 +122,7 @@ class CartController:
     
     @staticmethod
     def get_cart_items(session_id, user_id=None, exclude_ids=None):
-        """Get all active (non-ordered) cart items for the current user/session.
-
-        is_ordered=True items are permanently hidden — this is the primary guard
-        against Turso replication lag causing ordered items to reappear.
-        exclude_ids is kept as a secondary session-level blacklist for the brief
-        window before the DB write fully propagates.
-        """
+        """Get all active (non-ordered) cart items for the current user/session."""
         if user_id:
             items = CartItem.query.filter_by(user_id=user_id, is_ordered=False).all()
         else:
@@ -158,10 +140,6 @@ class CartController:
     @staticmethod
     def add_to_cart(session_id, product_id, user_id=None, quantity=1):
         """Add item to cart"""
-        # IMPORTANT: only match rows that have NOT been ordered yet.
-        # Without is_ordered=False, a re-add of the same product could
-        # accidentally merge into an already-ordered (soft-deleted) row,
-        # making it reappear in the cart even though it was cleared.
         if user_id:
             cart_item = CartItem.query.filter_by(
                 product_id=product_id, user_id=user_id, is_ordered=False
@@ -209,9 +187,7 @@ class CartController:
     
     @staticmethod
     def remove_from_cart(session_id, item_id, user_id=None):
-        """Remove item from cart — matches by user_id OR session_id so
-        items added as a guest and then merged (or partially merged) are
-        always deletable after login."""
+        """Remove item from cart."""
         from sqlalchemy import or_
         cart_item = CartItem.query.filter(
             CartItem.id == item_id,
@@ -221,8 +197,6 @@ class CartController:
             )
         ).first()
 
-        # Last-resort: if neither matched but the item_id exists and the caller
-        # IS authenticated, allow deletion (covers edge-cases after cart merge).
         if not cart_item and user_id:
             cart_item = CartItem.query.filter_by(id=item_id).first()
 
@@ -243,15 +217,7 @@ class CartController:
     
     @staticmethod
     def clear_selected_items(session_id, user_id, item_ids):
-        """Hard-delete the ordered cart rows and sync to Turso remote.
-
-        Steps:
-        1. Mark is_ordered=True  — immediately hides items from get_cart_items
-           even if the hard DELETE is delayed by replication.
-        2. Hard DELETE           — removes the rows permanently.
-        3. _turso_sync()         — pushes both writes to the Turso remote so
-                                   the next request always sees a clean cart.
-        """
+        """Hard-delete the ordered cart rows."""
         if not item_ids:
             return
 
@@ -276,9 +242,6 @@ class CartController:
         except Exception as e:
             db.session.rollback()
             print(f"⚠️  clear_selected_items hard delete failed: {e}")
-
-        # Push both writes to Turso remote immediately.
-        _turso_sync()
     
     @staticmethod
     def get_cart_total(session_id, user_id=None):
@@ -291,10 +254,7 @@ class CartController:
     
     @staticmethod
     def merge_carts(session_id, user_id):
-        """Merge session cart with user cart on login.
-        Only processes rows where is_ordered=False — ordered rows must never
-        be revived or re-merged even if they still exist in the DB.
-        """
+        """Merge session cart with user cart on login."""
         session_items = CartItem.query.filter_by(
             session_id=session_id, user_id=None, is_ordered=False
         ).all()
@@ -302,25 +262,18 @@ class CartController:
             user_id=user_id, is_ordered=False
         ).all()
         
-        # Create dict of user items for quick lookup
         user_items_dict = {item.product_id: item for item in user_items}
         
         for session_item in session_items:
             if session_item.product_id in user_items_dict:
-                # Merge: add session qty to existing user item
                 user_items_dict[session_item.product_id].quantity += session_item.quantity
                 db.session.delete(session_item)
             else:
-                # Reassign session item to user and clear session link
                 session_item.user_id = user_id
                 session_item.session_id = None
         
         db.session.commit()
 
-        # Purge any remaining orphaned session rows that still reference this
-        # session_id but are now shadowed by a user-owned row (can happen if
-        # merge_carts ran in a previous session but a stale cookie left rows
-        # behind). This is the root cause of the badge showing double the count.
         orphans = CartItem.query.filter(
             CartItem.session_id == session_id,
             CartItem.user_id == None  # noqa: E711
@@ -380,11 +333,7 @@ class OrderController:
             )
             db.session.add(order_item)
         
-        # Commit everything in one transaction. For libsql/Turso, the
-        # _LibSQLConnection.commit() wrapper calls conn.sync() automatically
-        # so the write is pushed to Turso before we redirect.
         db.session.commit()
-        _turso_sync()   # force push to Turso remote — makes order visible immediately
         return order
     
     @staticmethod
@@ -409,6 +358,5 @@ class OrderController:
         if order:
             order.status = status
             db.session.commit()
-            _turso_sync()   # push status change to Turso remote immediately
             return True
         return False

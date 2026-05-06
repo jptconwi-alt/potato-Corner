@@ -1,6 +1,4 @@
 import warnings
-import threading
-import sqlite3
 import os
 from datetime import timedelta
 
@@ -18,92 +16,6 @@ from dotenv import load_dotenv
 load_dotenv()
 login_manager = LoginManager()
 
-# ── Turso background sync ─────────────────────────────────────────────────────
-# All reads/writes go through plain sqlite3 on the local replica file.
-# After every write we fire a background thread that opens a libsql connection,
-# pushes the local changes to Turso remote, then closes it. This means:
-#   • Zero network calls in the request/response path → no 504 timeouts
-#   • Data is eventually consistent with Turso remote (usually within 1–2 s)
-
-_LOCAL_DB = '/tmp/potato_corner_replica.db'
-_turso_sync_lock = threading.Lock()
-
-
-def turso_push_sync():
-    """Push the local sqlite3 DB to Turso remote in a background thread.
-    Called after every write. Never blocks the HTTP response."""
-    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
-    if not (turso_url and turso_token):
-        return  # local-only mode, nothing to sync
-
-    def _do():
-        with _turso_sync_lock:
-            try:
-                import libsql_experimental as libsql
-                sync_url = (turso_url
-                            .replace('libsql://', 'https://')
-                            .replace('sqlite+libsql://', 'https://'))
-                conn = libsql.connect(
-                    database=_LOCAL_DB,
-                    sync_url=sync_url,
-                    auth_token=turso_token,
-                )
-                conn.sync()
-                conn.close()
-                print('✅ Turso push sync complete')
-            except Exception as e:
-                print(f'⚠️  Turso push sync failed (non-fatal): {e}')
-
-    threading.Thread(target=_do, daemon=True).start()
-
-
-def turso_pull_sync():
-    """Pull latest data from Turso remote into the local replica.
-    Called once at cold start in a background thread.
-    Never blocks the request path."""
-    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
-    if not (turso_url and turso_token):
-        return
-
-    def _do():
-        try:
-            import libsql_experimental as libsql
-            sync_url = (turso_url
-                        .replace('libsql://', 'https://')
-                        .replace('sqlite+libsql://', 'https://'))
-            conn = libsql.connect(
-                database=_LOCAL_DB,
-                sync_url=sync_url,
-                auth_token=turso_token,
-            )
-            conn.sync()
-            conn.close()
-            print('✅ Turso pull sync complete (cold start)')
-        except Exception as e:
-            print(f'⚠️  Turso pull sync failed: {e}')
-
-        # Re-run migrations after pull: Turso remote may not have all columns
-        # (e.g. is_ordered), so the pulled file needs patching every cold start.
-        try:
-            import sqlite3 as _sqlite3
-            from sqlalchemy import create_engine as _ce, text as _text
-            _engine = _ce(f'sqlite:///{_LOCAL_DB}', connect_args={'check_same_thread': False})
-            from init_db import run_migrations
-            run_migrations(_engine)
-            _engine.dispose()
-            print('✅ Post-pull migrations applied')
-        except Exception as e:
-            print(f'⚠️  Post-pull migrations failed: {e}')
-
-    threading.Thread(target=_do, daemon=True).start()
-
-
-def _patch_dialect(engine):
-    engine.dialect.get_isolation_level         = lambda conn: 'SERIALIZABLE'
-    engine.dialect.get_default_isolation_level = lambda conn: 'SERIALIZABLE'
-
 
 def create_app():
     app = Flask(__name__)
@@ -113,34 +25,39 @@ def create_app():
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # ── Database: plain sqlite3 on local replica file ─────────────────────────
-    # We always use sqlite3 directly — fast, no network, works on Vercel.
-    # Turso sync happens in background threads after writes (turso_push_sync).
-    use_turso = bool(os.environ.get('TURSO_DATABASE_URL') and os.environ.get('TURSO_AUTH_TOKEN'))
+    # ── Database: Turso (libsql) or local SQLite fallback ────────────────────
+    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
 
-    # Use the local replica file for Turso, or a simple local db otherwise
-    db_path = _LOCAL_DB if use_turso else '/tmp/potato_corner.db'
+    if turso_url and turso_token:
+        # Normalise the URL scheme for SQLAlchemy's libsql dialect
+        db_url = turso_url
+        if db_url.startswith('libsql://'):
+            db_url = 'sqlite+libsql://' + db_url[len('libsql://'):]
+        if '?' in db_url:
+            db_url += f'&authToken={turso_token}'
+        else:
+            db_url += f'?authToken={turso_token}'
 
-    def _creator():
-        conn = sqlite3.connect(db_path, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.execute('PRAGMA journal_mode=WAL')
-        conn.execute('PRAGMA synchronous=NORMAL')
-        return conn
-
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///'
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        'creator': _creator,
-        'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
-    }
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'connect_args': {'auth_token': turso_token},
+            'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
+        }
+        print(f'🌐 Using Turso database: {turso_url}')
+    else:
+        # Local SQLite fallback (development)
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+            'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
+        }
+        print('💾 Using local SQLite database (no Turso credentials found)')
 
     db.init_app(app)
 
     with app.app_context():
-        _patch_dialect(db.engine)
-        # Initialize schema immediately — sqlite3 is instant, no network
         try:
-            db.metadata.create_all(bind=db.engine, checkfirst=True)
+            db.create_all()
             from init_db import run_migrations
             run_migrations(db.engine)
             init_database()
@@ -148,10 +65,6 @@ def create_app():
         except Exception as e:
             print(f'❌ DB init error: {e}')
             import traceback; traceback.print_exc()
-
-    # Pull latest from Turso in background after cold start
-    if use_turso:
-        turso_pull_sync()
 
     login_manager.init_app(app)
     login_manager.login_view = None
