@@ -65,8 +65,16 @@
     <div class="size-filter-wrap">
       <div class="size-filter" id="sizeFilter">
         <button class="size-btn active" data-size="all">All Sizes</button>
+        {% set sizes = products | map(attribute='size') | select | unique | list %}
         {% for size in ['Small', 'Medium', 'Large', 'Mega', 'Jumbo'] %}
+        {% if size in sizes %}
         <button class="size-btn" data-size="{{ size }}">{{ size }}</button>
+        {% endif %}
+        {% endfor %}
+        {% for size in sizes %}
+        {% if size not in ['Small', 'Medium', 'Large', 'Mega', 'Jumbo'] %}
+        <button class="size-btn" data-size="{{ size }}">{{ size }}</button>
+        {% endif %}
         {% endfor %}
       </div>
     </div>

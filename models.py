@@ -125,9 +125,13 @@ class OrderItem(db.Model):
     def size(self):
         return self.product.size if self.product else None
 
+    @property
+    def flavor(self):
+        return self.product.flavor if self.product else None
+
     def to_dict(self):
         return {
-            'product_name': self.product_name, 'size': self.size,
+            'product_name': self.product_name, 'size': self.size, 'flavor': self.flavor,
             'quantity': self.quantity, 'price': self.price, 'subtotal': self.subtotal
         }
 

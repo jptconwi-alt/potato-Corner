@@ -122,6 +122,8 @@
             {% for item in order.items %}
             <div class="oc-item">
               <span class="oc-item-name">🍟 {{ item.product_name }}</span>
+              {% if item.flavor %}<span style="background:#fef3c7;color:#92400e;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px;white-space:nowrap;">{{ item.flavor }}</span>{% endif %}
+              {% if item.size %}<span style="background:#dbeafe;color:#1e3a8a;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px;white-space:nowrap;">{{ item.size }}</span>{% endif %}
               <span class="oc-item-qty">×{{ item.quantity }}</span>
               <span class="oc-item-sub">₱{{ "%.0f"|format(item.subtotal) }}</span>
             </div>
@@ -196,6 +198,8 @@
               {% for item in order.items %}
               <div class="oc-item">
                 <span class="oc-item-name">🍟 {{ item.product_name }}</span>
+                {% if item.flavor %}<span style="background:#fef3c7;color:#92400e;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px;white-space:nowrap;">{{ item.flavor }}</span>{% endif %}
+                {% if item.size %}<span style="background:#dbeafe;color:#1e3a8a;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:20px;white-space:nowrap;">{{ item.size }}</span>{% endif %}
                 <span class="oc-item-qty">×{{ item.quantity }}</span>
                 <span class="oc-item-sub">₱{{ "%.0f"|format(item.subtotal) }}</span>
               </div>
