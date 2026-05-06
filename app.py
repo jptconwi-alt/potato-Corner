@@ -25,26 +25,28 @@ def create_app():
     app.config['GOOGLE_CLIENT_ID']               = os.environ.get('GOOGLE_CLIENT_ID', '')
     app.config['GOOGLE_CLIENT_SECRET']           = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 
-    # ── Database: Turso (libsql) or local SQLite fallback ────────────────────
-    turso_url   = os.environ.get('TURSO_DATABASE_URL', '')
-    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '')
+    # ── Database: Turso via HTTP DB-API (no libsql/WebSocket issues) ──────────
+    turso_url   = os.environ.get('TURSO_DATABASE_URL', '').strip()
+    turso_token = os.environ.get('TURSO_AUTH_TOKEN', '').strip()
 
     if turso_url and turso_token:
-        # Build sqlite+libsql:// URL. URL-encode the token so JWT special
-        # chars (+, /, =) survive SQLAlchemy's URL parser intact.
-        import urllib.parse
-        if turso_url.startswith('libsql://'):
-            host = turso_url[len('libsql://'):]
-        else:
-            host = turso_url
-        encoded_token = urllib.parse.quote(turso_token, safe='')
-        db_url = f'sqlite+libsql://{host}?authToken={encoded_token}&secure=true'
+        # Use the custom HTTP DB-API driver (same approach as nemsu-marketplace).
+        # This calls Turso's /v2/pipeline REST endpoint directly — no libsql,
+        # no WebSockets, no dialect registration issues.
+        from turso.dbapi import connect as _turso_connect
+        from sqlalchemy.pool import StaticPool
 
-        app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+        def _turso_creator():
+            return _turso_connect(turso_url, turso_token)
+
+        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite+pysqlite:///:memory:'
         app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-            'poolclass': __import__('sqlalchemy.pool', fromlist=['NullPool']).NullPool,
+            'creator':       _turso_creator,
+            'poolclass':     StaticPool,
+            'connect_args':  {'check_same_thread': False},
+            'pool_pre_ping': False,
         }
-        print(f'🌐 Using Turso database: {turso_url}')
+        print(f'🌐 Using Turso database (HTTP): {turso_url}')
     else:
         # Local SQLite fallback (development)
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/potato_corner.db'
