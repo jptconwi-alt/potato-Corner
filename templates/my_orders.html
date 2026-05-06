@@ -50,6 +50,10 @@
 .btn-cancel-order { display:inline-flex;align-items:center;gap:.4rem;padding:.45rem 1.1rem;border:1.5px solid #fca5a5;background:#fff;color:#dc2626;border-radius:50px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s; }
 .btn-cancel-order:hover { background:#dc2626;color:#fff;border-color:#dc2626; }
 .btn-cancel-order:disabled { opacity:.5;cursor:not-allowed; }
+.btn-reorder { display:inline-flex;align-items:center;gap:.4rem;padding:.45rem 1.1rem;border:1.5px solid #43a047;background:#fff;color:#2e7d32;border-radius:50px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s; }
+.btn-reorder:hover { background:#2e7d32;color:#fff;border-color:#2e7d32; }
+.btn-reorder:disabled { opacity:.5;cursor:not-allowed; }
+.oc-actions-row { display:flex;gap:.6rem;flex-wrap:wrap; }
 .history-section { margin-top:2rem; }
 .history-toggle { width:100%;display:flex;align-items:center;gap:.5rem;padding:1rem 1.25rem;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:14px;font-family:'Fredoka One',cursive;font-size:1rem;color:#374151;cursor:pointer;transition:all .2s; }
 .history-toggle:hover { background:#f0fdf4;border-color:#43a047;color:#1b5e20; }
@@ -142,10 +146,12 @@
         </div>
         {% if order.status in ['Pending', 'Confirmed'] %}
         <div class="oc-actions">
-          <button class="btn-cancel-order" id="cancel-btn-{{ order.id }}"
-                  onclick="openCancelModal({{ order.id }}, '{{ order.order_number }}')">
-            <i class="fas fa-times-circle"></i>Cancel Order
-          </button>
+          <div class="oc-actions-row">
+            <button class="btn-cancel-order" id="cancel-btn-{{ order.id }}"
+                    onclick="openCancelModal({{ order.id }}, '{{ order.order_number }}')">
+              <i class="fas fa-times-circle"></i>Cancel Order
+            </button>
+          </div>
         </div>
         {% endif %}
       </div>
@@ -205,6 +211,16 @@
               <span style="color:#dc2626;font-weight:600;"><i class="fas fa-ban"></i>Cancelled</span>
               {% endif %}
             </div>
+              {% if order.status == 'Cancelled' or order.status == 'Delivered' %}
+              <div class="oc-actions" style="background:#f0fdf4;">
+                <div class="oc-actions-row">
+                  <button class="btn-reorder" id="reorder-btn-{{ order.id }}"
+                          onclick="reorderItems({{ order.id }}, this)">
+                    <i class="fas fa-redo"></i>Reorder
+                  </button>
+                </div>
+              </div>
+              {% endif %}
             {% if order.status == 'Delivered' %}
             <div class="oc-rating-section" id="rating-section-{{ order.id }}">
               {% if order.rating %}
@@ -267,6 +283,45 @@
     const id = el.id.replace('order-card-','');
     _known[id] = el.dataset.status || '';
   });
+
+  // ── Reorder ────────────────────────────────────────────────────
+  window.reorderItems = async function(orderId, btn) {
+    const orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding…';
+    try {
+      const res  = await fetch('/order/' + orderId + '/reorder', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        credentials: 'same-origin'
+      });
+      const data = await res.json();
+      if (data.success) {
+        btn.innerHTML = '<i class="fas fa-check"></i> Added to Cart!';
+        btn.style.background = '#2e7d32';
+        btn.style.color = '#fff';
+        // Update cart badge
+        if (typeof fetchCartCount === 'function') fetchCartCount();
+        else if (typeof updateCartBadge === 'function') updateCartBadge();
+        // Show toast
+        showToast('', 'Items added to cart!');
+        setTimeout(() => {
+          btn.innerHTML = orig;
+          btn.style.background = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }, 2500);
+      } else {
+        alert(data.message || 'Could not reorder. Please try again.');
+        btn.innerHTML = orig;
+        btn.disabled = false;
+      }
+    } catch(e) {
+      alert('Network error. Please try again.');
+      btn.innerHTML = orig;
+      btn.disabled = false;
+    }
+  };
 
   // ── Cancel order ─────────────────────────────────────────
   window.openCancelModal = function(orderId, orderNum) {
@@ -345,6 +400,15 @@
     card.dataset.status = 'Cancelled';
     card.classList.add('history-card');
     _known[orderId] = 'Cancelled';
+
+    // Add Reorder button if not already present
+    if (!card.querySelector('.btn-reorder')) {
+      const reorderDiv = document.createElement('div');
+      reorderDiv.className = 'oc-actions';
+      reorderDiv.style.background = '#f0fdf4';
+      reorderDiv.innerHTML = '<div class="oc-actions-row"><button class="btn-reorder" onclick="reorderItems(' + orderId + ', this)"><i class="fas fa-redo"></i>Reorder</button></div>';
+      card.appendChild(reorderDiv);
+    }
 
     // Ensure history section exists; create it on-the-fly if not
     let historySection = document.getElementById('historySection');

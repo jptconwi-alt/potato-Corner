@@ -115,7 +115,7 @@
             </button>
             {% endif %}
           </div>
-          <div class="product-size-tag">{{ product.size }}</div>
+          <div class="product-size-tag" style="cursor:pointer;" title="Filter by {{ product.size }}" onclick="setSizeFilter('{{ product.size }}')">{{ product.size }}</div>
           <!-- Availability Badge -->
           <div class="product-avail-badge {% if product.is_available %}badge-available{% else %}badge-unavailable{% endif %}">
             {% if product.is_available %}
@@ -126,7 +126,7 @@
           </div>
         </div>
         <div class="product-info">
-          <div class="product-flavor-chip">{{ product.flavor }}</div>
+          <div class="product-flavor-chip" style="cursor:pointer;" title="Filter by {{ product.flavor }}" onclick="setFlavorFilter('{{ product.flavor }}')">{{ product.flavor }}</div>
           <h3 class="product-name">{{ product.name }}</h3>
           <p class="product-desc">{{ product.description }}</p>
           <div class="product-footer">
@@ -228,35 +228,47 @@
     });
   }
 
-  // Filter functionality
+  // Filter functionality — optimized with requestAnimationFrame
   let activeFlavorFilter = 'all';
   let activeSizeFilter = 'all';
+  let _filterRAF = null;
+
+  function applyFilters() {
+    if (_filterRAF) cancelAnimationFrame(_filterRAF);
+    _filterRAF = requestAnimationFrame(() => {
+      document.querySelectorAll('.product-card').forEach(card => {
+        const flavorMatch = activeFlavorFilter === 'all' || card.dataset.flavor === activeFlavorFilter;
+        const sizeMatch = activeSizeFilter === 'all' || card.dataset.size === activeSizeFilter;
+        card.style.display = (flavorMatch && sizeMatch) ? '' : 'none';
+      });
+    });
+  }
+
+  function setFlavorFilter(flavor) {
+    activeFlavorFilter = flavor;
+    document.querySelectorAll('.flavor-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.flavor === flavor);
+    });
+    applyFilters();
+    document.getElementById('menu').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function setSizeFilter(size) {
+    activeSizeFilter = size;
+    document.querySelectorAll('.size-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.size === size);
+    });
+    applyFilters();
+    document.getElementById('menu').scrollIntoView({behavior:'smooth', block:'start'});
+  }
 
   document.querySelectorAll('.flavor-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.flavor-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeFlavorFilter = btn.dataset.flavor;
-      applyFilters();
-    });
+    btn.addEventListener('click', () => setFlavorFilter(btn.dataset.flavor));
   });
 
   document.querySelectorAll('.size-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      activeSizeFilter = btn.dataset.size;
-      applyFilters();
-    });
+    btn.addEventListener('click', () => setSizeFilter(btn.dataset.size));
   });
-
-  function applyFilters() {
-    document.querySelectorAll('.product-card').forEach(card => {
-      const flavorMatch = activeFlavorFilter === 'all' || card.dataset.flavor === activeFlavorFilter;
-      const sizeMatch = activeSizeFilter === 'all' || card.dataset.size === activeSizeFilter;
-      card.style.display = (flavorMatch && sizeMatch) ? '' : 'none';
-    });
-  }
 
   let _loggedIn = {% if current_user.is_authenticated %}true{% else %}false{% endif %};
 </script>

@@ -1,1 +1,1 @@
-in the sales report and orders report if todays income it will automatic record in this week, this monthn and year. file 21
+if user cancel the order the user can reorder the cancel. also in user dashboard if click the flavor it will show the flavors. also in sized like medium, large, mega and etc.. can also click and also optimized the system and remove lags.

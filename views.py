@@ -505,6 +505,37 @@ def register_routes(app):
         db.session.commit()
         return jsonify({'success': True, 'message': 'Order cancelled successfully.'})
 
+    @app.route('/order/<int:order_id>/reorder', methods=['POST'])
+    @login_required
+    def reorder(order_id):
+        """Re-add all items from a cancelled or delivered order back to cart."""
+        order = Order.query.get_or_404(order_id)
+        if order.user_id != current_user.id:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+        if order.status not in ['Cancelled', 'Delivered']:
+            return jsonify({'success': False, 'message': 'Only cancelled or delivered orders can be reordered.'})
+
+        sid = get_session_id()
+        uid = current_user.id
+        added = 0
+        unavailable = []
+
+        for item in order.items:
+            product = Product.query.get(item.product_id)
+            if product and product.is_available:
+                CartController.add_to_cart(sid, item.product_id, uid, item.quantity)
+                added += 1
+            else:
+                unavailable.append(item.product_name)
+
+        if added == 0:
+            return jsonify({'success': False, 'message': 'None of the items are currently available.'})
+
+        msg = f'{added} item(s) added to cart!'
+        if unavailable:
+            msg += f' ({len(unavailable)} unavailable item(s) skipped)'
+        return jsonify({'success': True, 'message': msg, 'added': added, 'unavailable': unavailable})
+
     @app.route('/order/confirmation/<order_number>')
     def order_confirmation(order_number):
         order = OrderController.get_order(order_number)
