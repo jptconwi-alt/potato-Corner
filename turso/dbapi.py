@@ -123,9 +123,6 @@ class Cursor:
     # ── execution ──────────────────────────────────────────────────────────────
     def execute(self, sql: str, parameters=None):
         # Turso's free plan blocks ALL PRAGMA statements via HTTP.
-        # SQLAlchemy fires several on connect (read_uncommitted, foreign_keys,
-        # database_list, etc.) — intercept every PRAGMA and no-op it so
-        # SQLAlchemy's init probes pass without hitting Turso.
         if sql.strip().upper().startswith('PRAGMA'):
             self.description = None
             self.rowcount = -1
@@ -133,6 +130,9 @@ class Cursor:
             self._pos  = 0
             return self
         sql, params = _translate(sql, parameters or [])
+        # Log the SQL so we can see exactly what Turso blocks
+        import sys
+        print(f'[TURSO SQL] {sql[:120]}', file=sys.stderr)
         result = self._conn._pipeline([(sql, params)])
         self._load_result(result, 0)
         return self
