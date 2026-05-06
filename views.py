@@ -832,15 +832,15 @@ def register_routes(app):
     def admin_delete_product(product_id):
         try:
             from sqlalchemy import text
+            product = Product.query.get(product_id)
+            if not product:
+                return jsonify({'success': False, 'message': 'Product not found'})
+            # Delete related records first (works on any DB without disabling FK constraints)
             with db.engine.connect() as conn:
-                conn.execute(text("PRAGMA foreign_keys = OFF"))
                 conn.execute(text("DELETE FROM order_items WHERE product_id = :pid"), {"pid": product_id})
                 conn.execute(text("DELETE FROM cart_items WHERE product_id = :pid"), {"pid": product_id})
-                result = conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": product_id})
-                conn.execute(text("PRAGMA foreign_keys = ON"))
+                conn.execute(text("DELETE FROM products WHERE id = :pid"), {"pid": product_id})
                 conn.commit()
-            if result.rowcount == 0:
-                return jsonify({'success': False, 'message': 'Product not found'})
             db.session.expire_all()
             return jsonify({'success': True})
         except Exception as e:
@@ -862,11 +862,9 @@ def register_routes(app):
             placeholders = ','.join([':id' + str(i) for i in range(len(int_ids))])
             params = {'id' + str(i): v for i, v in enumerate(int_ids)}
             with db.engine.connect() as conn:
-                conn.execute(text("PRAGMA foreign_keys = OFF"))
                 conn.execute(text(f"DELETE FROM order_items WHERE product_id IN ({placeholders})"), params)
                 conn.execute(text(f"DELETE FROM cart_items WHERE product_id IN ({placeholders})"), params)
                 result = conn.execute(text(f"DELETE FROM products WHERE id IN ({placeholders})"), params)
-                conn.execute(text("PRAGMA foreign_keys = ON"))
                 conn.commit()
             db.session.expire_all()
             return jsonify({'success': True, 'deleted': result.rowcount})
